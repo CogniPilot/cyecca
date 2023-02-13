@@ -1,3 +1,9 @@
+"""
+Abstract base classes for Lie Groups and Lie Algebras
+
+Note, these are not restricted to Matrix Lie Groups.
+"""
+
 import abc
 
 import casadi as ca
@@ -21,7 +27,7 @@ class LieGroup(abc.ABC):
         The * operator will be used as the Group multiplication operator
         (see product)
         """
-        if type(self) != type(other):
+        if not isinstance(other, type(self)):
             return TypeError("Lie Group types must match for product")
         assert isinstance(other, LieGroup)
         return self.product(other)
@@ -31,21 +37,18 @@ class LieGroup(abc.ABC):
         """
         The identity element of the gorup, e
         """
-        ...
 
     @abc.abstractmethod
     def product(self, other):
         """
         The group operator (*), returns an element of the group: G1*G2 = G3
         """
-        ...
 
     @abc.abstractmethod
     def inv(self):
         """
         The inverse operator G1*G1.inv() = e
         """
-        ...
 
     @abc.abstractmethod
     def log(self):
@@ -53,14 +56,12 @@ class LieGroup(abc.ABC):
         Returns the Lie logarithm of a group element, an element of the
         Lie algebra
         """
-        ...
 
     @abc.abstractmethod
     def to_matrix_lie_group(self):
         """
         Returns the matrix lie group representation
         """
-        ...
 
     def __repr__(self):
         return repr(self.param)
@@ -73,6 +74,10 @@ class LieGroup(abc.ABC):
 
 
 class LieAlgebra(abc.ABC):
+    """
+    Abstract Lie Algebra base class.
+    """
+
     def __init__(self, param):
         self.param = ca.SX(param)
 
@@ -80,7 +85,7 @@ class LieAlgebra(abc.ABC):
         return self.add(other)
 
     def __sub__(self, other):
-        return self.sub(other.neg())
+        return self.add(other.neg())
 
     def __rmul__(self, other):
         return self.rmul(other)
@@ -92,37 +97,40 @@ class LieAlgebra(abc.ABC):
         return self.param == other.param
 
     @abc.abstractmethod
-    def neg(self, other):
+    def neg(self):
         """
         Negative of Lie algebra
         """
-        ...
 
     @abc.abstractmethod
     def add(self, other):
         """
         Add to elements of the Lie algebra
         """
-        ...
 
     @abc.abstractmethod
     def rmul(self, other):
         """
         Add to elements of the Lie algebra
         """
-        ...
 
     @abc.abstractmethod
-    def wedge(self, other):
-        ...
+    def wedge(self):
+        """
+        Map a vector to a Lie algebra matrix.
+        """
 
     @abc.abstractmethod
     def vee(self):
-        ...
+        """
+        Map a Lie algebra matrix to a avector
+        """
 
     @abc.abstractmethod
     def exp(self):
-        ...
+        """
+        Compute the Lie group exponential of a Lie algebra element
+        """
 
     def __repr__(self):
         return repr(self.param)

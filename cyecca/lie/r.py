@@ -1,61 +1,74 @@
+"""
+This is the module for the n-dimensional translational group R^n
+and the associated lie algebra r^n
+"""
+
 import casadi as ca
 
 from .base import LieAlgebra, LieGroup
 
 
-class LieGroup_R(LieGroup):
-    def __init__(self, n, param):
+class LieGroupR(LieGroup):
+    """
+    The Lie Group R^n
+    """
+
+    def __init__(self, n_dim, param):
         super().__init__(param)
-        self.n = n
-        assert self.param.shape == (n, 1)
+        self.n_dim = n_dim
+        assert self.param.shape == (self.n_dim, 1)
 
     def inv(self):
-        return LieGroup_R(self.n, -self.param)
+        return LieGroupR(self.n_dim, -self.param)
 
     def log(self):
-        return LieAlgebra_r(self.n, self.param)
+        return LieAlgebraR(self.n_dim, self.param)
 
     def product(self, other):
-        v = self.param + other.param
-        return LieGroup_R(self.n, v)
+        param = self.param + other.param
+        return LieGroupR(self.n_dim, param)
 
     def identity(self):
-        v = ca.sparsify(ca.SX.zeros(self.n, 1))
-        return LieGroup_R(self.n, v)
+        param = ca.sparsify(ca.SX.zeros(self.n_dim, 1))
+        return LieGroupR(self.n_dim, param)
 
     def to_matrix_lie_group(self):
-        G = ca.sparsify(ca.SX.zeros(self.n + 1, self.n + 1))
-        G[: self.n, : self.n] = ca.SX.eye(self.n)
-        G[: self.n, self.n] = self.param
-        G[self.n, self.n] = 1
-        return G
+        matrix = ca.sparsify(ca.SX.zeros(self.n_dim + 1, self.n_dim + 1))
+        matrix[: self.n_dim, : self.n_dim] = ca.SX.eye(self.n_dim)
+        matrix[: self.n_dim, self.n_dim] = self.param
+        matrix[self.n_dim, self.n_dim] = 1
+        return matrix
 
 
-class LieAlgebra_r(LieAlgebra):
+class LieAlgebraR(LieAlgebra):
+    """
+    Translation Lie Algebra
+    """
+
     def __init__(self, n, param):
         super().__init__(param)
-        self.n = n
+        self.n_dim = n
         assert self.param.shape == (n, 1)
 
     def wedge(self):
-        X = ca.sparsify(ca.SX.zeros(self.n + 1, self.n + 1))
-        X[: self.n, self.n] = self.param
-        return X
+        algebra = ca.sparsify(ca.SX.zeros(self.n_dim + 1, self.n_dim + 1))
+        algebra[: self.n_dim, self.n_dim] = self.param
+        return algebra
 
     def vee(self):
         return self.param
 
     def exp(self):
-        return LieGroup_R(self.n, self.param)
+        return LieGroupR(self.n_dim, self.param)
 
     def neg(self):
-        return LieAlgebra_r(self.n, -self.param)
+        return LieAlgebraR(self.n_dim, -self.param)
 
     def add(self, other):
-        return LieAlgebra_r(self.n, self.param + other.param)
+        return LieAlgebraR(self.n_dim, self.param + other.param)
 
     def rmul(self, other):
         other = ca.SX(other)
         assert ca.SX(other).shape == (1, 1)
-        v = other * self.param
-        return LieAlgebra_r(self.n, v)
+        param = other * self.param
+        return LieAlgebraR(self.n_dim, param)

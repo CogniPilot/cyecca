@@ -1,0 +1,122 @@
+import casadi as ca
+
+from .base import LieAlgebra, LieGroup
+
+
+class LieAlgebraSO3(LieAlgebra):
+    """
+    The so(3) Lie Algebra
+    """
+
+    def __init__(self, param):
+        self.param = param
+
+    @property
+    def x(self):
+        return self.param[0]
+
+    @property
+    def y(self):
+        return self.param[1]
+
+    @property
+    def z(self):
+        return self.param[2]
+ 
+    def wedge(self):
+        X = ca.SX(3, 3)
+        X[0, 1] = -self.z
+        X[0, 2] = self.y
+        X[1, 0] = self.z
+        X[1, 2] = -self.x
+        X[2, 0] = -self.y
+        X[2, 1] = self.x
+        return X
+
+    def vee(self):
+        return self.param
+
+
+class LieGroupSO3Quat(LieGroup):
+    """
+    The SO(3) Lie Group, parameterized by Quaternions
+    """
+
+    def __init__(self, param):
+        super().__init__(param)
+        assert self.param.shape == (4, 1)
+
+    @property
+    def v(self):
+        """return vector part of quaternion"""
+        return self.param[:3]
+
+    @property
+    def x(self):
+        """return vector x component of quternion"""
+        return self.param[0]
+
+    @property
+    def y(self):
+        """return vector y component of quternion"""
+        return self.param[1]
+
+    @property
+    def z(self):
+        """return vector w component of quternion"""
+        return self.param[2]
+
+    @property
+    def w(self):
+        """return scalar component of quaternion"""
+        return self.param[3]
+
+    @staticmethod
+    def identity():
+        return LieGroupSO3Quat(ca.vertcat(0, 0, 0, 1))
+
+    def inv(self):
+        return LieGruopSO3Quat(ca.vertcat(-self.v, w))
+
+    def log(self):
+        v = ca.SX(3, 1)
+        norm_q = ca.norm_2(self.params)
+        theta = 2 * ca.cos(self.params[0])
+        c = ca.sin(theta/2)
+        v[0] = theta * q[1] / c
+        return 0.5 * self.product(v)
+
+    def product(self, other):
+        w = self.w*other.w - ca.dot(self.v, other.v)
+        v = self.w*other.v + other.w*self.v + ca.cross(self.v, other.v)
+        return LieGroupSO3Quat(ca.vertcat(v, w))
+
+    def to_matrix_lie_group(self):
+        a = self.param[3]
+        b = self.param[0]
+        c = self.param[1]
+        d = self.param[2]
+        aa = a * a
+        ab = a * b
+        ac = a * c
+        ad = a * d
+        bb = b * b
+        bc = b * c
+        bd = b * d
+        cc = c * c
+        cd = c * d
+        dd = d * d
+        R[0, 0] = aa + bb - cc - dd
+        R[0, 1] = 2 * (bc - ad)
+        R[0, 2] = 2 * (bd + ac)
+        R[1, 0] = 2 * (bc + ad)
+        R[1, 1] = aa + cc - bb - dd
+        R[1, 2] = 2 * (cd - ab)
+        R[2, 0] = 2 * (bd - ac)
+        R[2, 1] = 2 * (cd + ab)
+        R[2, 2] = aa + dd - bb - cc
+        return R
+    
+    @staticmethod
+    def exp(self, g : LieAlgebraSO3):
+        return SO3Quat(ca.vertcat(0, 0, 0, 1))

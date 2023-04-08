@@ -696,6 +696,23 @@ docs = ["myst-parser", "sphinx-autodoc-typehints", "sphinxcontrib-github-alt", "
 test = ["ipykernel", "pre-commit", "pytest", "pytest-cov", "pytest-timeout"]
 
 [[package]]
+name = "lark"
+version = "1.1.5"
+description = "a modern parsing library"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "lark-1.1.5-py3-none-any.whl", hash = "sha256:8476f9903e93fbde4f6c327f74d79e9b4bd0ed9294c5dfa3164ab8c581b5de2a"},
+    {file = "lark-1.1.5.tar.gz", hash = "sha256:4b534eae1f9af5b4ea000bea95776350befe1981658eea3820a01c37e504bb4d"},
+]
+
+[package.extras]
+atomic-cache = ["atomicwrites"]
+nearley = ["js2py"]
+regex = ["regex"]
+
+[[package]]
 name = "lazy-object-proxy"
 version = "1.9.0"
 description = "A fast and thorough lazy object proxy."
@@ -1606,4 +1623,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "e194fbef91f8464f417779dd2e5ef1e5f9babd8b385bf3567e537ef0494e393b"
+content-hash = "1fb33a29337dfa099473598ff4ce935562bb88ca0ae2cc1acf28b05f82e08159"

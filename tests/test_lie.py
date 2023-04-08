@@ -1,11 +1,15 @@
 import unittest
 
 import casadi as ca
+import numpy as np
 
-from cyecca.lie.r import LieGroupR
+from cyecca.lie.r import LieGroupR, LieAlgebraR
+from cyecca.lie.so2 import LieGroupSO2, LieAlgebraSO2
+from cyecca.lie.so3 import LieGroupSO3Quat, LieAlgebraSO3
 
 
 class Test_LieGroupR(unittest.TestCase):
+
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
         G1 = LieGroupR(3, v)
@@ -37,9 +41,51 @@ class Test_LieGroupR(unittest.TestCase):
             self.assertEqual(G3.param[i], v3[i])
 
 
-class Test_LieGroup_SO2(unittest.TestCase):
-    pass
+class Test_LieGroupR(unittest.TestCase):
+
+    def test_ctor(self):
+        v = ca.DM([1, 2, 3])
+        g1 = LieAlgebraR(3, v)
+        for i in range(3):
+            self.assertEqual(g1.param[i], v[i])
+        self.assertEqual(g1.n_dim, 3)
+
+    def test_bad_operations(self):
+        pass
+
+    def test_add(self):
+        v1 = ca.DM([1, 2, 3])
+        v2 = ca.DM([4, 5, 6])
+        v3 = v1 + v2
+        g1 = LieAlgebraR(3, ca.DM([1, 2, 3]))
+        g2 = LieAlgebraR(3, ca.DM([4, 5, 6]))
+        g3 = g1 + g2
+        for i in range(3):
+            self.assertEqual(g3.param[i], v3[i])
+
+
+class Test_LieGroupSO2(unittest.TestCase):
+
+    def test_ctor(self):
+        v = ca.DM([1])
+        G1 = LieGroupSO2(1)
+
+
+class Test_LieGroupSO3(unittest.TestCase):
+
+    def test_ctor(self):
+        v = ca.DM([1])
+        G1 = LieGroupSO3Quat([1, 0, 0, 0])
+
+    def test_product(self):
+        G1 = LieGroupSO3Quat.identity()
+        G2 = LieGroupSO3Quat([0, 1, 0, 0])
+        G3 = G1*G2
+        v = ca.vertcat(0, 1, 0, 0)
+        for i in range(4):
+            self.assertEqual(G3.param[i], v[i])
 
 
 if __name__ == "__main__":
     unittest.main()
+

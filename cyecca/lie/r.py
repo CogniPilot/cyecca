@@ -59,8 +59,7 @@ class LieGroupR(LieGroup):
         param = self.param + other.param
         return LieGroupR(self.n_dim, param)
 
-    @staticmethod
-    def identity():
+    def identity(self):
         param = ca.sparsify(ca.SX.zeros(self.n_dim, 1))
         return LieGroupR(self.n_dim, param)
 

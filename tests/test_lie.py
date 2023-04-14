@@ -78,14 +78,24 @@ class Test_LieGroupSO3(unittest.TestCase):
         G1 = LieGroupSO3Quat([1, 0, 0, 0])
 
     def test_product(self):
-        G1 = LieGroupSO3Quat.identity()
+        e = LieGroupSO3Quat.identity()
         G2 = LieGroupSO3Quat([0, 1, 0, 0])
-        G3 = G1*G2
-        v = ca.vertcat(0, 1, 0, 0)
-        for i in range(4):
-            self.assertEqual(G3.param[i], v[i])
+        self.assertEqual(e*G2, G2)
+        self.assertEqual(G2*e, G2)
+        self.assertEqual(G2, G2)
+
+
+class Test_Random(unittest.TestCase):
+    
+    def test_random(self):
+        g = LieAlgebraSO3([1, 2, 3])
+        
+        self.assertEqual(g + g, LieAlgebraSO3([2, 4, 6]))
+        G = LieGroupSO3Quat.exp(g)
+        #g_test = G.log()
+        #error = g_test - g
+        #print(error)
 
 
 if __name__ == "__main__":
     unittest.main()
-

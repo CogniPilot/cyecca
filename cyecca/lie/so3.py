@@ -8,9 +8,6 @@ class LieAlgebraSO3(LieAlgebra):
     The so(3) Lie Algebra
     """
 
-    def __init__(self, param):
-        self.param = param
-
     @property
     def x(self):
         return self.param[0]
@@ -23,6 +20,15 @@ class LieAlgebraSO3(LieAlgebra):
     def z(self):
         return self.param[2]
  
+    def neg(self):
+        return LieAlgebraSO3(-self.param)
+
+    def add(self, other):
+        return LieAlgebraSO3(self.param + other.param)
+
+    def rmul(self, scalar):
+        return LieAlgebraSO3(scalar*self.param)
+
     def wedge(self):
         X = ca.SX(3, 3)
         X[0, 1] = -self.z
@@ -76,17 +82,19 @@ class LieGroupSO3Quat(LieGroup):
         return LieGroupSO3Quat(ca.vertcat(0, 0, 0, 1))
 
     def inv(self):
-        return LieGruopSO3Quat(ca.vertcat(-self.v, w))
+        return LieGroupSO3Quat(ca.vertcat(-self.v, self.w))
 
     def log(self):
         v = ca.SX(3, 1)
-        norm_q = ca.norm_2(self.params)
-        theta = 2 * ca.cos(self.params[0])
+        norm_q = ca.norm_2(self.param)
+        theta = 2 * ca.cos(self.param[0])
         c = ca.sin(theta/2)
-        v[0] = theta * q[1] / c
-        return 0.5 * self.product(v)
+        #v[0] = theta * q[1] / c
+        return self.product(v) # * 0.5
 
-    def product(self, other):
+    def product(self, other : 'LieGroupSO3Quat'):
+        assert isinstance(self, LieGroupSO3Quat)
+        assert isinstance(other, LieGroupSO3Quat)
         w = self.w*other.w - ca.dot(self.v, other.v)
         v = self.w*other.v + other.w*self.v + ca.cross(self.v, other.v)
         return LieGroupSO3Quat(ca.vertcat(v, w))
@@ -106,6 +114,7 @@ class LieGroupSO3Quat(LieGroup):
         cc = c * c
         cd = c * d
         dd = d * d
+        R = ca.SX.sym(3, 3)
         R[0, 0] = aa + bb - cc - dd
         R[0, 1] = 2 * (bc - ad)
         R[0, 2] = 2 * (bd + ac)
@@ -117,6 +126,6 @@ class LieGroupSO3Quat(LieGroup):
         R[2, 2] = aa + dd - bb - cc
         return R
     
-    @staticmethod
-    def exp(self, g : LieAlgebraSO3):
-        return SO3Quat(ca.vertcat(0, 0, 0, 1))
+    @classmethod
+    def exp(cls, g : LieAlgebraSO3):
+        return cls(ca.vertcat(0, 0, 0, 1))

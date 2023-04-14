@@ -30,7 +30,7 @@ class LieAlgebra(abc.ABC):
         return self.neg()
 
     def __eq__(self, other) -> bool:
-        return self.param == other.param
+        return ca.logic_all(self.param == other.param)
 
     @abc.abstractmethod
     def neg(self):
@@ -79,7 +79,7 @@ class LieGroup(abc.ABC):
     (N)uetral: has a neutral element: G*e = G
     """
 
-    def __init__(self, param):
+    def __init__(self, param: ca.SX):
         self.param = ca.SX(param)
 
     def __mul__(self, other):
@@ -92,6 +92,9 @@ class LieGroup(abc.ABC):
         assert isinstance(other, LieGroup)
         return self.product(other)
 
+    def __eq__(self, other) -> bool:
+        return ca.logic_all(self.param == other.param)
+    
     @staticmethod
     @abc.abstractmethod
     def identity():
@@ -138,7 +141,7 @@ class LieGroup(abc.ABC):
         return str(self.param)
 
     def __eq__(self, other) -> bool:
-        return self.param == other.param
+        return ca.logic_all(self.param == other.param)
 
 
 

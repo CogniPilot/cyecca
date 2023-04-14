@@ -1,6 +1,6 @@
 import casadi as ca
 
-from .base import LieAlgebra, LieGroup
+from .base import LieAlgebra, LieGroup, EPS
 
 
 class LieAlgebraSO3(LieAlgebra):
@@ -85,12 +85,14 @@ class LieGroupSO3Quat(LieGroup):
         return LieGroupSO3Quat(ca.vertcat(-self.v, self.w))
 
     def log(self):
-        v = ca.SX(3, 1)
-        norm_q = ca.norm_2(self.param)
-        theta = 2 * ca.cos(self.param[0])
-        c = ca.sin(theta/2)
-        #v[0] = theta * q[1] / c
-        return self.product(v) # * 0.5
+        theta = 2 * ca.acos(self.w)
+        c = ca.sin(theta / 2)
+        v = ca.vertcat(self.x, self.y, self.z)
+        return LieAlgebraSO3(ca.if_else(
+            ca.fabs(c) > EPS,
+            theta * v / c,
+            ca.vertcat(0, 0, 0)
+        ))
 
     def product(self, other : 'LieGroupSO3Quat'):
         assert isinstance(self, LieGroupSO3Quat)
@@ -128,4 +130,8 @@ class LieGroupSO3Quat(LieGroup):
     
     @classmethod
     def exp(cls, g : LieAlgebraSO3):
-        return cls(ca.vertcat(0, 0, 0, 1))
+        theta = ca.norm_2(g.param)
+        w = ca.cos(theta / 2)
+        c = ca.sin(theta / 2)
+        v = c * g.param / theta
+        return LieGroupSO3Quat(ca.vertcat(v, w))

@@ -3,9 +3,11 @@ import unittest
 import casadi as ca
 import numpy as np
 
+from cyecca.lie.base import EPS
 from cyecca.lie.r import LieGroupR, LieAlgebraR
 from cyecca.lie.so2 import LieGroupSO2, LieAlgebraSO2
 from cyecca.lie.so3 import LieGroupSO3Quat, LieAlgebraSO3
+
 
 
 class Test_LieGroupR(unittest.TestCase):
@@ -13,8 +15,7 @@ class Test_LieGroupR(unittest.TestCase):
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
         G1 = LieGroupR(3, v)
-        for i in range(3):
-            self.assertEqual(G1.param[i], v[i])
+        self.assertEqual(G1.param, v)
         self.assertEqual(G1.n_dim, 3)
 
     def test_bad_operations(self):
@@ -37,8 +38,7 @@ class Test_LieGroupR(unittest.TestCase):
         G1 = LieGroupR(3, ca.DM([1, 2, 3]))
         G2 = LieGroupR(3, ca.DM([4, 5, 6]))
         G3 = G1 * G2
-        for i in range(3):
-            self.assertEqual(G3.param[i], v3[i])
+        self.assertEqual(G3.param, v3)
 
 
 class Test_LieGroupR(unittest.TestCase):
@@ -46,8 +46,7 @@ class Test_LieGroupR(unittest.TestCase):
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
         g1 = LieAlgebraR(3, v)
-        for i in range(3):
-            self.assertEqual(g1.param[i], v[i])
+        self.assertTrue(ca.norm_2(g1.param - v) < EPS)
         self.assertEqual(g1.n_dim, 3)
 
     def test_bad_operations(self):
@@ -60,8 +59,7 @@ class Test_LieGroupR(unittest.TestCase):
         g1 = LieAlgebraR(3, ca.DM([1, 2, 3]))
         g2 = LieAlgebraR(3, ca.DM([4, 5, 6]))
         g3 = g1 + g2
-        for i in range(3):
-            self.assertEqual(g3.param[i], v3[i])
+        self.assertEqual(g3, LieAlgebraR(3, v3))
 
 
 class Test_LieGroupSO2(unittest.TestCase):
@@ -77,24 +75,20 @@ class Test_LieGroupSO3(unittest.TestCase):
         v = ca.DM([1])
         G1 = LieGroupSO3Quat([1, 0, 0, 0])
 
-    def test_product(self):
+    def test_identity(self):
         e = LieGroupSO3Quat.identity()
         G2 = LieGroupSO3Quat([0, 1, 0, 0])
         self.assertEqual(e*G2, G2)
         self.assertEqual(G2*e, G2)
         self.assertEqual(G2, G2)
-
-
-class Test_Random(unittest.TestCase):
     
-    def test_random(self):
+    def test_addition(self):
         g = LieAlgebraSO3([1, 2, 3])
-        
-        self.assertEqual(g + g, LieAlgebraSO3([2, 4, 6]))
-        G = LieGroupSO3Quat.exp(g)
-        #g_test = G.log()
-        #error = g_test - g
-        #print(error)
+        self.assertEqual(g + g, LieAlgebraSO3(2*g.param))
+    
+    def test_exp_log(self):
+        g = LieAlgebraSO3([1, 2, 3])
+        self.assertEqual(g, LieGroupSO3Quat.exp(g).log())
 
 
 if __name__ == "__main__":

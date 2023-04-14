@@ -13,7 +13,7 @@ class LieAlgebraR(LieAlgebra):
     Translation Lie Algebra
     """
 
-    def __init__(self, n, param):
+    def __init__(self, n: int, param: ca.SX):
         super().__init__(param)
         self.n_dim = n
         assert self.param.shape == (n, 1)
@@ -44,7 +44,7 @@ class LieGroupR(LieGroup):
     The Lie Group R^n
     """
 
-    def __init__(self, n_dim, param):
+    def __init__(self, n_dim : int, param : ca.SX):
         super().__init__(param)
         self.n_dim = n_dim
         assert self.param.shape == (self.n_dim, 1)

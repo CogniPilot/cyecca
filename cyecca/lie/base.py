@@ -9,6 +9,9 @@ import abc
 import casadi as ca
 
 
+EPS = 1e-7
+
+
 class LieAlgebra(abc.ABC):
     """
     Abstract Lie Algebra base class.
@@ -30,7 +33,7 @@ class LieAlgebra(abc.ABC):
         return self.neg()
 
     def __eq__(self, other) -> bool:
-        return ca.logic_all(self.param == other.param)
+        return ca.norm_2(self.param - other.param) < EPS
 
     @abc.abstractmethod
     def neg(self):
@@ -141,7 +144,7 @@ class LieGroup(abc.ABC):
         return str(self.param)
 
     def __eq__(self, other) -> bool:
-        return ca.logic_all(self.param == other.param)
+        return ca.norm_2(self.param - other.param) < EPS
 
 
 

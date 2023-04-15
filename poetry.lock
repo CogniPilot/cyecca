@@ -1440,6 +1440,21 @@ files = [
 ]
 
 [[package]]
+name = "snakeviz"
+version = "2.1.1"
+description = "A web-based viewer for Python profiler output"
+category = "dev"
+optional = false
+python-versions = "*"
+files = [
+    {file = "snakeviz-2.1.1-py2.py3-none-any.whl", hash = "sha256:931142dc927101c9a4b6e89bc0577ff1a3d1886b483a04e6af70c31d2c3dce19"},
+    {file = "snakeviz-2.1.1.tar.gz", hash = "sha256:0d96c006304f095cb4b3fb7ed98bb866ca35a7ca4ab9020bbc27d295ee4c94d9"},
+]
+
+[package.dependencies]
+tornado = ">=2.0"
+
+[[package]]
 name = "stack-data"
 version = "0.6.2"
 description = "Extract data from python stack frames and tracebacks for informative displays"
@@ -1642,4 +1657,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "56656f90dee618254720f0d34d9cf73ca81088dce20234f9cff63f7f49774084"
+content-hash = "8c2a2197e6e19f39b8c4fdc5e1d124f76b3770128429e8bd3d78be683527006e"

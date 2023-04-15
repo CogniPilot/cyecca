@@ -25,6 +25,7 @@ coverage = {extras = ["toml"], version = "^7.1.0"}
 flake8-pyproject = "^1.2.2"
 pylint = "^2.16.1"
 pytest-cov = "^4.0.0"
+snakeviz = "^2.1.1"
 
 [build-system]
 requires = ["poetry-core"]

@@ -4,7 +4,6 @@ import cProfile
 from pstats import Stats, SortKey
 
 import casadi as ca
-import numpy as np
 
 from cyecca.lie.base import EPS
 from cyecca.lie.r import LieGroupR, LieAlgebraR
@@ -22,6 +21,7 @@ class Test_LieGroupR(unittest.TestCase):
         p.strip_dirs()
         p.sort_stats("cumtime")
         p.print_stats(10)
+        p.dump_stats(".prof_{:s}".format(self.id()))
 
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
@@ -62,6 +62,7 @@ class Test_LieAlgebraR(unittest.TestCase):
         p.strip_dirs()
         p.sort_stats("cumtime")
         p.print_stats(10)
+        p.dump_stats(".prof_{:s}".format(self.id()))
 
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
@@ -98,6 +99,7 @@ class Test_LieGroupSO3(unittest.TestCase):
         p.strip_dirs()
         p.sort_stats("cumtime")
         p.print_stats(10)
+        p.dump_stats(".prof_{:s}".format(self.id()))
 
     def test_ctor(self):
         v = ca.DM([1])

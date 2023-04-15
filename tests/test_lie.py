@@ -13,7 +13,6 @@ from cyecca.lie.so3 import LieGroupSO3Quat, LieAlgebraSO3
 
 
 class ProfiledTestCase(unittest.TestCase):
-
     def setUp(self):
         self.pr = cProfile.Profile()
         self.pr.enable()
@@ -22,13 +21,12 @@ class ProfiledTestCase(unittest.TestCase):
         p = Stats(self.pr)
         p.strip_dirs()
         p.sort_stats("cumtime")
-        profile_dir = Path('.profile')
+        profile_dir = Path(".profile")
         profile_dir.mkdir(exist_ok=True)
         p.dump_stats(profile_dir / self.id())
 
 
 class Test_LieGroupR(ProfiledTestCase):
-
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
         G1 = LieGroupR(3, v)
@@ -59,7 +57,6 @@ class Test_LieGroupR(ProfiledTestCase):
 
 
 class Test_LieAlgebraR(ProfiledTestCase):
-
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
         g1 = LieAlgebraR(3, v)
@@ -80,21 +77,18 @@ class Test_LieAlgebraR(ProfiledTestCase):
 
 
 class Test_LieAlgebraSO2(ProfiledTestCase):
-
     def test_ctor(self):
         v = ca.DM([1])
         G1 = LieAlgebraSO2(1)
 
 
 class Test_LieGroupSO2(ProfiledTestCase):
-
     def test_ctor(self):
         v = ca.DM([1])
         G1 = LieGroupSO2(1)
 
 
 class Test_LieGroupSO3(ProfiledTestCase):
-
     def test_ctor(self):
         v = ca.DM([1])
         G1 = LieGroupSO3Quat([1, 0, 0, 0])
@@ -109,6 +103,8 @@ class Test_LieGroupSO3(ProfiledTestCase):
     def test_addition(self):
         g = LieAlgebraSO3([1, 2, 3])
         self.assertEqual(g + g, LieAlgebraSO3(2 * g.param))
+        self.assertEqual(g - g, LieAlgebraSO3([0, 0, 0]))
+        self.assertEqual(-g, LieAlgebraSO3([-1, -2, -3]))
 
     def test_exp_log(self):
         g = LieAlgebraSO3([1, 2, 3])

@@ -1,5 +1,7 @@
 import casadi as ca
 
+from enum import Enum
+
 from .base import LieAlgebra, LieGroup, EPS
 
 
@@ -43,48 +45,79 @@ class LieAlgebraSO3(LieAlgebra):
         return self.param
 
 
+class LieGroupSO3Dcm(LieGroup):
+    """
+    The SO(3) Lie Group, parameterized by a matrix
+    """
+
+    def __init__(self, param):
+        super().__init__(param)
+        assert self.param.shape == (3, 3)
+
+    @staticmethod
+    def identity():
+        return LieGroupSO3Dcm(ca.DM.eye(3))
+
+    def inv(self):
+        return LieGroupSO3Dcm(self.param.T)
+
+    def log(self):
+        raise NotImplementedError("")
+
+    def product(self, other: "LieGroupSO3Dcm"):
+        raise NotImplementedError("")
+
+    @classmethod
+    def exp(cls, g: LieAlgebraSO3):
+        theta = ca.norm_2(g.param)
+        w = ca.cos(theta / 2)
+        c = ca.sin(theta / 2)
+        v = c * g.param / theta
+        return LieGroupSO3Quat(ca.vertcat(v, w))
+
+
 class LieGroupSO3Quat(LieGroup):
     """
     The SO(3) Lie Group, parameterized by Quaternions
     """
 
-    def __init__(self, param):
+    def __init__(self, param: ca.SX):
         super().__init__(param)
         assert self.param.shape == (4, 1)
 
     @property
-    def v(self):
+    def v(self) -> ca.SX:
         """return vector part of quaternion"""
         return self.param[:3]
 
     @property
-    def x(self):
+    def x(self) -> ca.SX:
         """return vector x component of quternion"""
         return self.param[0]
 
     @property
-    def y(self):
+    def y(self) -> ca.SX:
         """return vector y component of quternion"""
         return self.param[1]
 
     @property
-    def z(self):
+    def z(self) -> ca.SX:
         """return vector w component of quternion"""
         return self.param[2]
 
     @property
-    def w(self):
+    def w(self) -> ca.SX:
         """return scalar component of quaternion"""
         return self.param[3]
 
     @staticmethod
-    def identity():
+    def identity() -> "LieGroupSO3Quat":
         return LieGroupSO3Quat(ca.vertcat(0, 0, 0, 1))
 
-    def inv(self):
+    def inv(self) -> "LieGroupSO3Quat":
         return LieGroupSO3Quat(ca.vertcat(-self.v, self.w))
 
-    def log(self):
+    def log(self) -> LieAlgebraSO3:
         theta = 2 * ca.acos(self.w)
         c = ca.sin(theta / 2)
         v = ca.vertcat(self.x, self.y, self.z)
@@ -92,14 +125,14 @@ class LieGroupSO3Quat(LieGroup):
             ca.if_else(ca.fabs(c) > EPS, theta * v / c, ca.vertcat(0, 0, 0))
         )
 
-    def product(self, other: "LieGroupSO3Quat"):
+    def product(self, other: "LieGroupSO3Quat") -> "LieGroupSO3Quat":
         assert isinstance(self, LieGroupSO3Quat)
         assert isinstance(other, LieGroupSO3Quat)
         w = self.w * other.w - ca.dot(self.v, other.v)
         v = self.w * other.v + other.w * self.v + ca.cross(self.v, other.v)
         return LieGroupSO3Quat(ca.vertcat(v, w))
 
-    def to_matrix_lie_group(self):
+    def to_matrix(self) -> ca.SX:
         a = self.param[3]
         b = self.param[0]
         c = self.param[1]
@@ -127,9 +160,18 @@ class LieGroupSO3Quat(LieGroup):
         return R
 
     @classmethod
-    def exp(cls, g: LieAlgebraSO3):
+    def exp(cls, g: LieAlgebraSO3) -> "LieGroupSO3Quat":
         theta = ca.norm_2(g.param)
         w = ca.cos(theta / 2)
         c = ca.sin(theta / 2)
         v = c * g.param / theta
         return LieGroupSO3Quat(ca.vertcat(v, w))
+
+
+class LieGroupSO3EulerB321(LieGroup):
+    def __init__(self, param: ca.SX):
+        super().__init__(param)
+
+    @staticmethod
+    def exp(g: LieAlgebra):
+        return super().exp(g)

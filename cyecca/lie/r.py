@@ -18,21 +18,21 @@ class LieAlgebraR(LieAlgebra):
         self.n_dim = n
         assert self.param.shape == (n, 1)
 
-    def wedge(self):
+    def wedge(self) -> ca.SX:
         algebra = ca.sparsify(ca.SX.zeros(self.n_dim + 1, self.n_dim + 1))
         algebra[: self.n_dim, self.n_dim] = self.param
         return algebra
 
-    def vee(self):
+    def vee(self) -> ca.SX:
         return self.param
 
-    def neg(self):
+    def neg(self) -> "LieAlgebraR":
         return LieAlgebraR(self.n_dim, -self.param)
 
-    def add(self, other):
+    def add(self, other: "LieAlgebraR") -> "LieAlgebraR":
         return LieAlgebraR(self.n_dim, self.param + other.param)
 
-    def rmul(self, other):
+    def rmul(self, other: float) -> "LieAlgebraR":
         other = ca.SX(other)
         assert ca.SX(other).shape == (1, 1)
         param = other * self.param
@@ -49,21 +49,21 @@ class LieGroupR(LieGroup):
         self.n_dim = n_dim
         assert self.param.shape == (self.n_dim, 1)
 
-    def inv(self):
+    def inv(self) -> "LieGroupR":
         return LieGroupR(self.n_dim, -self.param)
 
-    def log(self):
+    def log(self) -> "LieAlgebraR":
         return LieAlgebraR(self.n_dim, self.param)
 
-    def product(self, other: "LieGroupR"):
+    def product(self, other: "LieGroupR") -> "LieGroupR":
         param = self.param + other.param
         return LieGroupR(self.n_dim, param)
 
-    def identity(self):
+    def identity(self) -> "LieGroupR":
         param = ca.sparsify(ca.SX.zeros(self.n_dim, 1))
         return LieGroupR(self.n_dim, param)
 
-    def to_matrix_lie_group(self):
+    def to_matrix(self):
         matrix = ca.sparsify(ca.SX.zeros(self.n_dim + 1, self.n_dim + 1))
         matrix[: self.n_dim, : self.n_dim] = ca.SX.eye(self.n_dim)
         matrix[: self.n_dim, self.n_dim] = self.param

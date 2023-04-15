@@ -17,25 +17,25 @@ class LieAlgebraSO2(LieAlgebra):
         super().__init__(param)
         assert self.param.shape == (1, 1)
 
-    def wedge(self):
-        algebra = ca.sparsify(ca.SX.zeros(2, 2))
-        algebra[0, 1] = -self.param
-        algebra[1, 0] = self.param
-        return algebra
-
-    def vee(self):
-        return self.param
+    def add(self, other):
+        return LieAlgebraSO2(self.param + other.param)
 
     def neg(self):
         return LieAlgebraSO2(-self.param)
-
-    def add(self, other):
-        return LieAlgebraSO2(self.param + other.param)
 
     def rmul(self, other):
         other = ca.SX(other)
         assert ca.SX(other).shape == (1, 1)
         return LieAlgebraSO2(other * self.param)
+
+    def vee(self):
+        return self.param
+
+    def wedge(self):
+        algebra = ca.sparsify(ca.SX.zeros(2, 2))
+        algebra[0, 1] = -self.param
+        algebra[1, 0] = self.param
+        return algebra
 
 
 class LieGroupSO2(LieGroup):
@@ -64,7 +64,7 @@ class LieGroupSO2(LieGroup):
     def identity(self):
         return LieGroupSO2(0)
 
-    def to_matrix_lie_group(self):
+    def to_matrix(self):
         matrix = ca.SX.zeros(2, 2)
         matrix[0, 0] = ca.cos(self.theta)
         matrix[0, 1] = -ca.sin(self.theta)
@@ -72,5 +72,6 @@ class LieGroupSO2(LieGroup):
         matrix[1, 1] = ca.cos(self.theta)
         return matrix
 
-    def exp(self):
-        return LieGroupSO3(self.theta)
+    @staticmethod
+    def exp(g: LieAlgebra):
+        return LieGroupSO2

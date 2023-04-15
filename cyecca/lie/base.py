@@ -14,7 +14,10 @@ EPS = 1e-7
 
 class LieAlgebra(abc.ABC):
     """
-    Abstract Lie Algebra base class.
+    Lie Algebra base class.
+
+    Abstract base class, must implement:
+    add, neg, rmul, vee, wedge
     """
 
     def __init__(self, param):
@@ -36,15 +39,15 @@ class LieAlgebra(abc.ABC):
         return ca.norm_2(self.param - other.param) < EPS
 
     @abc.abstractmethod
-    def neg(self):
-        """
-        Negative of Lie algebra
-        """
-
-    @abc.abstractmethod
     def add(self, other):
         """
         Add to elements of the Lie algebra
+        """
+
+    @abc.abstractmethod
+    def neg(self):
+        """
+        Negative of Lie algebra
         """
 
     @abc.abstractmethod
@@ -54,15 +57,15 @@ class LieAlgebra(abc.ABC):
         """
 
     @abc.abstractmethod
-    def wedge(self):
-        """
-        Map a vector to a Lie algebra matrix.
-        """
-
-    @abc.abstractmethod
     def vee(self):
         """
         Map a Lie algebra matrix to a avector
+        """
+
+    @abc.abstractmethod
+    def wedge(self):
+        """
+        Map a vector to a Lie algebra matrix.
         """
 
     def __repr__(self):
@@ -80,6 +83,9 @@ class LieGroup(abc.ABC):
     (A)ssociative with operator (*), (G1*G2)*G3 = G1*(G2*G3)
     (I)nverse: has an inverse such that G*G^-1 = e
     (N)uetral: has a neutral element: G*e = G
+
+    Abstract base class, must implement:
+    exp, identity, inv, log, product
     """
 
     def __init__(self, param: ca.SX):
@@ -100,15 +106,16 @@ class LieGroup(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
+    def exp(g: LieAlgebra):
+        """
+        Compute the Lie group exponential of a Lie algebra element
+        """
+
+    @staticmethod
+    @abc.abstractmethod
     def identity():
         """
         The identity element of the gorup, e
-        """
-
-    @abc.abstractmethod
-    def product(self, other):
-        """
-        The group operator (*), returns an element of the group: G1*G2 = G3
         """
 
     @abc.abstractmethod
@@ -125,16 +132,15 @@ class LieGroup(abc.ABC):
         """
 
     @abc.abstractmethod
-    def to_matrix_lie_group(self):
+    def product(self, other):
         """
-        Returns the matrix lie group representation
+        The group operator (*), returns an element of the group: G1*G2 = G3
         """
 
-    @staticmethod
     @abc.abstractmethod
-    def exp(g: LieAlgebra):
+    def to_matrix(self):
         """
-        Compute the Lie group exponential of a Lie algebra element
+        Returns the matrix lie group representation
         """
 
     def __repr__(self):

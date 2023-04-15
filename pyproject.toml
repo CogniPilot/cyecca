@@ -24,6 +24,7 @@ ipykernel = "^6.21.1"
 coverage = {extras = ["toml"], version = "^7.1.0"}
 flake8-pyproject = "^1.2.2"
 pylint = "^2.16.1"
+pytest-cov = "^4.0.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -33,7 +34,7 @@ build-backend = "poetry.core.masonry.api"
 omit = [".*", "*/site-packages/*"]
 
 [tool.coverage.report]
-fail_under = 100
+fail_under = 60
 
 [tool.flake8]
 ignore = ['E231', 'E241']

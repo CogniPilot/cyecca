@@ -161,4 +161,4 @@ cython_debug/
 
 .vscode/
 notebooks/
-.prof_*
+.profile/

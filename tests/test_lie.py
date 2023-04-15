@@ -1,7 +1,8 @@
 import unittest
 
+from pathlib import Path
 import cProfile
-from pstats import Stats, SortKey
+from pstats import Stats
 
 import casadi as ca
 
@@ -11,7 +12,8 @@ from cyecca.lie.so2 import LieGroupSO2, LieAlgebraSO2
 from cyecca.lie.so3 import LieGroupSO3Quat, LieAlgebraSO3
 
 
-class Test_LieGroupR(unittest.TestCase):
+class ProfiledTestCase(unittest.TestCase):
+
     def setUp(self):
         self.pr = cProfile.Profile()
         self.pr.enable()
@@ -20,7 +22,12 @@ class Test_LieGroupR(unittest.TestCase):
         p = Stats(self.pr)
         p.strip_dirs()
         p.sort_stats("cumtime")
-        p.dump_stats(".prof_{:s}".format(self.id()))
+        profile_dir = Path('.profile')
+        profile_dir.mkdir(exist_ok=True)
+        p.dump_stats(profile_dir / self.id())
+
+
+class Test_LieGroupR(ProfiledTestCase):
 
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
@@ -51,16 +58,7 @@ class Test_LieGroupR(unittest.TestCase):
         self.assertTrue(ca.norm_2(G3.param - v3) < EPS)
 
 
-class Test_LieAlgebraR(unittest.TestCase):
-    def setUp(self):
-        self.pr = cProfile.Profile()
-        self.pr.enable()
-
-    def tearDown(self) -> None:
-        p = Stats(self.pr)
-        p.strip_dirs()
-        p.sort_stats("cumtime")
-        p.dump_stats(".prof_{:s}".format(self.id()))
+class Test_LieAlgebraR(ProfiledTestCase):
 
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
@@ -81,22 +79,21 @@ class Test_LieAlgebraR(unittest.TestCase):
         self.assertEqual(g3, LieAlgebraR(3, v3))
 
 
-class Test_LieGroupSO2(unittest.TestCase):
+class Test_LieAlgebraSO2(ProfiledTestCase):
+
+    def test_ctor(self):
+        v = ca.DM([1])
+        G1 = LieAlgebraSO2(1)
+
+
+class Test_LieGroupSO2(ProfiledTestCase):
+
     def test_ctor(self):
         v = ca.DM([1])
         G1 = LieGroupSO2(1)
 
 
-class Test_LieGroupSO3(unittest.TestCase):
-    def setUp(self):
-        self.pr = cProfile.Profile()
-        self.pr.enable()
-
-    def tearDown(self) -> None:
-        p = Stats(self.pr)
-        p.strip_dirs()
-        p.sort_stats("cumtime")
-        p.dump_stats(".prof_{:s}".format(self.id()))
+class Test_LieGroupSO3(ProfiledTestCase):
 
     def test_ctor(self):
         v = ca.DM([1])

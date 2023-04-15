@@ -97,7 +97,7 @@ class LieGroup(abc.ABC):
 
     def __eq__(self, other) -> bool:
         return ca.logic_all(self.param == other.param)
-    
+
     @staticmethod
     @abc.abstractmethod
     def identity():
@@ -145,6 +145,3 @@ class LieGroup(abc.ABC):
 
     def __eq__(self, other) -> bool:
         return ca.norm_2(self.param - other.param) < EPS
-
-
-

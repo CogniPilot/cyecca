@@ -44,7 +44,7 @@ class LieGroupR(LieGroup):
     The Lie Group R^n
     """
 
-    def __init__(self, n_dim : int, param : ca.SX):
+    def __init__(self, n_dim: int, param: ca.SX):
         super().__init__(param)
         self.n_dim = n_dim
         assert self.param.shape == (self.n_dim, 1)
@@ -55,7 +55,7 @@ class LieGroupR(LieGroup):
     def log(self):
         return LieAlgebraR(self.n_dim, self.param)
 
-    def product(self, other: 'LieGroupR'):
+    def product(self, other: "LieGroupR"):
         param = self.param + other.param
         return LieGroupR(self.n_dim, param)
 
@@ -71,5 +71,5 @@ class LieGroupR(LieGroup):
         return matrix
 
     @staticmethod
-    def exp(g : LieAlgebraR):
+    def exp(g: LieAlgebraR):
         return LieGroupR(g.n_dim, g)

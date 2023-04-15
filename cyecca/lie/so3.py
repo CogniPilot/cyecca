@@ -19,7 +19,7 @@ class LieAlgebraSO3(LieAlgebra):
     @property
     def z(self):
         return self.param[2]
- 
+
     def neg(self):
         return LieAlgebraSO3(-self.param)
 
@@ -27,7 +27,7 @@ class LieAlgebraSO3(LieAlgebra):
         return LieAlgebraSO3(self.param + other.param)
 
     def rmul(self, scalar):
-        return LieAlgebraSO3(scalar*self.param)
+        return LieAlgebraSO3(scalar * self.param)
 
     def wedge(self):
         X = ca.SX(3, 3)
@@ -88,17 +88,15 @@ class LieGroupSO3Quat(LieGroup):
         theta = 2 * ca.acos(self.w)
         c = ca.sin(theta / 2)
         v = ca.vertcat(self.x, self.y, self.z)
-        return LieAlgebraSO3(ca.if_else(
-            ca.fabs(c) > EPS,
-            theta * v / c,
-            ca.vertcat(0, 0, 0)
-        ))
+        return LieAlgebraSO3(
+            ca.if_else(ca.fabs(c) > EPS, theta * v / c, ca.vertcat(0, 0, 0))
+        )
 
-    def product(self, other : 'LieGroupSO3Quat'):
+    def product(self, other: "LieGroupSO3Quat"):
         assert isinstance(self, LieGroupSO3Quat)
         assert isinstance(other, LieGroupSO3Quat)
-        w = self.w*other.w - ca.dot(self.v, other.v)
-        v = self.w*other.v + other.w*self.v + ca.cross(self.v, other.v)
+        w = self.w * other.w - ca.dot(self.v, other.v)
+        v = self.w * other.v + other.w * self.v + ca.cross(self.v, other.v)
         return LieGroupSO3Quat(ca.vertcat(v, w))
 
     def to_matrix_lie_group(self):
@@ -127,9 +125,9 @@ class LieGroupSO3Quat(LieGroup):
         R[2, 1] = 2 * (cd + ab)
         R[2, 2] = aa + dd - bb - cc
         return R
-    
+
     @classmethod
-    def exp(cls, g : LieAlgebraSO3):
+    def exp(cls, g: LieAlgebraSO3):
         theta = ca.norm_2(g.param)
         w = ca.cos(theta / 2)
         c = ca.sin(theta / 2)

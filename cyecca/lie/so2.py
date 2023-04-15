@@ -74,4 +74,3 @@ class LieGroupSO2(LieGroup):
 
     def exp(self):
         return LieGroupSO3(self.theta)
-

@@ -1,7 +1,5 @@
 import casadi as ca
 
-from enum import Enum
-
 from .base import LieAlgebra, LieGroup, EPS
 
 
@@ -133,10 +131,10 @@ class LieGroupSO3Quat(LieGroup):
         return LieGroupSO3Quat(ca.vertcat(v, w))
 
     def to_matrix(self) -> ca.SX:
-        a = self.param[3]
-        b = self.param[0]
-        c = self.param[1]
-        d = self.param[2]
+        a = self.w
+        b = self.x
+        c = self.y
+        d = self.z
         aa = a * a
         ab = a * b
         ac = a * c

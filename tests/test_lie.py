@@ -20,7 +20,6 @@ class Test_LieGroupR(unittest.TestCase):
         p = Stats(self.pr)
         p.strip_dirs()
         p.sort_stats("cumtime")
-        p.print_stats(10)
         p.dump_stats(".prof_{:s}".format(self.id()))
 
     def test_ctor(self):
@@ -61,7 +60,6 @@ class Test_LieAlgebraR(unittest.TestCase):
         p = Stats(self.pr)
         p.strip_dirs()
         p.sort_stats("cumtime")
-        p.print_stats(10)
         p.dump_stats(".prof_{:s}".format(self.id()))
 
     def test_ctor(self):
@@ -98,7 +96,6 @@ class Test_LieGroupSO3(unittest.TestCase):
         p = Stats(self.pr)
         p.strip_dirs()
         p.sort_stats("cumtime")
-        p.print_stats(10)
         p.dump_stats(".prof_{:s}".format(self.id()))
 
     def test_ctor(self):

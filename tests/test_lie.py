@@ -54,6 +54,9 @@ class Test_LieGroupR(ProfiledTestCase):
         G2 = LieGroupR(3, ca.DM([4, 5, 6]))
         G3 = G1 * G2
         self.assertTrue(ca.norm_2(G3.param - v3) < EPS)
+    
+    def test_identity(self):
+        G1 = LieGroupR(3, [1, 2, 3])
 
 
 class Test_LieAlgebraR(ProfiledTestCase):
@@ -80,6 +83,11 @@ class Test_LieAlgebraSO2(ProfiledTestCase):
     def test_ctor(self):
         v = ca.DM([1])
         G1 = LieAlgebraSO2(1)
+    
+    def test_identity(self):
+        e = LieGroupSO2.identity()
+        G = LieGroupSO2(2)
+        self.assertEqual(G, e*G)
 
 
 class Test_LieGroupSO2(ProfiledTestCase):

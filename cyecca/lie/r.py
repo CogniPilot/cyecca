@@ -43,7 +43,7 @@ class LieGroupR(LieGroup):
     """
     The Lie Group R^n
     """
-
+    n_dim = 0
     def __init__(self, n_dim: int, param: ca.SX):
         super().__init__(param)
         self.n_dim = n_dim
@@ -59,9 +59,10 @@ class LieGroupR(LieGroup):
         param = self.param + other.param
         return LieGroupR(self.n_dim, param)
 
-    def identity(self) -> "LieGroupR":
-        param = ca.sparsify(ca.SX.zeros(self.n_dim, 1))
-        return LieGroupR(self.n_dim, param)
+    @classmethod
+    def identity(cls, n_dim: int) -> "LieGroupR":
+        param = ca.sparsify(ca.SX.zeros(n_dim, 1))
+        return LieGroupR(n_dim, param)
 
     def to_matrix(self):
         matrix = ca.sparsify(ca.SX.zeros(self.n_dim + 1, self.n_dim + 1))
@@ -73,3 +74,27 @@ class LieGroupR(LieGroup):
     @staticmethod
     def exp(g: LieAlgebraR):
         return LieGroupR(g.n_dim, g)
+
+
+class LieGroupR2(LieGroupR):
+
+    def __init__(self, param: ca.SX):
+        super().__init__(2, param)
+
+
+class LieAlgebraR2(LieAlgebraR):
+
+    def __init__(self, param: ca.SX):
+        super().__init__(2, param)
+
+
+class LieGroupR3(LieGroupR):
+
+    def __init__(self, param: ca.SX):
+        super().__init__(3, param)
+
+
+class LieAlgebraR3(LieAlgebraR):
+
+    def __init__(param: ca.SX):
+        super().__init__(3, param)

@@ -14,6 +14,22 @@ EPS = 1e-7
 
 class LieAlgebra(abc.ABC):
     """
+    Lie Algebra
+    """
+
+    def __init__(self, n_param, shape):
+        pass
+        self.param = ca.SX(param)
+
+    def product(self, a, b):
+        pass
+
+    def add(self, a, b):
+        pass
+
+
+class LieAlgebraElement(abc.ABC):
+    """
     Lie Algebra base class.
 
     Abstract base class, must implement:
@@ -75,7 +91,7 @@ class LieAlgebra(abc.ABC):
         return str(self.param)
 
 
-class LieGroup(abc.ABC):
+class LieGroupElement(abc.ABC):
     """
     A Lie Group with group operator (*) is:
 
@@ -111,9 +127,9 @@ class LieGroup(abc.ABC):
         Compute the Lie group exponential of a Lie algebra element
         """
 
-    @staticmethod
+    @classmethod
     @abc.abstractmethod
-    def identity():
+    def identity(cls):
         """
         The identity element of the gorup, e
         """

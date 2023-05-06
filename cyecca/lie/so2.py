@@ -61,8 +61,9 @@ class LieGroupSO2(LieGroup):
         theta = self.theta + other.theta
         return LieGroupSO2(theta)
 
-    def identity(self):
-        return LieGroupSO2(0)
+    @classmethod
+    def identity(cls):
+        return cls(0)
 
     def to_matrix(self):
         matrix = ca.SX.zeros(2, 2)

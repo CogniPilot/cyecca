@@ -4,12 +4,9 @@ from pathlib import Path
 import cProfile
 from pstats import Stats
 
-import casadi as ca
+import sympy
 
-from cyecca.lie.base import EPS
-from cyecca.lie.r import LieGroupR, LieAlgebraR
-from cyecca.lie.so2 import LieGroupSO2, LieAlgebraSO2
-from cyecca.lie.so3 import LieGroupSO3Quat, LieAlgebraSO3
+from cyecca import lie
 
 
 class ProfiledTestCase(unittest.TestCase):
@@ -26,10 +23,9 @@ class ProfiledTestCase(unittest.TestCase):
         p.dump_stats(profile_dir / self.id())
 
 
-class Test_LieGroupR(ProfiledTestCase):
+class Test_LieGroupRn(ProfiledTestCase):
     def test_ctor(self):
         v = ca.DM([1, 2, 3])
-        G1 = LieGroupR(3, v)
         self.assertTrue(ca.norm_2(G1.param - v) < EPS)
         self.assertEqual(G1.n_dim, 3)
 
@@ -54,7 +50,7 @@ class Test_LieGroupR(ProfiledTestCase):
         G2 = LieGroupR(3, ca.DM([4, 5, 6]))
         G3 = G1 * G2
         self.assertTrue(ca.norm_2(G3.param - v3) < EPS)
-    
+
     def test_identity(self):
         G1 = LieGroupR(3, [1, 2, 3])
 
@@ -83,11 +79,11 @@ class Test_LieAlgebraSO2(ProfiledTestCase):
     def test_ctor(self):
         v = ca.DM([1])
         G1 = LieAlgebraSO2(1)
-    
+
     def test_identity(self):
         e = LieGroupSO2.identity()
         G = LieGroupSO2(2)
-        self.assertEqual(G, e*G)
+        self.assertEqual(G, e * G)
 
 
 class Test_LieGroupSO2(ProfiledTestCase):

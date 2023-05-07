@@ -1,5 +1,4 @@
 class Array(ABC):
-    
     @abstractmethod
     def __init__(self, data):
         ...
@@ -11,15 +10,15 @@ class Array(ABC):
     @abstractmethod
     def __setitem__(self, indices, value):
         ...
-    
+
     @abstractmethod
     def __mul__(self, right):
         ...
-    
+
     @abstractmethod
     def __rmul__(self, left):
         ...
-    
+
     @abstractmethod
     def __add__(self, right):
         ...
@@ -34,7 +33,6 @@ class Array(ABC):
 
 
 class ArrayNumpy(Array):
-    
     def __init__(self, data):
         self.data = np.array(data)
 
@@ -45,11 +43,11 @@ class ArrayNumpy(Array):
         self.data[indices] = val
 
     def __mul__(self, right):
-        return ArrayNumpy(self.data@right.data)
-    
+        return ArrayNumpy(self.data @ right.data)
+
     def __rmul__(self, left):
-        return ArrayNumpy(left*self.data)
-    
+        return ArrayNumpy(left * self.data)
+
     def __add__(self, right):
         return ArrayNumpy(self.data + right.data)
 
@@ -59,6 +57,7 @@ class ArrayNumpy(Array):
     def __repr__(self):
         return repr(self.data)
 
+
 a = ArrayNumpy([[1, 2]])
 a[0, 0] = 3
-a - 2*a
+a - 2 * a

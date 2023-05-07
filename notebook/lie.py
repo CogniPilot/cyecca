@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 import sympy
-from typing import Tuple
+from beartype import beartype
 
 
+@beartype
 class LieAlgebraElement:
     """
     This is a generic Lie algebra element, not necessarily represented as a matrix
@@ -10,20 +13,18 @@ class LieAlgebraElement:
 
     def __init__(self, algebra: 'LieAlgebra', param: sympy.Matrix):
         self.algebra = algebra
-        assert isinstance(algebra, LieAlgebra)
         assert param.shape == (self.algebra.n_param, 1)
         self.param = param
     
-    def ad(self):
+    def ad(self) -> sympy.Matrix:
         """returns the adjoint as a linear operator on the parameter vector"""
         return self.algebra.adjoint(self)
 
-    def vee(self):
+    def vee(self) -> sympy.Matrix:
         """maps from Lie algebra to its parameters as a vector"""
         return self.algebra.vee(self)
 
     def __mul__(self, right: 'LieAlgebraElement') -> 'LieAlgebraElement':
-        assert isinstance(right, LieAlgebraElement)
         return self.algebra.bracket(self, right)
 
     def __rmul__(self, left: float) -> 'LieAlgebraElement':
@@ -32,7 +33,7 @@ class LieAlgebraElement:
     def __add__(self, right: 'LieAlgebraElement') -> 'LieAlgebraElement':
         return self.algebra.addition(self, right)
 
-    def to_matrix(self):
+    def to_matrix(self) -> sympy.Matrix:
         return self.algebra.to_matrix(self)
     
     def exp(self, group:'LieGroup') -> 'LieGroupElement':
@@ -45,12 +46,13 @@ class LieAlgebraElement:
             repr(self.param))
 
 
+@beartype
 class LieAlgebra(ABC):
     """
     This is a generic Lie algebra, not necessarily represented as a matrix
     """
 
-    def __init__(self, n_param: int, matrix_shape: Tuple):
+    def __init__(self, n_param: int, matrix_shape: tuple[int, int]):
         self.n_param = n_param
         self.matrix_shape = matrix_shape
     
@@ -61,7 +63,7 @@ class LieAlgebra(ABC):
         """given a parameter vector, creates a LieAlgebraElement"""
         return LieAlgebraElement(self, left)
 
-    def vee(self, left: LieAlgebraElement) -> LieAlgebraElement:
+    def vee(self, left: LieAlgebraElement) -> sympy.Matrix:
         """given a LieAlgebraElement, returns a parameter vector"""
         return left.param
 
@@ -89,6 +91,7 @@ class LieAlgebra(ABC):
         return self.__class__.__name__
 
 
+@beartype
 class LieGroupElement:
     """
     This is a generic Lie group element, not necessarily represented as a matrix
@@ -96,14 +99,13 @@ class LieGroupElement:
 
     def __init__(self, group : 'LieGroup', param : sympy.Matrix):
         self.group = group
-        assert isinstance(group, LieGroup)
         assert param.shape == (self.group.n_param, 1)
         self.param = param
         
-    def inverse(self) -> 'LieGroupElement':
+    def inverse(self) -> LieGroupElement:
         return self.group.inverse(self)
 
-    def __mul__(self, right: 'LieGroupElement') -> 'LieGroupElement':
+    def __mul__(self, right: LieGroupElement) -> LieGroupElement:
         return self.group.product(self, right)
 
     def Ad(self) -> sympy.Matrix:
@@ -112,7 +114,7 @@ class LieGroupElement:
     def to_matrix(self):
         return self.group.to_matrix(self)
     
-    def log(self, algebra: LieAlgebra) -> LieAlgebraElement:
+    def log(self, algebra: LieAlgebra) -> LieGroupElement:
         return self.group.log(algebra, self)
 
     def __repr__(self):
@@ -122,12 +124,14 @@ class LieGroupElement:
             repr(self.param))
 
 
+@beartype
 class LieGroup:
     """
     This is a generic Lie group, not necessarily represented as a matrix
     """
 
-    def __init__(self, n_param : int, matrix_shape : Tuple):
+    def __init__(self, algebra: LieAlgebra, n_param: int, matrix_shape: tuple[int, int]):
+        self.algebra = algebra
         self.n_param = n_param
         self.matrix_shape = matrix_shape
     
@@ -166,29 +170,32 @@ class LieGroup:
         return self.__class__.__name__
 
 
+@beartype
 class RnLieAlgebra(LieAlgebra):
     
     def __init__(self, n: int):
         super().__init__(n_param=n, matrix_shape=(n+1, n+1))
     
     def bracket(self, left: LieAlgebraElement, right: LieAlgebraElement):
-        assert isinstance(left.algebra, RnLieAlgebra)
-        assert isinstance(right.algebra, RnLieAlgebra)
+        assert self == left.algebra
+        assert self == right.algebra
         return self.element(sympy.Matrix([0]))
     
     def addition(self, left : LieAlgebraElement, right : LieAlgebraElement) -> LieAlgebraElement:
-        assert isinstance(left.algebra, RnLieAlgebra)
-        assert isinstance(right.algebra, RnLieAlgebra)
+        assert self == left.algebra
+        assert self == right.algebra
         return self.element(a.param + b.param)
     
     def scalar_multipication(self, left: float, right: LieAlgebraElement) -> LieAlgebraElement:
+        assert self == right.algebra
         return self.element(left*right.param)
 
     def adjoint(self, left: LieAlgebraElement) -> sympy.Matrix:
-        assert isinstance(left.algebra, RnLieAlgebra)
+        assert self == left.algebra
         return sympy.Matrix.zeros(self.n_param, self.n_param)
 
     def to_matrix(self, left: LieAlgebraElement) -> sympy.Matrix:
+        assert self == left.algebra
         A = sympy.Matrix(self.matrix_shape)
         for i in range(self.n_param):
             A[i, self.n_param] = left.param[i]
@@ -198,31 +205,38 @@ class RnLieAlgebra(LieAlgebra):
         return '{:s}({:d})'.format(self.__class__.__name__, self.n_param)
 
 
+@beartype
 class RnLieGroup(LieGroup):
     
-    def __init__(self, n: int):
-        super().__init__(n_param=n, matrix_shape=(n+1, n+1))
+    def __init__(self, algebra: RnLieAlgebra):
+        n = algebra.n_param
+        super().__init__(algebra=algebra, n_param=n, matrix_shape=(n+1, n+1))
     
-    def product(self, left: LieAlgebraElement, right: LieAlgebraElement) -> LieAlgebraElement:
-        assert isinstance(left.group, RnLieGroup)
-        assert isinstance(right.group, RnLieGroup)
+    def product(self, left: LieGroupElement, right: LieGroupElement) -> LieGroupElement:
+        assert self == left.group
+        assert self == right.group
         return self.element(left.param + right.param)
 
     def inverse(self, left: LieAlgebraElement) -> LieAlgebraElement:
+        assert self == left.group
         return self.element(-left.param)
 
     def adjoint(self, left: LieGroupElement) -> sympy.Matrix:
+        assert self == left.group
         return sympy.Matrix.eye(self.n_param)
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         """It is the identity map"""
+        assert self.algebra == left.algebra
         return self.element(left.param)
 
-    def log(self, algebra: LieAlgebra, left: LieGroupElement) -> LieAlgebraElement:
+    def log(self, left: LieGroupElement) -> LieAlgebraElement:
         """It is the identity map"""
-        return algebra.element(left.param)
+        assert self == left.group
+        return left.group.algebra.element(left.param)
 
     def to_matrix(self, left: LieGroupElement) -> sympy.Matrix:
+        assert self == left.group
         A = sympy.Matrix.eye(self.n_param + 1)
         for i in range(self.n_param):
             A[i, self.n_param] = left.param[i]
@@ -232,115 +246,141 @@ class RnLieGroup(LieGroup):
         return '{:s}({:d})'.format(self.__class__.__name__, self.n_param)
 
 
+@beartype
 class SO2LieAlgebra(LieAlgebra):
     
     def __init__(self):
         super().__init__(n_param=1, matrix_shape=(2, 2))
     
     def bracket(self, left : LieAlgebraElement, right : LieAlgebraElement) -> LieAlgebraElement:
-        assert left.algebra == right.algebra
+        assert self == left.algebra
+        assert self == right.algebra
         return self.element(sympy.Matrix([0]))
     
     def addition(self, left: LieAlgebraElement, right: LieAlgebraElement) -> LieAlgebraElement:
-        assert left.algebra == right.algebra
+        assert self == left.algebra
+        assert self == right.algebra
         return self.element(left.param + right.param)
     
     def scalar_multipication(self, left: float, right: LieAlgebraElement) -> LieAlgebraElement:
+        assert self == right.algebra
         return self.element(left*right.param)
 
     def adjoint(self, left: LieAlgebraElement) -> sympy.Matrix:
+        assert self == left.algebra
         return sympy.Matrix.zeros(1, 1)
 
     def to_matrix(self, left: LieAlgebraElement) -> sympy.Matrix:
+        assert self == left.algebra
         return sympy.Matrix([
             [0, -left.param[0]],
             [left.param[0], 0]])
 
 
+@beartype
 class SO2LieGroup(LieGroup):
     
-    def __init__(self):
-        super().__init__(n_param=1, matrix_shape=(2, 2))
+    def __init__(self, algebra: SO2LieAlgebra):
+        super().__init__(algebra=algebra, n_param=1, matrix_shape=(2, 2))
     
-    def product(self, left: LieAlgebraElement, right: LieAlgebraElement):
-        assert isinstance(left.group, SO2LieGroup)
-        assert isinstance(right.group, SO2LieGroup)
+    def product(self, left: LieGroupElement, right: LieGroupElement):
+        assert self == left.group
+        assert self == right.group
         return self.element(left.param + right.param)
 
     def inverse(self, left):
+        assert self == left.group
         return self.element(-left.param)
 
     def adjoint(self, left: LieGroupElement):
+        assert self == left.group
         return sympy.Matrix.eye(1)
     
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
+        assert self.algebra == left.algebra
         return self.element(left.param)
 
-    def log(self, algebra: LieAlgebra, left: LieGroupElement) -> LieAlgebraElement:
+    def log(self, left: LieGroupElement) -> LieAlgebraElement:
+        assert self == left.group
         return algebra.element(left.param)
 
     def to_matrix(self, left: LieGroupElement) -> sympy.Matrix:
+        assert self == left.group
         theta = left.param[0]
-        cos = sympy.cos
-        sin = sympy.sin
+        c = sympy.cos(theta)
+        s = sympy.sin(theta)
         return sympy.Matrix([
-            [cos(theta), -sin(theta)],
-            [sin(theta), cos(theta)]])
+            [c, -s],
+            [s,  c]])
 
 
+@beartype
 class SE2LieAlgebra(LieAlgebra):
     
     def __init__(self):
         super().__init__(n_param=1, matrix_shape=(2, 2))
     
-    def bracket(self, left : LieAlgebraElement, right : LieAlgebraElement):
-        assert left.algebra == right.algebra
+    def bracket(self, left : SE2LieAlgebraElement, right : SE2LieAlgebraElement):
+        assert self == left.algebra
+        assert self == right.algebra
         return self.element(sympy.Matrix([0]))
     
-    def addition(self, left : LieAlgebraElement, right : LieAlgebraElement) -> LieAlgebraElement:
-        assert left.algebra == right.algebra
+    def addition(self, left : SE2LieAlgebraElement, right : SE2LieAlgebraElement) -> SE2LieAlgebraElement:
+        assert self == left.algebra
+        assert self == right.algebra
         return self.element(left.param + right.param)
     
-    def scalar_multipication(self, left : float, right : LieAlgebraElement) -> LieAlgebraElement:
+    def scalar_multipication(self, left : float, right : SE2LieAlgebraElement) -> SE2LieAlgebraElement:
+        assert self == right.algebra
         return self.element(left*right.param)
 
-    def adjoint(self, lef: LieAlgebraElement):
+    def adjoint(self, left: SE2LieAlgebraElement):
+        assert self == left.algebra
         raise NotImplementedError()
 
     def to_matrix(self) -> sympy.Matrix:
-        raise NotImplementedError()
+        Omega = SO2LieAlgebra.to_matrix(left.param[2])
+        v = left.param[:2]
+        Z13 = sympy.ZeroMatrix(1, 3)
+        return sympy.Matrix(sympy.BlockMatrix([
+            [Omega, v],
+            [Z13],
+        ]))
 
 
+@beartype
 class SE2LieGroup(LieGroup):
     
-    def __init__(self):
-        super().__init__(n_param=1, matrix_shape=(2, 2))
+    def __init__(self, algebra: SE2LieAlgebra):
+        super().__init__(algebra=algebra, n_param=3, matrix_shape=(3, 3))
     
-    def product(self, left, right):
-        assert isinstance(left.group, SO2LieGroup)
-        assert isinstance(right.group, SO2LieGroup)
+    def product(self, left: LieGroupElement, right: LieGroupElement):
+        assert self == left.group
+        assert self == right.group
         return self.element(left.param + right.param)
 
     def inverse(self, left):
+        assert self == left.group
         return self.element(-left.param)
 
     def adjoint(self, left: LieGroupElement):
+        assert self == left.group
         raise NotImplementedError()
     
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
+        assert self.algebra == left.algebra
         raise NotImplementedError()
 
     def log(self, left: LieGroupElement) -> LieAlgebraElement:
+        assert self == left.group
         raise NotImplementedError()
 
     def to_matrix(self) -> sympy.Matrix:
-        raise NotImplementedError()
-
-
-
-r2 = RnLieAlgebra(2)
-R2 = RnLieGroup(2)
-r3 = RnLieAlgebra(3)
-R3 = RnLieGroup(3)
-so2 = SO2LieAlgebra()
-SO2 = SO2LieGroup()
+        R = SO2LieGroup.to_matrix(left.param[2])
+        t = left.param[:2]
+        Z12 = sympy.ZeroMatrix(1, 2)
+        I1 = sympy.Identity(1)
+        return sympy.Matrix(sympy.BlockMatrix([
+            [R, t],
+            [Z12, I1],
+        ]))

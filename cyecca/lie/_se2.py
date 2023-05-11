@@ -4,12 +4,12 @@ import sympy
 from beartype import beartype
 
 from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
-
+from ._so2 import SO2
 
 @beartype
 class SE2LieAlgebra(LieAlgebra):
     def __init__(self):
-        super().__init__(n_param=1, matrix_shape=(2, 2))
+        super().__init__(n_param=3, matrix_shape=(3, 3))
 
     def bracket(self, left: SE2LieAlgebraElement, right: SE2LieAlgebraElement):
         assert self == left.algebra
@@ -35,7 +35,7 @@ class SE2LieAlgebra(LieAlgebra):
 
     def to_matrix(self) -> sympy.Matrix:
         Omega = SO2LieAlgebra.to_matrix(left.param[2])
-        v = left.param[:2]
+        v = left.param[:2, 0]
         Z13 = sympy.ZeroMatrix(1, 3)
         return sympy.Matrix(
             sympy.BlockMatrix(
@@ -67,7 +67,18 @@ class SE2LieGroup(LieGroup):
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
-        raise NotImplementedError()
+        theta = left.param[2]
+        sin_th = sympy.sin(theta)
+        cos_th = sympy.cos(theta)
+        a = sin_th/theta
+        b = (1 - cos_th)/theta
+        R = SO2.element(sympy.Matrix([theta])).to_matrix()
+        V = sympy.Matrix([
+            [a, -b],
+            [b, a]])
+        v = V@left.param[:2, 0]
+        return self.element(sympy.Matrix([v[0], v[1], theta]))
+        
 
     def log(self, left: LieGroupElement) -> LieAlgebraElement:
         assert self == left.group
@@ -78,14 +89,10 @@ class SE2LieGroup(LieGroup):
         t = left.param[:2]
         Z12 = sympy.ZeroMatrix(1, 2)
         I1 = sympy.Identity(1)
-        return sympy.Matrix(
-            sympy.BlockMatrix(
-                [
-                    [R, t],
-                    [Z12, I1],
-                ]
-            )
-        )
+        return sympy.Matrix(sympy.BlockMatrix([
+            [R, t],
+            [Z12, I1],
+        ]))
 
 
 se2 = SE2LieAlgebra()

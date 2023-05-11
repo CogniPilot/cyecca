@@ -24,10 +24,10 @@ class LieAlgebraElement:
         """maps from Lie algebra to its parameters as a vector"""
         return self.algebra.vee(self)
 
-    def __mul__(self, right: "LieAlgebraElement") -> "LieAlgebraElement":
+    def __mul__(self, right: LieAlgebraElement) -> LieAlgebraElement:
         return self.algebra.bracket(self, right)
 
-    def __rmul__(self, left) -> "LieAlgebraElement":
+    def __rmul__(self, left) -> LieAlgebraElement:
         return self.algebra.scalar_multipication(left, self)
 
     def __add__(self, right: "LieAlgebraElement") -> "LieAlgebraElement":

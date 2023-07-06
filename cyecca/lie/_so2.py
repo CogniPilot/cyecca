@@ -48,9 +48,12 @@ class SO2LieGroup(LieGroup):
         assert self == right.group
         return self.element(left.param + right.param)
 
-    def inverse(self, left):
+    def inverse(self, left: LieGroupElement) -> LieGroupElement:
         assert self == left.group
         return self.element(-left.param)
+
+    def identity(self) -> LieGroupElement:
+        return self.element(sympy.Matrix.zeros(self.n_param, 1))
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
@@ -62,7 +65,7 @@ class SO2LieGroup(LieGroup):
 
     def log(self, left: LieGroupElement) -> LieAlgebraElement:
         assert self == left.group
-        return algebra.element(left.param)
+        return self.algebra.element(left.param)
 
     def to_matrix(self, left: LieGroupElement) -> sympy.Matrix:
         assert self == left.group

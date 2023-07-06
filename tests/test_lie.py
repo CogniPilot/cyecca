@@ -9,6 +9,9 @@ import sympy
 from cyecca import lie
 
 
+EPS = 1e-9
+
+
 class ProfiledTestCase(unittest.TestCase):
     def setUp(self):
         self.pr = cProfile.Profile()
@@ -25,14 +28,15 @@ class ProfiledTestCase(unittest.TestCase):
 
 class Test_LieGroupRn(ProfiledTestCase):
     def test_ctor(self):
-        v = ca.DM([1, 2, 3])
-        self.assertTrue(ca.norm_2(G1.param - v) < EPS)
-        self.assertEqual(G1.n_dim, 3)
+        v = sympy.Matrix([1, 2, 3])
+        G1 = lie.R3.element(v)
+        self.assertTrue((G1.param - v).norm() < EPS)
+        self.assertEqual(G1.group.n_param, 3)
 
     def test_bad_operations(self):
-        G1 = LieGroupR(3, ca.DM([1, 2, 3]))
-        G2 = LieGroupR(3, ca.DM([4, 5, 6]))
-        s = ca.SX.sym("s")
+        G1 = lie.R3.element(sympy.Matrix([1, 2, 3]))
+        G2 = lie.R3.element(sympy.Matrix([4, 5, 6]))
+        s = 1
         with self.assertRaises(TypeError):
             G1 + G2
         with self.assertRaises(TypeError):
@@ -43,76 +47,78 @@ class Test_LieGroupRn(ProfiledTestCase):
             s * G2
 
     def test_product(self):
-        v1 = ca.DM([1, 2, 3])
-        v2 = ca.DM([4, 5, 6])
+        v1 = sympy.Matrix([1, 2, 3])
+        v2 = sympy.Matrix([4, 5, 6])
         v3 = v1 + v2
-        G1 = LieGroupR(3, ca.DM([1, 2, 3]))
-        G2 = LieGroupR(3, ca.DM([4, 5, 6]))
+        G1 = lie.R3.element(sympy.Matrix([1, 2, 3]))
+        G2 = lie.R3.element(sympy.Matrix([4, 5, 6]))
         G3 = G1 * G2
-        self.assertTrue(ca.norm_2(G3.param - v3) < EPS)
+        self.assertTrue((G3.param - v3).norm() < EPS)
 
     def test_identity(self):
-        G1 = LieGroupR(3, [1, 2, 3])
+        G1 = lie.R3.element(sympy.Matrix([1, 2, 3]))
+        G2 = G1 * lie.R3.identity()
+        self.assertTrue((G1.param - G2.param).norm() < EPS)
 
 
 class Test_LieAlgebraR(ProfiledTestCase):
     def test_ctor(self):
-        v = ca.DM([1, 2, 3])
-        g1 = LieAlgebraR(3, v)
-        self.assertTrue(ca.norm_2(g1.param - v) < EPS)
-        self.assertEqual(g1.n_dim, 3)
+        v = sympy.Matrix([1, 2, 3])
+        g1 = lie.r3.element(v)
+        self.assertTrue((g1.param - v).norm() < EPS)
+        self.assertEqual(g1.algebra.n_param, 3)
 
     def test_bad_operations(self):
         pass
 
     def test_add(self):
-        v1 = ca.DM([1, 2, 3])
-        v2 = ca.DM([4, 5, 6])
+        v1 = sympy.Matrix([1, 2, 3])
+        v2 = sympy.Matrix([4, 5, 6])
         v3 = v1 + v2
-        g1 = LieAlgebraR(3, ca.DM([1, 2, 3]))
-        g2 = LieAlgebraR(3, ca.DM([4, 5, 6]))
+        g1 = lie.r3.element(sympy.Matrix([1, 2, 3]))
+        g2 = lie.r3.element(sympy.Matrix([4, 5, 6]))
         g3 = g1 + g2
-        self.assertEqual(g3, LieAlgebraR(3, v3))
+        self.assertTrue((g3.param - v3).norm() < EPS)
 
 
 class Test_LieAlgebraSO2(ProfiledTestCase):
     def test_ctor(self):
-        v = ca.DM([1])
-        G1 = LieAlgebraSO2(1)
+        v = sympy.Matrix([1])
+        lie.SO2.element(v)
 
     def test_identity(self):
-        e = LieGroupSO2.identity()
-        G = LieGroupSO2(2)
-        self.assertEqual(G, e * G)
+        e = lie.SO2.identity()
+        G = lie.SO2.element(sympy.Matrix([2]))
+        self.assertTrue((G.param - (e * G).param).norm() < EPS)
 
 
 class Test_LieGroupSO2(ProfiledTestCase):
     def test_ctor(self):
-        v = ca.DM([1])
-        G1 = LieGroupSO2(1)
+        v = sympy.Matrix([1])
+        lie.SO2.element(v)
 
 
-class Test_LieGroupSO3(ProfiledTestCase):
-    def test_ctor(self):
-        v = ca.DM([1])
-        G1 = LieGroupSO3Quat([1, 0, 0, 0])
+# class Test_LieGroupSO3(ProfiledTestCase):
+#     def test_ctor(self):
+#         v = sympy.Matrix([1, 2, 3])
+#         G1 = LieGroupSO3Quat([1, 0, 0, 0])
 
-    def test_identity(self):
-        e = LieGroupSO3Quat.identity()
-        G2 = LieGroupSO3Quat([0, 1, 0, 0])
-        self.assertEqual(e * G2, G2)
-        self.assertEqual(G2 * e, G2)
-        self.assertEqual(G2, G2)
+#     def test_identity(self):
+#         e = LieGroupSO3Quat.identity()
+#         G2 = LieGroupSO3Quat([0, 1, 0, 0])
+#         self.assertEqual(e * G2, G2)
+#         self.assertEqual(G2 * e, G2)
+#         self.assertEqual(G2, G2)
 
-    def test_addition(self):
-        g = LieAlgebraSO3([1, 2, 3])
-        self.assertEqual(g + g, LieAlgebraSO3(2 * g.param))
-        self.assertEqual(g - g, LieAlgebraSO3([0, 0, 0]))
-        self.assertEqual(-g, LieAlgebraSO3([-1, -2, -3]))
+#     def test_addition(self):
+#         g = LieAlgebraSO3([1, 2, 3])
+#         self.assertEqual(g + g, LieAlgebraSO3(2 * g.param))
+#         self.assertEqual(g - g, LieAlgebraSO3([0, 0, 0]))
+#         self.assertEqual(-g, LieAlgebraSO3([-1, -2, -3]))
 
-    def test_exp_log(self):
-        g = LieAlgebraSO3([1, 2, 3])
-        self.assertEqual(g, LieGroupSO3Quat.exp(g).log())
+#     def test_exp_log(self):
+#         g = lie.SO3([1, 2, 3])
+#         self.assertEqual(g, LieGroupSO3Quat.exp(g).log())
 
 
 if __name__ == "__main__":

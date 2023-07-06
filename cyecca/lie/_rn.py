@@ -21,7 +21,7 @@ class RnLieAlgebra(LieAlgebra):
     ) -> LieAlgebraElement:
         assert self == left.algebra
         assert self == right.algebra
-        return self.element(a.param + b.param)
+        return self.element(left.param + right.param)
 
     def scalar_multipication(self, left, right: LieAlgebraElement) -> LieAlgebraElement:
         assert self == right.algebra
@@ -56,6 +56,9 @@ class RnLieGroup(LieGroup):
     def inverse(self, left: LieAlgebraElement) -> LieAlgebraElement:
         assert self == left.group
         return self.element(-left.param)
+
+    def identity(self) -> LieGroupElement:
+        return self.element(sympy.Matrix.zeros(self.n_param, 1))
 
     def adjoint(self, left: LieGroupElement) -> sympy.Matrix:
         assert self == left.group

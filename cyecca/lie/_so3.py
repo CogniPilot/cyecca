@@ -117,4 +117,4 @@ class SO3EulerLieGroup(LieGroup):
 
 
 so3 = SO3LieAlgebra()
-SO3EulerB321 = SO3EulerLieGroup(type=EulerType.body, sequence=[Axis.z, Axis.y, Axis.x])
+SO3Euler = SO3EulerLieGroup

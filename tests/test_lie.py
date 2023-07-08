@@ -84,6 +84,12 @@ class Test_LieAlgebraR(ProfiledTestCase):
 class Test_LieAlgebraSO2(ProfiledTestCase):
     def test_ctor(self):
         v = sympy.Matrix([1])
+        lie.so2.element(v)
+
+
+class Test_LieGroupSO2(ProfiledTestCase):
+    def test_ctor(self):
+        v = sympy.Matrix([1])
         lie.SO2.element(v)
 
     def test_identity(self):
@@ -92,10 +98,19 @@ class Test_LieAlgebraSO2(ProfiledTestCase):
         self.assertTrue((G.param - (e * G).param).norm() < EPS)
 
 
-class Test_LieGroupSO2(ProfiledTestCase):
+class Test_LieAlgebraSO3(ProfiledTestCase):
     def test_ctor(self):
-        v = sympy.Matrix([1])
-        lie.SO2.element(v)
+        v = sympy.Matrix([1, 2, 3])
+        lie.so3.element(v)
+
+
+class Test_LieGroupSO3Euler(ProfiledTestCase):
+    def test_ctor(self):
+        v = sympy.Matrix([1, 2, 3])
+        SO3EulerB321 = lie.SO3Euler(
+            type=lie.EulerType.body,
+            sequence=[lie.Axis.z, lie.Axis.y, lie.Axis.x])
+        SO3EulerB321.element(v)
 
 
 # class Test_LieGroupSO3(ProfiledTestCase):

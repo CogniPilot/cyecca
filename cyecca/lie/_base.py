@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-import sympy
+from sympy import Matrix
 from beartype import beartype
+from numbers import Real
 
 
 @beartype
@@ -11,38 +12,41 @@ class LieAlgebraElement:
     This is a generic Lie algebra element, not necessarily represented as a matrix
     """
 
-    def __init__(self, algebra: "LieAlgebra", param: sympy.Matrix):
+    def __init__(self, algebra: LieAlgebra, param: Matrix):
         self.algebra = algebra
         assert param.shape == (self.algebra.n_param, 1)
         self.param = param
 
-    def ad(self) -> sympy.Matrix:
+    def ad(self) -> Matrix:
         """returns the adjoint as a linear operator on the parameter vector"""
         return self.algebra.adjoint(self)
 
-    def vee(self) -> sympy.Matrix:
+    def vee(self) -> Matrix:
         """maps from Lie algebra to its parameters as a vector"""
         return self.algebra.vee(self)
 
     def __mul__(self, right: LieAlgebraElement) -> LieAlgebraElement:
-        return self.algebra.bracket(self, right)
+        return self.algebra.bracket(left=self, right=right)
 
     def __rmul__(self, left) -> LieAlgebraElement:
-        return self.algebra.scalar_multipication(left, self)
+        return self.algebra.scalar_multipication(left=left, right=self)
 
     def __add__(self, right: "LieAlgebraElement") -> "LieAlgebraElement":
-        return self.algebra.addition(self, right)
+        return self.algebra.addition(left=self, right=right)
 
-    def to_matrix(self) -> sympy.Matrix:
+    def to_matrix(self) -> Matrix:
         return self.algebra.to_matrix(self)
 
     def exp(self, group: "LieGroup") -> "LieGroupElement":
         return group.exp(self)
 
-    def __repr__(self):
+    def __str__(self):
         return "{:s}({:s}, {:s})".format(
             self.__class__.__name__, self.algebra.__class__.__name__, repr(self.param)
         )
+
+    def _repr_latex_(self):
+        return self.to_matrix()._repr_latex_()
 
 
 @beartype
@@ -55,14 +59,14 @@ class LieAlgebra(ABC):
         self.n_param = n_param
         self.matrix_shape = matrix_shape
 
-    def element(self, param: sympy.Matrix) -> LieAlgebraElement:
-        return LieAlgebraElement(self, param)
+    def element(self, param: Matrix) -> LieAlgebraElement:
+        return LieAlgebraElement(algebra=self, param=param)
 
-    def wedge(self, left: sympy.Matrix) -> LieAlgebraElement:
+    def wedge(self, left: Matrix) -> LieAlgebraElement:
         """given a parameter vector, creates a LieAlgebraElement"""
-        return LieAlgebraElement(self, left)
+        return self.element(param=left)
 
-    def vee(self, left: LieAlgebraElement) -> sympy.Matrix:
+    def vee(self, left: LieAlgebraElement) -> Matrix:
         """given a LieAlgebraElement, returns a parameter vector"""
         return left.param
 
@@ -74,7 +78,7 @@ class LieAlgebra(ABC):
 
     @abstractmethod
     def scalar_multipication(
-        self, left: float, right: LieAlgebraElement
+        self, left: Real, right: LieAlgebraElement
     ) -> LieAlgebraElement:
         ...
 
@@ -85,11 +89,11 @@ class LieAlgebra(ABC):
         ...
 
     @abstractmethod
-    def adjoint(self, left: LieAlgebraElement) -> sympy.Matrix:
+    def adjoint(self, left: LieAlgebraElement) -> Matrix:
         ...
 
     @abstractmethod
-    def to_matrix(self, left: LieAlgebraElement) -> sympy.Matrix:
+    def to_matrix(self, left: LieAlgebraElement) -> Matrix:
         ...
 
     def __repr__(self):
@@ -102,30 +106,33 @@ class LieGroupElement:
     This is a generic Lie group element, not necessarily represented as a matrix
     """
 
-    def __init__(self, group: "LieGroup", param: sympy.Matrix):
+    def __init__(self, group: LieGroup, param: Matrix):
         self.group = group
         assert param.shape == (self.group.n_param, 1)
         self.param = param
 
     def inverse(self) -> LieGroupElement:
-        return self.group.inverse(self)
+        return self.group.inverse(left=self)
 
     def __mul__(self, right: LieGroupElement) -> LieGroupElement:
-        return self.group.product(self, right)
+        return self.group.product(left=self, right=right)
 
-    def Ad(self) -> sympy.Matrix:
-        return self.group.adjoint(self)
+    def Ad(self) -> Matrix:
+        return self.group.adjoint(left=self)
 
     def to_matrix(self):
-        return self.group.to_matrix(self)
+        return self.group.to_matrix(left=self)
 
-    def log(self, algebra: LieAlgebra) -> LieGroupElement:
-        return self.group.log(algebra, self)
+    def log(self) -> LieAlgebraElement:
+        return self.group.log(left=self)
 
-    def __repr__(self):
+    def __str__(self):
         return "{:s}({:s}, {:s})".format(
             self.__class__.__name__, self.group.__class__.__name__, repr(self.param)
         )
+    
+    def _repr_latex_(self):
+        return self.to_matrix()._repr_latex_()
 
 
 @beartype
@@ -141,8 +148,8 @@ class LieGroup:
         self.n_param = n_param
         self.matrix_shape = matrix_shape
 
-    def element(self, param: sympy.Matrix) -> LieGroupElement:
-        return LieGroupElement(self, param)
+    def element(self, param: Matrix) -> LieGroupElement:
+        return LieGroupElement(group=self, param=param)
 
     @abstractmethod
     def product(self, left: LieGroupElement, right: LieGroupElement) -> LieGroupElement:
@@ -157,7 +164,7 @@ class LieGroup:
         ...
 
     @abstractmethod
-    def adjoint(self, left: LieGroupElement) -> sympy.Matrix:
+    def adjoint(self, left: LieGroupElement) -> Matrix:
         ...
 
     @abstractmethod
@@ -169,7 +176,7 @@ class LieGroup:
         ...
 
     @abstractmethod
-    def to_matrix(self, left: LieGroupElement) -> sympy.Matrix:
+    def to_matrix(self, left: LieGroupElement) -> Matrix:
         ...
 
     def __repr__(self):

@@ -76,18 +76,23 @@ def rotation_matrix(axis : Axis, angle : Real):
         ])
 
 
+so3 = SO3LieAlgebra()
+
+
 @beartype
 class SO3EulerLieGroup(LieGroup):
     def __init__(self, type : EulerType, sequence : List[Axis]):
         super().__init__(algebra=so3, n_param=3, matrix_shape=(3, 3))
         self.type = type
+        if self.type == EulerType.space:
+            raise NotImplementedError("space type not implemented")
         assert len(sequence) == 3
         self.sequence = sequence
 
     def product(self, left: LieGroupElement, right: LieGroupElement):
         assert self == left.group
         assert self == right.group
-        return self.element(left.param + right.param)
+        return self.element(param=left.param + right.param)
 
     def inverse(self, left: LieGroupElement) -> LieGroupElement:
         assert self == left.group
@@ -111,10 +116,72 @@ class SO3EulerLieGroup(LieGroup):
     def to_matrix(self, left: LieGroupElement) -> Matrix:
         assert self == left.group
         m = Identity(3)
+        ## TODO: handle space rotation, this is body
         for axis, angle in zip(self.sequence, left.param):
             m @= rotation_matrix(axis=axis, angle=angle)
         return m
 
 
-so3 = SO3LieAlgebra()
 SO3Euler = SO3EulerLieGroup
+
+
+@beartype
+class SO3QuatLieGroup(LieGroup):
+    def __init__(self):
+        super().__init__(algebra=so3, n_param=4, matrix_shape=(3, 3))
+
+    def product(self, left: LieGroupElement, right: LieGroupElement):
+        assert self == left.group
+        assert self == right.group
+        q = left.param
+        p = right.param
+        return self.element(param=Matrix([
+            q[0] * p[0] - q[1] * p[1] - q[2] * p[2] - q[3] * p[3],
+            q[1] * p[0] + q[0] * p[1] - q[3] * p[2] + q[2] * p[3],
+            q[2] * p[0] + q[3] * p[1] + q[0] * p[2] - q[1] * p[3],
+            q[3] * p[0] - q[2] * p[1] + q[1] * p[2] + q[0] * p[3]
+        ]))
+
+    def inverse(self, left: LieGroupElement) -> LieGroupElement:
+        assert self == left.group
+        q = left.param
+        return self.element(param=Matrix([
+            q[0], -q[1], -q[2], -q[3]
+        ]))
+
+    def identity(self) -> LieGroupElement:
+        return self.element(param=Matrix([1, 0, 0, 0]))
+
+    def adjoint(self, left: LieGroupElement):
+        assert self == left.group
+        raise NotImplementedError("adjoint not implemented")
+
+    def exp(self, left: LieAlgebraElement) -> LieGroupElement:
+        assert self.algebra == left.algebra
+        raise NotImplementedError("exp not implemented")
+
+    def log(self, left: LieGroupElement) -> LieAlgebraElement:
+        assert self == left.group
+        raise NotImplementedError("exp not implemented")
+
+    def to_matrix(self, left: LieGroupElement) -> Matrix:
+        assert self == left.group
+        a, b, c, d = left.param
+        aa = a*a
+        ab = a*b
+        ac = a*c
+        ad = a*d
+        bb = b*b
+        bc = b*c
+        bd = b*d
+        cc = c*c
+        cd = c*d
+        dd = d*d
+        return Matrix([
+            [aa + bb - cc - dd, 2 * (bc - ad), 2 * (ac + bd)],
+            [2 * (bc + ad), aa - bb + cc - dd, 2 * (cd - ab), 2 * (bd - ac)],
+            [2 * (bd - ac), 2 * (ab + cd), aa - bb - cc + dd]
+        ])
+
+
+SO3Quat = SO3QuatLieGroup()

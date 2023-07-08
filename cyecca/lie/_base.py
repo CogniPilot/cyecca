@@ -46,7 +46,7 @@ class LieAlgebraElement:
         )
 
     def _repr_latex_(self):
-        return self.to_matrix()._repr_latex_()
+        return self.param._repr_latex_()
 
 
 @beartype
@@ -132,7 +132,7 @@ class LieGroupElement:
         )
     
     def _repr_latex_(self):
-        return self.to_matrix()._repr_latex_()
+        return self.param._repr_latex_()
 
 
 @beartype

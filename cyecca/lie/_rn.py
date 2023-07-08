@@ -38,9 +38,6 @@ class RnLieAlgebra(LieAlgebra):
             A[i, self.n_param] = left.param[i]
         return A
 
-    def __repr__(self):
-        return repr(self.to_matrix())
-
     def __str__(self):
         return "{:s}({:d})".format(self.__class__.__name__, self.n_param)
 
@@ -84,7 +81,7 @@ class RnLieGroup(LieGroup):
             A[i, self.n_param] = left.param[i]
         return A
 
-    def __repr__(self):
+    def __str__(self):
         return "{:s}({:d})".format(self.__class__.__name__, self.n_param)
 
 

@@ -36,7 +36,7 @@ class SO3LieAlgebra(LieAlgebra):
 
     def adjoint(self, left: LieAlgebraElement) -> Matrix:
         assert self == left.algebra
-        return Matrix.zeros(1, 1)
+        raise NotImplementedError("adjoint not implemented")
 
     def to_matrix(self, left: LieAlgebraElement) -> Matrix:
         assert self == left.algebra
@@ -52,21 +52,21 @@ class Axis(Enum):
     z = 3
 
 class EulerType(Enum):
-    body = 1
-    space = 2
+    body_fixed = 1
+    space_fixed = 2
 
 def rotation_matrix(axis : Axis, angle : Real):
     if axis== Axis.x:
         return Matrix([
             [1, 0, 0],
             [0, cos(angle), -sin(angle)],
-            [0, -sin(angle), cos(angle)]
+            [0, sin(angle), cos(angle)]
         ])
     elif axis == Axis.y:
         return Matrix([
-                [-cos(angle), 0, sin(angle)],
+                [cos(angle), 0, sin(angle)],
                 [0, 1, 0],
-                [sin(angle), 0, cos(angle)]
+                [-sin(angle), 0, cos(angle)]
             ])
     elif axis == Axis.z:
         return Matrix([
@@ -74,6 +74,8 @@ def rotation_matrix(axis : Axis, angle : Real):
             [sin(angle), cos(angle), 0],
             [0, 0, 1]
         ])
+    else:
+        raise ValueError('unknown axis')
 
 
 so3 = SO3LieAlgebra()
@@ -81,11 +83,9 @@ so3 = SO3LieAlgebra()
 
 @beartype
 class SO3EulerLieGroup(LieGroup):
-    def __init__(self, type : EulerType, sequence : List[Axis]):
+    def __init__(self, euler_type : EulerType, sequence : List[Axis]):
         super().__init__(algebra=so3, n_param=3, matrix_shape=(3, 3))
-        self.type = type
-        if self.type == EulerType.space:
-            raise NotImplementedError("space type not implemented")
+        self.euler_type = euler_type
         assert len(sequence) == 3
         self.sequence = sequence
 
@@ -107,19 +107,23 @@ class SO3EulerLieGroup(LieGroup):
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
-        return self.element(param=left.param)
+        raise NotImplementedError("exp not implemented")
 
     def log(self, left: LieGroupElement) -> LieAlgebraElement:
         assert self == left.group
-        return self.algebra.element(param=left.param)
+        raise NotImplementedError("log not implemented")
 
     def to_matrix(self, left: LieGroupElement) -> Matrix:
         assert self == left.group
         m = Identity(3)
-        ## TODO: handle space rotation, this is body
         for axis, angle in zip(self.sequence, left.param):
-            m @= rotation_matrix(axis=axis, angle=angle)
-        return m
+            if self.euler_type == EulerType.body_fixed:
+                m = m @ rotation_matrix(axis=axis, angle=angle)
+            elif self.euler_type == EulerType.space_fixed:
+                m = rotation_matrix(axis=axis, angle=angle) @ m
+            else:
+                raise ValueError('euler_type must be body_fixed or space_fixed')
+        return Matrix(m)
 
 
 SO3Euler = SO3EulerLieGroup

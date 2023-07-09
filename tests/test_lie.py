@@ -108,7 +108,7 @@ class Test_LieGroupSO3Euler(ProfiledTestCase):
     def test_ctor(self):
         v = sympy.Matrix([1, 2, 3])
         SO3EulerB321 = lie.SO3Euler(
-            type=lie.EulerType.body,
+            euler_type=lie.EulerType.body_fixed,
             sequence=[lie.Axis.z, lie.Axis.y, lie.Axis.x])
         SO3EulerB321.element(v)
 

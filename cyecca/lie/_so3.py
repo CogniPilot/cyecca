@@ -189,3 +189,92 @@ class SO3QuatLieGroup(LieGroup):
 
 
 SO3Quat = SO3QuatLieGroup()
+
+@beartype
+
+class SO3DCMLieGroup(LieGroup):
+    def __init__(self):
+        super().__init__(algebra=so3, n_param=9, matrix_shape=(3, 3))
+
+    def product(self, left: LieGroupElement, right: LieGroupElement):
+        assert self == left.group
+        assert self == right.group
+        q = left.param
+        p = right.param
+        return self.element(param=Matrix([]))
+
+    def inverse(self, left: LieGroupElement) -> LieGroupElement:
+        assert self == left.group
+        q = left.param
+        return self.element(param=Matrix([])) # transpose
+
+    def identity(self) -> LieGroupElement:
+        return self.element(param=Identity(3))
+
+    def adjoint(self, left: LieGroupElement):
+        assert self == left.group
+        raise NotImplementedError("adjoint not implemented")
+
+    def exp(self, left: LieAlgebraElement) -> LieGroupElement:
+        assert self.algebra == left.algebra
+        raise NotImplementedError("exp not implemented")
+
+    def log(self, left: LieGroupElement) -> LieAlgebraElement:
+        assert self == left.group
+        raise NotImplementedError("exp not implemented")
+
+    def to_matrix(self, left: LieGroupElement) -> Matrix:
+        assert self == left.group
+        return self.element(param=left.param)
+
+SO3DCM = SO3DCMLieGroup()
+
+@beartype
+class SO3MRPLieGroup(LieGroup):
+    def __init__(self):
+        super().__init__(algebra=so3, n_param=4, matrix_shape=(3, 3))
+
+    def product(self, left: LieGroupElement, right: LieGroupElement):
+        assert self == left.group
+        assert self == right.group
+        q = left.param
+        p = right.param
+        return self.element(param=Matrix([
+
+        ]))
+
+    def inverse(self, left: LieGroupElement) -> LieGroupElement:
+        assert self == left.group
+        r = left.param
+        return self.element(param=Matrix([
+            -r[0], -r[1], -r[2], r[3]
+        ]))
+    
+    def identity(self) -> LieGroupElement:
+        return self.element(param=Matrix([0, 0, 0, 0]))
+    
+    def shadow(self, r):
+        assert r.shape == (4, 1) or r.shape == (4,)
+        raise NotImplementedError("shadow not implemented")
+
+    def shadow_if_necessary(self, r):
+        assert r.shape == (4, 1) or r.shape == (4,)
+        raise NotImplementedError("shadow not implemented")
+
+    def adjoint(self, left: LieGroupElement):
+        assert self == left.group
+        raise NotImplementedError("adjoint not implemented")
+
+    def exp(self, left: LieAlgebraElement) -> LieGroupElement:
+        assert self.algebra == left.algebra
+        raise NotImplementedError("exp not implemented")
+
+    def log(self, left: LieGroupElement) -> LieAlgebraElement:
+        assert self == left.group
+        raise NotImplementedError("exp not implemented")
+
+    def to_matrix(self, left: LieGroupElement) -> Matrix:
+        assert self == left.group
+        raise NotImplementedError("to matrix not implemented")
+
+SO3MRP = SO3MRPLieGroup()

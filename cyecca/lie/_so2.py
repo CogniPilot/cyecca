@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 import numpy.typing as npt
-from numpy import floating, cos, sin
+from numpy import floating
 
 from beartype import beartype
+from beartype.typing import List
 
 from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
 
@@ -19,7 +20,7 @@ class SO2LieAlgebra(LieAlgebra):
     ) -> LieAlgebraElement:
         assert self == left.algebra
         assert self == right.algebra
-        return self.element(param=Matrix([0]))
+        return self.element(param=np.array([0]))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -32,13 +33,21 @@ class SO2LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left * right.param)
 
-    def adjoint(self, left: LieAlgebraElement) -> Matrix:
+    def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        return Matrix.zeros(1, 1)
+        return np.zeros(1, 1)
 
-    def to_matrix(self, left: LieAlgebraElement) -> Matrix:
+    def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        return Matrix([[0, -left.param[0]], [left.param[0], 0]])
+        return np.array([[0, -left.param[0]], [left.param[0], 0]])
+    
+    def wedge(self, left: npt.NDArray[np.floating]) -> LieAlgebraElement:
+        self = SO2LieAlgebra()
+        return self.element(param=left)
+    
+    def vee(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+        assert self == left.algebra
+        return left.param
 
 
 @beartype
@@ -60,7 +69,7 @@ class SO2LieGroup(LieGroup):
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
-        return Matrix.eye(1)
+        return np.eye(1)
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
@@ -70,12 +79,12 @@ class SO2LieGroup(LieGroup):
         assert self == left.group
         return self.algebra.element(param=left.param)
 
-    def to_matrix(self, left: LieGroupElement) -> Matrix:
+    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
         theta = left.param[0]
-        c = cos(theta)
-        s = sin(theta)
-        return Matrix([[c, -s], [s, c]])
+        c = np.cos(theta)
+        s = np.sin(theta)
+        return np.array([[c, -s], [s, c]])
 
 
 so2 = SO2LieAlgebra()

@@ -8,17 +8,15 @@ from beartype import beartype
 from beartype.typing import List
 
 from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
-from ._so2 import SO2, so2
+from ._so3 import so3, SO3Euler, SO3Quat, SO3MRP
 
 
 @beartype
-class SE2LieAlgebra(LieAlgebra):
+class SE3LieAlgebra(LieAlgebra):
     def __init__(self):
-        super().__init__(n_param=3, matrix_shape=(3, 3))
+        super().__init__(n_param=6, matrix_shape=(4, 4))
 
-    def bracket(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
+    def bracket(self, left: LieAlgebraElement, right: LieAlgebraElement):
         assert self == left.algebra
         assert self == right.algebra
         return self.element(param=np.array([0]))
@@ -30,20 +28,30 @@ class SE2LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left.param + right.param)
 
-    def scalar_multipication(self, left : Real, right: LieAlgebraElement) -> LieAlgebraElement:
+    def scalar_multipication(
+        self, left: Real, right: LieAlgebraElement
+    ) -> LieAlgebraElement:
         assert self == right.algebra
         return self.element(param=left * right.param)
 
-    def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def adjoint(self, left: LieAlgebraElement):
         assert self == left.algebra
-        return np.zeros(1, 1)
+        v = left.param[:3]
+        vx = np.array([[0, -v[2], v[1]],[v[2], 0, -v[0]],[-v[1],v[0],0]])
+        w = so3(left.param[3:]).to_matrix()
+        return np.block([[w, vx],[np.zeros((3,3)), w]])
 
     def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        return np.array([[0, -left.param[0]], [left.param[0], 0]])
+        Omega = so3(left.param[2]).to_matrix()
+        v = self.param[:3, 0]
+        Z14 = np.zeros(4)
+        return np.block([
+            [Omega, v],
+            [Z14]])
     
     def wedge(self, left: npt.NDArray[np.floating]) -> LieAlgebraElement:
-        self = SO2LieAlgebra()
+        self = SE3LieAlgebra()
         return self.element(param=left)
     
     def vee(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
@@ -52,25 +60,29 @@ class SE2LieAlgebra(LieAlgebra):
 
 
 @beartype
-class SE2LieGroup(LieGroup):
-    def __init__(self):
-        super().__init__(algebra=se2, n_param=3, matrix_shape=(3, 3))
+class SE3LieGroup(LieGroup):
+    def __init__(self, SO3=None):
+        if SO3==None:
+            self.SO3 = SO3Quat
+        else:
+            self.SO3 = SO3
+        super().__init__(algebra=se3, n_param=7, matrix_shape=(4, 4))
 
     def product(self, left: LieGroupElement, right: LieGroupElement):
         assert self == left.group
         assert self == right.group
-        return self.element(param=left.param + right.param)
+        return self.element(left.param + right.param)
 
-    def inverse(self, left: LieGroupElement) -> LieGroupElement:
+    def inverse(self, left):
         assert self == left.group
-        v = left.param[:2]
-        theta = left.param[2]
-        R = SO2.element(param=theta).to_matrix()
+        v = left.param[:3]
+        theta = left.param[3:]
+        R = SO3.element(param=theta).to_matrix()
         p = -R.T@v
-        return self.element(param=np.array([p[0], p[1], -theta]))
+        return self.element(param=np.array([p[0], p[1], p[2], -theta]))
 
     def identity(self) -> LieGroupElement:
-        return self.element(param=np.zeros(self.n_param))
+        return self.element(np.array.zeros(self.n_param, 1))
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
@@ -106,11 +118,11 @@ class SE2LieGroup(LieGroup):
         p = V_inv@v
         return se2algebra.element(np.array([p[0], p[1], theta]))
 
-    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
+    def to_matrix(selfm left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.group
-        R = SO2.to_matrix(left.param[2])
-        t = left.param[:2]
-        Z12 = np.zeros(2)
+        R = SO2.to_matrix(left.param[3:])
+        t = left.param[:3]
+        Z13 = np.zeros(3)
         I1 = np.eye(1)
         return np.array(Blocknp.array([
             [R, t],

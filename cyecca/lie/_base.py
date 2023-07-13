@@ -143,9 +143,7 @@ class LieGroup:
     This is a generic Lie group, not necessarily represented as a matrix
     """
 
-    def __init__(
-        self, algebra: LieAlgebra, n_param: int, matrix_shape: tuple[int, int]
-    ):
+    def __init__(self, algebra: LieAlgebra, n_param: int, matrix_shape: tuple[int, int]):
         self.algebra = algebra
         self.n_param = n_param
         self.matrix_shape = matrix_shape

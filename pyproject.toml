@@ -39,6 +39,9 @@ omit = [".*", "*/site-packages/*"]
 
 [tool.coverage.report]
 fail_under = 60
+exclude_lines = [
+    "pass"
+]
 
 [tool.flake8]
 ignore = ['E231', 'E241']

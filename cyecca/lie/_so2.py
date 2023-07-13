@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from sympy import Matrix, cos, sin
+import numpy as np
+import numpy.typing as npt
+from numpy import floating, cos, sin
+
 from beartype import beartype
-from numbers import Real
 
 from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
 
@@ -54,7 +56,7 @@ class SO2LieGroup(LieGroup):
         return self.element(param=-left.param)
 
     def identity(self) -> LieGroupElement:
-        return self.element(param=Matrix.zeros(self.n_param, 1))
+        return self.element(param=np.zeros(self.n_param))
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group

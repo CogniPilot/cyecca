@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from sympy import cos, sin, Matrix, Identity
 from enum import Enum
-from beartype.typing import List
-from numbers import Real
+
+import numpy as np
+import numpy.typing as npt
+from numpy import floating
 
 from beartype import beartype
+from beartype.typing import List
 
 from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
 
@@ -21,7 +23,7 @@ class SO3LieAlgebra(LieAlgebra):
         assert self == left.algebra
         assert self == right.algebra
         c = left.to_matrix()@right.to_matrix() - right.to_matrix()@left.to_matrix()
-        return self.element(param=Matrix([c[2, 1], c[0, 2], c[1, 0]]))
+        return self.element(param=np.array([c[2, 1], c[0, 2], c[1, 0]]))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -34,13 +36,13 @@ class SO3LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left * right.param)
 
-    def adjoint(self, left: LieAlgebraElement) -> Matrix:
+    def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
         raise NotImplementedError("adjoint not implemented")
 
-    def to_matrix(self, left: LieAlgebraElement) -> Matrix:
+    def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        return Matrix([
+        return np.array([
             [0, -left.param[2], left.param[1]],
             [left.param[2], 0, -left.param[0]],
             [-left.param[1], left.param[0], 0]])
@@ -57,19 +59,19 @@ class EulerType(Enum):
 
 def rotation_matrix(axis : Axis, angle : Real):
     if axis== Axis.x:
-        return Matrix([
+        return np.array([
             [1, 0, 0],
             [0, cos(angle), -sin(angle)],
             [0, sin(angle), cos(angle)]
         ])
     elif axis == Axis.y:
-        return Matrix([
+        return np.array([
                 [cos(angle), 0, sin(angle)],
                 [0, 1, 0],
                 [-sin(angle), 0, cos(angle)]
             ])
     elif axis == Axis.z:
-        return Matrix([
+        return np.array([
             [cos(angle), -sin(angle), 0],
             [sin(angle), cos(angle), 0],
             [0, 0, 1]
@@ -99,11 +101,11 @@ class SO3EulerLieGroup(LieGroup):
         return self.element(param=-left.param)
 
     def identity(self) -> LieGroupElement:
-        return self.element(param=Matrix.zeros(self.n_param, 1))
+        return self.element(param=np.array.zeros(self.n_param, 1))
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
-        return Matrix.eye(1)
+        return np.array.eye(1)
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
@@ -113,7 +115,7 @@ class SO3EulerLieGroup(LieGroup):
         assert self == left.group
         raise NotImplementedError("log not implemented")
 
-    def to_matrix(self, left: LieGroupElement) -> Matrix:
+    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
         m = Identity(3)
         for axis, angle in zip(self.sequence, left.param):
@@ -123,7 +125,7 @@ class SO3EulerLieGroup(LieGroup):
                 m = rotation_matrix(axis=axis, angle=angle) @ m
             else:
                 raise ValueError('euler_type must be body_fixed or space_fixed')
-        return Matrix(m)
+        return np.array(m)
 
 
 SO3Euler = SO3EulerLieGroup
@@ -139,7 +141,7 @@ class SO3QuatLieGroup(LieGroup):
         assert self == right.group
         q = left.param
         p = right.param
-        return self.element(param=Matrix([
+        return self.element(param=np.array([
             q[0] * p[0] - q[1] * p[1] - q[2] * p[2] - q[3] * p[3],
             q[1] * p[0] + q[0] * p[1] - q[3] * p[2] + q[2] * p[3],
             q[2] * p[0] + q[3] * p[1] + q[0] * p[2] - q[1] * p[3],
@@ -149,12 +151,12 @@ class SO3QuatLieGroup(LieGroup):
     def inverse(self, left: LieGroupElement) -> LieGroupElement:
         assert self == left.group
         q = left.param
-        return self.element(param=Matrix([
+        return self.element(param=np.array([
             q[0], -q[1], -q[2], -q[3]
         ]))
 
     def identity(self) -> LieGroupElement:
-        return self.element(param=Matrix([1, 0, 0, 0]))
+        return self.element(param=np.array([1, 0, 0, 0]))
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
@@ -168,7 +170,7 @@ class SO3QuatLieGroup(LieGroup):
         assert self == left.group
         raise NotImplementedError("exp not implemented")
 
-    def to_matrix(self, left: LieGroupElement) -> Matrix:
+    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
         a, b, c, d = left.param
         aa = a*a
@@ -181,7 +183,7 @@ class SO3QuatLieGroup(LieGroup):
         cc = c*c
         cd = c*d
         dd = d*d
-        return Matrix([
+        return np.array([
             [aa + bb - cc - dd, 2 * (bc - ad), 2 * (ac + bd)],
             [2 * (bc + ad), aa - bb + cc - dd, 2 * (cd - ab), 2 * (bd - ac)],
             [2 * (bd - ac), 2 * (ab + cd), aa - bb - cc + dd]
@@ -201,12 +203,12 @@ class SO3DCMLieGroup(LieGroup):
         assert self == right.group
         q = left.param
         p = right.param
-        return self.element(param=Matrix([]))
+        return self.element(param=np.array([]))
 
     def inverse(self, left: LieGroupElement) -> LieGroupElement:
         assert self == left.group
         q = left.param
-        return self.element(param=Matrix([])) # transpose
+        return self.element(param=np.array([])) # transpose
 
     def identity(self) -> LieGroupElement:
         return self.element(param=Identity(3))
@@ -223,7 +225,7 @@ class SO3DCMLieGroup(LieGroup):
         assert self == left.group
         raise NotImplementedError("exp not implemented")
 
-    def to_matrix(self, left: LieGroupElement) -> Matrix:
+    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
         return self.element(param=left.param)
 
@@ -239,19 +241,19 @@ class SO3MRPLieGroup(LieGroup):
         assert self == right.group
         q = left.param
         p = right.param
-        return self.element(param=Matrix([
+        return self.element(param=np.array([
 
         ]))
 
     def inverse(self, left: LieGroupElement) -> LieGroupElement:
         assert self == left.group
         r = left.param
-        return self.element(param=Matrix([
+        return self.element(param=np.array([
             -r[0], -r[1], -r[2], r[3]
         ]))
     
     def identity(self) -> LieGroupElement:
-        return self.element(param=Matrix([0, 0, 0, 0]))
+        return self.element(param=np.array([0, 0, 0, 0]))
     
     def shadow(self, r):
         assert r.shape == (4, 1) or r.shape == (4,)
@@ -273,7 +275,7 @@ class SO3MRPLieGroup(LieGroup):
         assert self == left.group
         raise NotImplementedError("exp not implemented")
 
-    def to_matrix(self, left: LieGroupElement) -> Matrix:
+    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
         raise NotImplementedError("to matrix not implemented")
 

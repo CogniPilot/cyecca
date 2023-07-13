@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from sympy import Matrix
+import numpy as np
+import numpy.typing as npt
+from numpy import floating
+
 from beartype import beartype
 
 from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
@@ -14,7 +17,7 @@ class RnLieAlgebra(LieAlgebra):
     def bracket(self, left: LieAlgebraElement, right: LieAlgebraElement):
         assert self == left.algebra
         assert self == right.algebra
-        return self.element(param=Matrix([0]))
+        return self.element(param=np.zeros(self.n_param))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -27,13 +30,13 @@ class RnLieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left * right.param)
 
-    def adjoint(self, left: LieAlgebraElement) -> Matrix:
+    def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        return Matrix.zeros(self.n_param, self.n_param)
+        return np.zeros((self.n_param, self.n_param))
 
-    def to_matrix(self, left: LieAlgebraElement) -> Matrix:
+    def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        A = Matrix(self.matrix_shape)
+        A = np.zeros(self.matrix_shape)
         for i in range(self.n_param):
             A[i, self.n_param] = left.param[i]
         return A
@@ -53,16 +56,16 @@ class RnLieGroup(LieGroup):
         assert self == right.group
         return self.element(param=left.param + right.param)
 
-    def inverse(self, left: LieAlgebraElement) -> LieAlgebraElement:
+    def inverse(self, left: LieGroupElement) -> LieGroupElement:
         assert self == left.group
         return self.element(param=-left.param)
 
     def identity(self) -> LieGroupElement:
-        return self.element(param=Matrix.zeros(self.n_param, 1))
+        return self.element(param=np.zeros(self.n_param))
 
-    def adjoint(self, left: LieGroupElement) -> Matrix:
+    def adjoint(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
-        return Matrix.eye(self.n_param + 1)
+        return np.eye(self.n_param + 1)
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         """It is the identity map"""
@@ -74,9 +77,9 @@ class RnLieGroup(LieGroup):
         assert self == left.group
         return left.group.algebra.element(left.param)
 
-    def to_matrix(self, left: LieGroupElement) -> Matrix:
+    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
-        A = Matrix.eye(self.n_param + 1)
+        A = np.eye(self.n_param + 1)
         for i in range(self.n_param):
             A[i, self.n_param] = left.param[i]
         return A

@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
-import numpy.typing as npt
-from numpy import floating
-
 import casadi as ca
 
 from beartype import beartype
@@ -22,7 +18,7 @@ class SO2LieAlgebra(LieAlgebra):
     ) -> LieAlgebraElement:
         assert self == left.algebra
         assert self == right.algebra
-        return self.element(param=np.array([0]))
+        return self.element(param=ca.DM([0]))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -47,7 +43,7 @@ class SO2LieAlgebra(LieAlgebra):
         M[1, 0] = left.param[0,0]
         return M
     
-    def wedge(self, left: ca.SX) -> LieAlgebraElement:
+    def wedge(self, left: (ca.SX, ca.DM)) -> LieAlgebraElement:
         self = SO2LieAlgebra()
         return self.element(param=left)
     
@@ -71,7 +67,7 @@ class SO2LieGroup(LieGroup):
         return self.element(param=-left.param)
 
     def identity(self) -> LieGroupElement:
-        return self.element(param=np.zeros(self.n_param))
+        return self.element(param=ca.SX.zeros(self.n_param))
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group

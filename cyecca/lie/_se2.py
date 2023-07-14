@@ -24,7 +24,7 @@ class SE2LieAlgebra(LieAlgebra):
         assert self == left.algebra
         assert self == right.algebra
         c = left.to_matrix()@right.to_matrix() - right.to_matrix()@left.to_matrix()
-        return self.element(param=ca.SX([c[0, 2], c[1, 2], c[1, 0]]))
+        return self.element(param=ca.vertcat(c[0, 2], c[1, 2], c[1, 0]))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -33,7 +33,7 @@ class SE2LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left.param + right.param)
 
-    def scalar_multipication(self, left : Real, right: LieAlgebraElement) -> LieAlgebraElement:
+    def scalar_multipication(self, left : (float, int), right: LieAlgebraElement) -> LieAlgebraElement:
         assert self == right.algebra
         return self.element(param=left * right.param)
 
@@ -57,7 +57,7 @@ class SE2LieAlgebra(LieAlgebra):
         horz = ca.horzcat(Omega, v)
         return ca.vertcat(horz, Z13)
     
-    def wedge(self, left: ca.SX) -> LieAlgebraElement:
+    def wedge(self, left: (ca.SX, ca.DM)) -> LieAlgebraElement:
         self = SE2LieAlgebra()
         return self.element(param=left)
     

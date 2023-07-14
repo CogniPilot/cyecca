@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
-import numpy.typing as npt
-from numpy import floating
-
 import casadi as ca
 
 from abc import ABC, abstractmethod
@@ -16,10 +12,10 @@ class LieAlgebraElement:
     This is a generic Lie algebra element, not necessarily represented as a matrix
     """
 
-    def __init__(self, algebra: LieAlgebra, param: ca.SX):
+    def __init__(self, algebra: LieAlgebra, param: (ca.SX, ca.DM)):
         self.algebra = algebra
         assert param.shape == (self.algebra.n_param,1)
-        self.param = param
+        self.param = ca.SX(param)
 
     def ad(self) -> ca.SX:
         """returns the adjoint as a linear operator on the parameter vector"""
@@ -30,7 +26,7 @@ class LieAlgebraElement:
         return self.algebra.vee(self)
 
     def __eq__(self, other):
-        return self.param == other.param
+        return ca.logic_all(self.param == other.param)
 
     def __mul__(self, right: LieAlgebraElement) -> LieAlgebraElement:
         return self.algebra.bracket(left=self, right=right)
@@ -63,10 +59,10 @@ class LieAlgebra(ABC):
         self.n_param = n_param
         self.matrix_shape = matrix_shape
 
-    def element(self, param: ca.SX) -> LieAlgebraElement:
+    def element(self, param: (ca.SX, ca.DM)) -> LieAlgebraElement:
         return LieAlgebraElement(algebra=self, param=param)
 
-    def wedge(self, left: ca.SX) -> LieAlgebraElement:
+    def wedge(self, left: (ca.SX, ca.DM)) -> LieAlgebraElement:
         """given a parameter vector, creates a LieAlgebraElement"""
         return self.element(param=left)
 
@@ -110,16 +106,16 @@ class LieGroupElement:
     This is a generic Lie group element, not necessarily represented as a matrix
     """
 
-    def __init__(self, group: LieGroup, param: ca.SX):
+    def __init__(self, group: LieGroup, param: (ca.SX, ca.DM)):
         self.group = group
         assert param.shape == (self.group.n_param,1)
-        self.param = param
+        self.param = ca.SX(param)
 
     def inverse(self) -> LieGroupElement:
         return self.group.inverse(left=self)
 
     def __eq__(self, other):
-        return self.param == other.param
+        return ca.logic_all(self.param == other.param)
 
     def __mul__(self, right: LieGroupElement) -> LieGroupElement:
         return self.group.product(left=self, right=right)
@@ -150,7 +146,7 @@ class LieGroup:
         self.n_param = n_param
         self.matrix_shape = matrix_shape
 
-    def element(self, param: ca.SX) -> LieGroupElement:
+    def element(self, param: (ca.SX, ca.DM)) -> LieGroupElement:
         return LieGroupElement(group=self, param=param)
 
     @abstractmethod

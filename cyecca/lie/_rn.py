@@ -4,6 +4,8 @@ import numpy as np
 import numpy.typing as npt
 from numpy import floating
 
+import casadi as ca
+
 from beartype import beartype
 
 from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
@@ -17,7 +19,7 @@ class RnLieAlgebra(LieAlgebra):
     def bracket(self, left: LieAlgebraElement, right: LieAlgebraElement):
         assert self == left.algebra
         assert self == right.algebra
-        return self.element(param=np.zeros(self.n_param))
+        return self.element(param=ca.SX.zeros(self.n_param))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -30,13 +32,13 @@ class RnLieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left * right.param)
 
-    def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def adjoint(self, left: LieAlgebraElement) -> ca.SX:
         assert self == left.algebra
-        return np.zeros((self.n_param, self.n_param))
+        return ca.SX.zeros((self.n_param, self.n_param))
 
-    def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
         assert self == left.algebra
-        A = np.zeros(self.matrix_shape)
+        A = ca.SX.zeros(self.matrix_shape)
         for i in range(self.n_param):
             A[i, self.n_param] = left.param[i]
         return A
@@ -61,11 +63,11 @@ class RnLieGroup(LieGroup):
         return self.element(param=-left.param)
 
     def identity(self) -> LieGroupElement:
-        return self.element(param=np.zeros(self.n_param))
+        return self.element(param=ca.SX.zeros(self.n_param))
 
-    def adjoint(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
+    def adjoint(self, left: LieGroupElement) -> ca.SX:
         assert self == left.group
-        return np.eye(self.n_param + 1)
+        return ca.SX_eye(self.n_param + 1)
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         """It is the identity map"""
@@ -77,9 +79,9 @@ class RnLieGroup(LieGroup):
         assert self == left.group
         return left.group.algebra.element(left.param)
 
-    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
+    def to_matrix(self, left: LieGroupElement) -> ca.SX:
         assert self == left.group
-        A = np.eye(self.n_param + 1)
+        A = ca.SX_eye(self.n_param + 1)
         for i in range(self.n_param):
             A[i, self.n_param] = left.param[i]
         return A

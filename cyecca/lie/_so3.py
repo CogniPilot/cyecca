@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from enum import Enum
 
+import casadi as ca
+
 import numpy as np
 import numpy.typing as npt
 from numpy import floating
@@ -23,7 +25,7 @@ class SO3LieAlgebra(LieAlgebra):
         assert self == left.algebra
         assert self == right.algebra
         c = left.to_matrix()@right.to_matrix() - right.to_matrix()@left.to_matrix()
-        return self.element(param=np.array([c[2, 1], c[0, 2], c[1, 0]]))
+        return self.element(param=ca.SX([c[2, 1], c[0, 2], c[1, 0]]))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -42,7 +44,7 @@ class SO3LieAlgebra(LieAlgebra):
 
     def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        return np.array([
+        return ca.SX([
             [0, -left.param[2], left.param[1]],
             [left.param[2], 0, -left.param[0]],
             [-left.param[1], left.param[0], 0]
@@ -70,19 +72,19 @@ def rotation_matrix(axis : Axis, angle : Real):
     if axis== Axis.x:
         return np.array([
             [1, 0, 0],
-            [0, np.cos(angle), -np.sin(angle)],
-            [0, np.sin(angle), np.cos(angle)]
+            [0, ca.cos(angle), -ca.sin(angle)],
+            [0, ca.sin(angle), ca.cos(angle)]
         ])
     elif axis == Axis.y:
         return np.array([
-                [np.cos(angle), 0, np.sin(angle)],
+                [ca.cos(angle), 0, ca.sin(angle)],
                 [0, 1, 0],
-                [-np.sin(angle), 0, np.cos(angle)]
+                [-ca.sin(angle), 0, ca.cos(angle)]
             ])
     elif axis == Axis.z:
         return np.array([
-            [np.cos(angle), -np.sin(angle), 0],
-            [np.sin(angle), np.cos(angle), 0],
+            [ca.cos(angle), -ca.sin(angle), 0],
+            [ca.sin(angle), ca.cos(angle), 0],
             [0, 0, 1]
         ])
     else:
@@ -119,7 +121,7 @@ class SO3EulerLieGroup(LieGroup):
         assert self.algebra == left.algebra
         omega = left.param
         omega_x = left.to_matrix()
-        omega_n = np.linalg.norm(omega)
+        omega_n = ca.norm_2(omega)
         A = np.where(np.abs(omega_n) < 1e-7, 1 - omega_n**2/6 + omega_n**4/120, np.sin(omega_n)/omega_n)
         B = np.where(np.abs(omega_n)<1e-7, 0.5 - omega_n**2/24 + omega_n** 4/720, (1-np.cos(omega_n))/omega_n**2)
         R = np.eye(3) + A*omega_x + B*(omega_x@omega_x)

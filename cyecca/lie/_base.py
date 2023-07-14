@@ -4,6 +4,8 @@ import numpy as np
 import numpy.typing as npt
 from numpy import floating
 
+import casadi as ca
+
 from abc import ABC, abstractmethod
 from beartype import beartype
 
@@ -14,16 +16,16 @@ class LieAlgebraElement:
     This is a generic Lie algebra element, not necessarily represented as a matrix
     """
 
-    def __init__(self, algebra: LieAlgebra, param: npt.NDArray[np.floating]):
+    def __init__(self, algebra: LieAlgebra, param: ca.SX):
         self.algebra = algebra
-        assert param.shape == (self.algebra.n_param,)
+        assert param.shape == (self.algebra.n_param,1)
         self.param = param
 
-    def ad(self) -> npt.NDArray[np.floating]:
+    def ad(self) -> ca.SX:
         """returns the adjoint as a linear operator on the parameter vector"""
         return self.algebra.adjoint(self)
 
-    def vee(self) -> npt.NDArray[np.floating]:
+    def vee(self) -> ca.SX:
         """maps from Lie algebra to its parameters as a vector"""
         return self.algebra.vee(self)
 
@@ -39,7 +41,7 @@ class LieAlgebraElement:
     def __add__(self, right: "LieAlgebraElement") -> "LieAlgebraElement":
         return self.algebra.addition(left=self, right=right)
 
-    def to_matrix(self) -> npt.NDArray[np.floating]:
+    def to_matrix(self) -> ca.SX:
         return self.algebra.to_matrix(self)
 
     def exp(self, group: "LieGroup") -> "LieGroupElement":
@@ -61,14 +63,14 @@ class LieAlgebra(ABC):
         self.n_param = n_param
         self.matrix_shape = matrix_shape
 
-    def element(self, param: npt.NDArray[np.floating]) -> LieAlgebraElement:
+    def element(self, param: ca.SX) -> LieAlgebraElement:
         return LieAlgebraElement(algebra=self, param=param)
 
-    def wedge(self, left: npt.NDArray[np.floating]) -> LieAlgebraElement:
+    def wedge(self, left: ca.SX) -> LieAlgebraElement:
         """given a parameter vector, creates a LieAlgebraElement"""
         return self.element(param=left)
 
-    def vee(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def vee(self, left: LieAlgebraElement) -> ca.SX:
         """given a LieAlgebraElement, returns a parameter vector"""
         return left.param
 
@@ -91,11 +93,11 @@ class LieAlgebra(ABC):
         pass
 
     @abstractmethod
-    def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def adjoint(self, left: LieAlgebraElement) -> ca.SX:
         pass
 
     @abstractmethod
-    def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
         pass
 
     def __repr__(self):
@@ -108,9 +110,9 @@ class LieGroupElement:
     This is a generic Lie group element, not necessarily represented as a matrix
     """
 
-    def __init__(self, group: LieGroup, param: npt.NDArray[np.floating]):
+    def __init__(self, group: LieGroup, param: ca.SX):
         self.group = group
-        assert param.shape == (self.group.n_param,)
+        assert param.shape == (self.group.n_param,1)
         self.param = param
 
     def inverse(self) -> LieGroupElement:
@@ -122,7 +124,7 @@ class LieGroupElement:
     def __mul__(self, right: LieGroupElement) -> LieGroupElement:
         return self.group.product(left=self, right=right)
 
-    def Ad(self) -> npt.NDArray[np.floating]:
+    def Ad(self) -> ca.SX:
         return self.group.adjoint(left=self)
 
     def to_matrix(self):
@@ -148,7 +150,7 @@ class LieGroup:
         self.n_param = n_param
         self.matrix_shape = matrix_shape
 
-    def element(self, param: npt.NDArray[np.floating]) -> LieGroupElement:
+    def element(self, param: ca.SX) -> LieGroupElement:
         return LieGroupElement(group=self, param=param)
 
     @abstractmethod
@@ -164,7 +166,7 @@ class LieGroup:
         pass
 
     @abstractmethod
-    def adjoint(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
+    def adjoint(self, left: LieGroupElement) -> ca.SX:
         pass
 
     @abstractmethod
@@ -176,7 +178,7 @@ class LieGroup:
         pass
 
     @abstractmethod
-    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
+    def to_matrix(self, left: LieGroupElement) -> ca.SX:
         pass
 
     def __repr__(self):

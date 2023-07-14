@@ -4,6 +4,8 @@ import numpy as np
 import numpy.typing as npt
 from numpy import floating
 
+import casadi as ca
+
 from beartype import beartype
 from beartype.typing import List
 
@@ -33,19 +35,23 @@ class SO2LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left * right.param)
 
-    def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def adjoint(self, left: LieAlgebraElement) -> ca.SX:
         assert self == left.algebra
-        return np.zeros((1,1))
+        return ca.SX.zeros(1, 1)
 
-    def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
+        print(type(left.param[0,0]))
         assert self == left.algebra
-        return np.array([[0, -left.param[0]], [left.param[0], 0]])
+        M = ca.SX.zeros(2,2)
+        M[0, 1] = -left.param[0,0]
+        M[1, 0] = left.param[0,0]
+        return M
     
-    def wedge(self, left: npt.NDArray[np.floating]) -> LieAlgebraElement:
+    def wedge(self, left: ca.SX) -> LieAlgebraElement:
         self = SO2LieAlgebra()
         return self.element(param=left)
     
-    def vee(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def vee(self, left: LieAlgebraElement) -> ca.SX:
         assert self == left.algebra
         return left.param
 
@@ -69,7 +75,7 @@ class SO2LieGroup(LieGroup):
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
-        return np.eye(1)
+        return ca.SX_eye(1)
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
@@ -79,12 +85,17 @@ class SO2LieGroup(LieGroup):
         assert self == left.group
         return self.algebra.element(param=left.param)
 
-    def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
+    def to_matrix(self, left: LieGroupElement) -> ca.SX:
         assert self == left.group
-        theta = left.param[0]
-        c = np.cos(theta)
-        s = np.sin(theta)
-        return np.array([[c, -s], [s, c]])
+        theta = left.param[0,0]
+        c = ca.cos(theta)
+        s = ca.sin(theta)
+        M = ca.SX.zeros(2,2)
+        M[0, 0] = c
+        M[0, 1] = -s
+        M[1, 0] = s
+        M[1, 1] = c
+        return M
 
 
 so2 = SO2LieAlgebra()

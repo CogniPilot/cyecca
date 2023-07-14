@@ -35,7 +35,7 @@ class SO2LieAlgebra(LieAlgebra):
 
     def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        return np.zeros(1, 1)
+        return np.zeros((1,1))
 
     def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra

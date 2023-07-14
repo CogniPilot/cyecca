@@ -45,7 +45,8 @@ class SO3LieAlgebra(LieAlgebra):
         return np.array([
             [0, -left.param[2], left.param[1]],
             [left.param[2], 0, -left.param[0]],
-            [-left.param[1], left.param[0], 0]])
+            [-left.param[1], left.param[0], 0]
+        ])
     
     def wedge(self, left: npt.NDArray[np.floating]) -> LieAlgebraElement:
         self = SO3LieAlgebra()
@@ -87,7 +88,6 @@ def rotation_matrix(axis : Axis, angle : Real):
     else:
         raise ValueError('unknown axis')
 
-
 so3 = SO3LieAlgebra()
 
 
@@ -117,17 +117,24 @@ class SO3EulerLieGroup(LieGroup):
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
-        v = self.param
-        w = left.to_matrix()
-        theta = np.linalg.norm(v)
-        A = np.where(np.abs(theta) < EPS, 1 - theta**2/6 + theta**4/120, np.sin(theta)/theta)
-        B = np.where(np.abs(theta)<EPS, 0.5 - theta ** 2 / 24 + theta ** 4 / 720, (1 - np.cos(theta)) / theta ** 2)
-        R = np.eye(3) + A * w + B * w @ w
-        return 
+        raise NotImplementedError("exp not implemented")
+        # v = self.param
+        # w = left.to_matrix()
+        # theta = np.linalg.norm(v)
+        # A = np.where(np.abs(theta) < 1e-7, 1 - theta**2/6 + theta**4/120, np.sin(theta)/theta)
+        # B = np.where(np.abs(theta)<1e-7, 0.5 - theta ** 2 / 24 + theta ** 4 / 720, (1 - np.cos(theta)) / theta ** 2)
+        # R = np.eye(3) + A * w + B * w @ w
+        # return 
 
     def log(self, left: LieGroupElement) -> LieAlgebraElement:
         assert self == left.group
-        raise NotImplementedError("log not implemented")
+        NotImplementedError("log not implemented")
+        # R = left.to_matrix()
+        # theta = np.arccos((np.trace(R) - 1) / 2)
+        # A = np.where(np.abs(theta) < 1e-7, 1 - theta**2/6 + theta**4/120, np.sin(theta)/theta)
+        # r_matrix = (R - R.T)/(A * 2) # matrix of so3 in np.array
+        # r = # vector of so3
+        # return self.algebra.element(param=r)
 
     def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
@@ -182,7 +189,7 @@ class SO3QuatLieGroup(LieGroup):
         theta = np.linalg.norm(v)
         c = np.sin(theta/2)
         q = np.array([np.cos(theta/2), c*v[0]/theta, c*v[1]/theta, c*v[2]/theta])
-        return SO3QuatLieGroup.element(param=np.where(np.abs(theta)>1e-7, q, np.array([1,0,0,0])))
+        return self.element(param=np.where(np.abs(theta)>1e-7, q, np.array([1,0,0,0])))
     
     def log(self, left: LieGroupElement) -> LieAlgebraElement:
         assert self == left.group
@@ -190,7 +197,7 @@ class SO3QuatLieGroup(LieGroup):
         theta = 2*np.arccos(q[0])
         c = np.sin(theta/2)
         v = np.array([theta*q[1]/c, theta*q[2]/c, theta*q[3]/c])
-        return so3.element(param=np.where(np.abs(c)>1e-7, v, np.array([0,0,0])))
+        return self.algebra.element(param=np.where(np.abs(c)>1e-7, v, np.array([0,0,0])))
     
     def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
@@ -266,14 +273,15 @@ class SO3MRPLieGroup(LieGroup):
         res = np.zeros((4,))
         res[:3] = np.tan(angle / 4) * v / angle
         res[3] = 0
-        return SO3MRPLieGroup.element(param=np.where(angle>1e-7, res, np.array([0,0,0,0])))
+        p = np.where(angle>1e-7, res, np.array([0,0,0,0]))
+        return self.element(param=p)
 
     def log(self, left: LieGroupElement) -> LieAlgebraElement:
         assert self == left.group
         r = left.param
         n = np.linalg.norm(r[:3])
         v = 4*np.arctan(n)*r[:3]/n
-        return so3.element(param=np.where(n > 1e-7, v, np.array([0,0,0])))
+        return self.algebra.element(param=np.where(n > 1e-7, v, np.array([0,0,0])))
 
     def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group

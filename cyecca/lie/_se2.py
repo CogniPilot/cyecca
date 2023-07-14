@@ -36,14 +36,25 @@ class SE2LieAlgebra(LieAlgebra):
 
     def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        return np.zeros(1, 1)
+        x, y, theta = left.param
+        return np.array([
+            [0, -theta, y],
+            [theta, 0, -x],
+            [0, 0, 0]
+        ])
 
     def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        return np.array([[0, -left.param[0]], [left.param[0], 0]])
+        Omega = so2.element(left.param[2:]).to_matrix()
+        v = left.param[:2].reshape(2,1)
+        Z13 = np.zeros(3)
+        return np.block([
+            [Omega, v],
+            [Z13]
+        ])
     
     def wedge(self, left: npt.NDArray[np.floating]) -> LieAlgebraElement:
-        self = SO2LieAlgebra()
+        self = SE2LieAlgebra()
         return self.element(param=left)
     
     def vee(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
@@ -64,10 +75,10 @@ class SE2LieGroup(LieGroup):
     def inverse(self, left: LieGroupElement) -> LieGroupElement:
         assert self == left.group
         v = left.param[:2]
-        theta = left.param[2]
+        theta = left.param[2:]
         R = SO2.element(param=theta).to_matrix()
         p = -R.T@v
-        return self.element(param=np.array([p[0], p[1], -theta]))
+        return self.element(param=np.array([p[0], p[1], -theta[0]]))
 
     def identity(self) -> LieGroupElement:
         return self.element(param=np.zeros(self.n_param))
@@ -75,21 +86,21 @@ class SE2LieGroup(LieGroup):
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
         v = np.array([left.param[1], -left.param[0]])
-        theta = SO2.element(param=left.param[2])
+        theta = SO2.element(param=left.param[2:])
         return np.block([[theta.to_matrix(), v.reshape(2,1)],
                          [np.zeros((1,2)), 1]])
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
         theta = left.param[2]
-        sin_th = sin(theta)
-        cos_th = cos(theta)
+        sin_th = np.sin(theta)
+        cos_th = np.cos(theta)
         a = sin_th / theta
         b = (1 - cos_th) / theta
         V = np.array([
             [a, -b],
             [b, a]])
-        v = V @ left.param[:2, 0]
+        v = V @ left.param[:2]
         return self.element(np.array([v[0], v[1], theta]))
 
     def log(self, left: LieGroupElement) -> LieAlgebraElement:
@@ -104,18 +115,18 @@ class SE2LieGroup(LieGroup):
             [-b, a]
         ])/(a**2 + b**2)
         p = V_inv@v
-        return se2algebra.element(np.array([p[0], p[1], theta]))
+        return self.algebra.element(np.array([p[0], p[1], theta]))
 
     def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
-        R = SO2.to_matrix(left.param[2])
-        t = left.param[:2]
+        R = SO2.element(left.param[2:]).to_matrix()
+        t = left.param[:2].reshape(2,1)
         Z12 = np.zeros(2)
         I1 = np.eye(1)
-        return np.array(Blocknp.array([
+        return np.block([
             [R, t],
             [Z12, I1],
-        ]))
+        ])
 
 
 se2 = SE2LieAlgebra()

@@ -160,7 +160,7 @@ class Test_LieAlgebraSO2(ProfiledTestCase):
         lie.so2.element(v)
 
 
-class Test_nieGroupSO2(ProfiledTestCase):
+class Test_LieGroupSO2(ProfiledTestCase):
     def test_ctor(self):
         v = np.array([1.0])
         lie.SO2.element(v)

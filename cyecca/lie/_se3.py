@@ -19,7 +19,8 @@ class SE3LieAlgebra(LieAlgebra):
     def bracket(self, left: LieAlgebraElement, right: LieAlgebraElement):
         assert self == left.algebra
         assert self == right.algebra
-        return self.element(param=np.array([0]))
+        c = left.to_matrix()@right.to_matrix() - right.to_matrix()@left.to_matrix()
+        return self.element(param=np.array([c[0, 3], c[1, 3], c[2, 3], c[2, 1], c[0, 2], c[1, 0]]))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -38,7 +39,7 @@ class SE3LieAlgebra(LieAlgebra):
         assert self == left.algebra
         v = left.param[:3]
         vx = np.array([[0, -v[2], v[1]],[v[2], 0, -v[0]],[-v[1],v[0],0]])
-        w = so3(left.param[3:]).to_matrix()
+        w = so3.element(left.param[3:]).to_matrix()
         return np.block([
             [w, vx],
             [np.zeros((3,3)), w]
@@ -46,8 +47,8 @@ class SE3LieAlgebra(LieAlgebra):
 
     def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        Omega = so3(left.param[2]).to_matrix()
-        v = self.param[:3, 0]
+        Omega = so3.element(left.param[3:]).to_matrix()
+        v = left.param[:3].reshape(3,1)
         Z14 = np.zeros(4)
         return np.block([
             [Omega, v],
@@ -75,16 +76,20 @@ class SE3LieGroup(LieGroup):
     def product(self, left: LieGroupElement, right: LieGroupElement):
         assert self == left.group
         assert self == right.group
-        return self.element(left.param + right.param)
+        R = self.SO3.element(left.param[3:]).to_matrix()
+        v = (R@right.param[:3]+left.param[:3])
+        theta = (self.SO3.element(left.param[3:])*self.SO3.element(right.param[3:])).param
+        x = np.block([v, theta])
+        return self.element(param=x)
 
     def inverse(self, left):
         assert self == left.group
         v = left.param[:3]
         theta = left.param[3:]
-        theta_inv = SO3.element(param=theta).inv()
-        R = SO3.element(param=theta).to_matrix()
+        theta_inv = self.SO3.element(param=theta).inverse()
+        R = self.SO3.element(param=theta).to_matrix()
         p = -R.T@v
-        return self.element(param=np.array([p[0], p[1], p[2], theta_inv.param]))
+        return self.element(param=np.block([p, theta_inv.param]))
 
     def identity(self) -> LieGroupElement:
         return self.element(np.zeros((self.n_param, 1)))
@@ -92,11 +97,11 @@ class SE3LieGroup(LieGroup):
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
         v = left.param[:3]
-        theta = left.param[3:]
-        R = SO3.element(param=theta).to_matrix()
+        vx = so3.element(param=v).to_matrix()
+        R = self.SO3.element(param=left.param[3:]).to_matrix()
         return np.block([
-            [theta.to_matrix(), v.reshape(2,1)],
-            [np.zeros((1,2)), 1]
+            [R, vx@R],
+            [np.zeros((3,3)), R]
         ])
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:

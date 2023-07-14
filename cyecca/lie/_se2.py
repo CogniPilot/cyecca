@@ -21,7 +21,8 @@ class SE2LieAlgebra(LieAlgebra):
     ) -> LieAlgebraElement:
         assert self == left.algebra
         assert self == right.algebra
-        return self.element(param=np.array([0]))
+        c = left.to_matrix()@right.to_matrix() - right.to_matrix()@left.to_matrix()
+        return self.element(param=np.array([c[0, 2], c[1, 2], c[1, 0]]))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -70,7 +71,10 @@ class SE2LieGroup(LieGroup):
     def product(self, left: LieGroupElement, right: LieGroupElement):
         assert self == left.group
         assert self == right.group
-        return self.element(param=left.param + right.param)
+        R = SO2.element(left.param[2:]).to_matrix()
+        v = (R@right.param[:2]+left.param[:2])
+        x = np.block([v, left.param[2:]+right.param[2:]])
+        return self.element(param=x)
 
     def inverse(self, left: LieGroupElement) -> LieGroupElement:
         assert self == left.group

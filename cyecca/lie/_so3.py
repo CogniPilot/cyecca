@@ -38,7 +38,7 @@ class SO3LieAlgebra(LieAlgebra):
 
     def adjoint(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
-        raise NotImplementedError("adjoint not implemented")
+        return left.to_matrix()
 
     def to_matrix(self, left: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == left.algebra
@@ -117,24 +117,49 @@ class SO3EulerLieGroup(LieGroup):
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
-        raise NotImplementedError("exp not implemented")
-        # v = self.param
-        # w = left.to_matrix()
-        # theta = np.linalg.norm(v)
-        # A = np.where(np.abs(theta) < 1e-7, 1 - theta**2/6 + theta**4/120, np.sin(theta)/theta)
-        # B = np.where(np.abs(theta)<1e-7, 0.5 - theta ** 2 / 24 + theta ** 4 / 720, (1 - np.cos(theta)) / theta ** 2)
-        # R = np.eye(3) + A * w + B * w @ w
-        # return 
+        omega = left.param
+        omega_x = left.to_matrix()
+        omega_n = np.linalg.norm(omega)
+        A = np.where(np.abs(omega_n) < 1e-7, 1 - omega_n**2/6 + omega_n**4/120, np.sin(omega_n)/omega_n)
+        B = np.where(np.abs(omega_n)<1e-7, 0.5 - omega_n**2/24 + omega_n** 4/720, (1-np.cos(omega_n))/omega_n**2)
+        R = np.eye(3) + A*omega_x + B*(omega_x@omega_x)
+    
+        if self.euler_type == EulerType.body_fixed:
+            theta = np.arcsin(-R[2,0])
+            if np.abs(theta - np.pi/2) < 1e-7:
+                phi = 0
+                psi = np.arctan2(R[1,2],R[0,2])
+            elif np.abs(theta + np.pi/2) < 1e-7:
+                psi = 0
+                phi = np.arctan2(-R[0,1],R[1,1])
+            else:
+                phi = np.arctan2(R[2,1], R[2,2])
+                psi = np.arctan2(R[1,0], R[0,0])
+            angle = np.array([psi, theta, phi])
+        elif self.euler_type == EulerType.space_fixed:
+            theta = np.arcsin(R[0,2])
+            if np.abs(theta - np.pi/2) < 1e-7:
+                phi = 0
+                psi = np.arctan2(-R[1,0],R[2,0])
+            elif np.abs(theta + np.pi/2) < 1e-7:
+                psi = 0
+                phi = np.arctan2(-R[1,0],R[1,1])
+            else:
+                phi = np.arctan2(-R[1,2], R[2,2])
+                psi = np.arctan2(-R[0,1], R[0,0])
+            angle = np.array([psi, theta, phi])
+        else:
+            raise ValueError('euler_type must be body_fixed or space_fixed')
+        return self.element(param=angle)
 
     def log(self, left: LieGroupElement) -> LieAlgebraElement:
         assert self == left.group
-        NotImplementedError("log not implemented")
-        # R = left.to_matrix()
-        # theta = np.arccos((np.trace(R) - 1) / 2)
-        # A = np.where(np.abs(theta) < 1e-7, 1 - theta**2/6 + theta**4/120, np.sin(theta)/theta)
-        # r_matrix = (R - R.T)/(A * 2) # matrix of so3 in np.array
-        # r = # vector of so3
-        # return self.algebra.element(param=r)
+        R = left.to_matrix()
+        theta = np.arccos((np.trace(R) - 1) / 2)
+        A = np.where(np.abs(theta) < 1e-7, 1 - theta**2/6 + theta**4/120, np.sin(theta)/theta)
+        r_matrix = (R - R.T)/(A * 2) # matrix of so3 in np.array
+        r = np.array([r_matrix[2, 1], r_matrix[0, 2], r_matrix[1, 0]])# vector of so3
+        return self.algebra.element(param=r)
 
     def to_matrix(self, left: LieGroupElement) -> npt.NDArray[np.floating]:
         assert self == left.group
@@ -181,7 +206,7 @@ class SO3QuatLieGroup(LieGroup):
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
-        raise left.to_matrix()
+        return left.to_matrix()
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
@@ -264,7 +289,7 @@ class SO3MRPLieGroup(LieGroup):
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
-        raise left.to_matrix()
+        return left.to_matrix()
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra

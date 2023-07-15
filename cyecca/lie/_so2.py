@@ -27,7 +27,7 @@ class SO2LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left.param + right.param)
 
-    def scalar_multipication(self, left : Real, right: LieAlgebraElement) -> LieAlgebraElement:
+    def scalar_multipication(self, left : (float, int), right: LieAlgebraElement) -> LieAlgebraElement:
         assert self == right.algebra
         return self.element(param=left * right.param)
 

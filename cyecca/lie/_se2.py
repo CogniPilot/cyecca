@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
-import numpy.typing as npt
-from numpy import floating
-
 import casadi as ca
 
 from beartype import beartype
@@ -88,27 +84,27 @@ class SE2LieGroup(LieGroup):
         return self.element(param=ca.vertcat(p, -theta))
 
     def identity(self) -> LieGroupElement:
-        return self.element(param=np.zeros(self.n_param))
+        return self.element(param=ca.SX.zeros(self.n_param,1))
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group
-        v = np.array([left.param[1], -left.param[0]])
+        v = ca.vertcat(left.param[1], -left.param[0])
         theta = SO2.element(param=left.param[2:])
-        horz1 = ca.horzcat(theta.to_matrix(), v.reshape(2,1))
+        horz1 = ca.horzcat(theta.to_matrix(), v)
         horz2 = ca.horzcat(ca.SX.zeros(1,2), 1)
         return ca.vertcat(horz1, horz2)
     
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == left.algebra
         theta = left.param[2,0]
-        sin_th = np.sin(theta)
-        cos_th = np.cos(theta)
+        sin_th = ca.sin(theta)
+        cos_th = ca.cos(theta)
         a = sin_th / theta
         b = (1 - cos_th) / theta
-        V = np.array([
-            [a, -b],
-            [b, a]])
-        v = V @ left.param[:2,0]
+        horz1 = ca.horzcat(a, -b)
+        horz2 = ca.horzcat(b, a)
+        V = ca.vertcat(horz1, horz2)
+        v = V @ left.param[:2]
         return self.element(ca.vertcat(v, theta))
 
     def log(self, left: LieGroupElement) -> LieAlgebraElement:

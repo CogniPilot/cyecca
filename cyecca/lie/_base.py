@@ -223,23 +223,23 @@ class LieAlgebraDirectProduct(LieAlgebra):
     def bracket(
         self, left: LieAlgebraElement, right: LieAlgebraElement
     ) -> LieAlgebraElement:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def scalar_multipication(
         self, left: Real, right: LieAlgebraElement
     ) -> LieAlgebraElement:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
     ) -> LieAlgebraElement:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def adjoint(self, left: LieAlgebraElement) -> ca.SX:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def __repr__(self):
         return " x ".join([algebra.__class__.__name__ for algebra in self.algebras])
@@ -315,16 +315,16 @@ class LieGroupDirectProduct(LieGroup):
         return LieGroupElement(group=self, param=param)
 
     def adjoint(self, left: LieGroupElement) -> ca.SX:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def exp(self, left: LieAlgebraElement) -> LieGroupElement:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def log(self, algebra: LieAlgebra, left: LieGroupElement) -> LieAlgebraElement:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def to_matrix(self, left: LieGroupElement) -> ca.SX:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def __repr__(self):
         return " x ".join([group.__class__.__name__ for group in self.groups])

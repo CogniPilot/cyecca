@@ -41,8 +41,9 @@ omit = [".*", "*/site-packages/*"]
 
 [tool.coverage.report]
 fail_under = 93
-exclude_lines = [
-    "pass"
+exclude_also = [
+	"pass",
+	"raise NotImplementedError"
 ]
 
 [tool.flake8]

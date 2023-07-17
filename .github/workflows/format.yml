@@ -5,7 +5,11 @@ jobs:
     name: runner / black formatter
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: rickstaa/action-black@v1
-        with:
-          black_args: ". --check"
+      - uses: actions/checkout@v3
+      - name: Setup poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Link with black
+        run: poetry run black .
+      - name: Test with pytest
+        run: poetry run pytest
+

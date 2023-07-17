@@ -1,4 +1,7 @@
 # cyecca
+
+[![Build](https://github.com/CogniPilot/cyecca/actions/workflows/ci.yml/badge.svg)](https://github.com/CogniPilot/cyecca/actions/workflows/ci.yml)
+
 Estimation and Control with Computer Algebra systems
 
 ## Installation

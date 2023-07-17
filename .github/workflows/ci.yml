@@ -1,8 +1,7 @@
-name: format
+name: CI
 on: [push, pull_request]
 jobs:
-  linter_name:
-    name: CI
+  build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -14,4 +13,3 @@ jobs:
         run: /home/runner/.local/bin/poetry run black --check .
       - name: Test with pytest
         run: /home/runner/.local/bin/poetry run pytest --cov
-

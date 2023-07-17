@@ -9,7 +9,7 @@ jobs:
       - name: Setup poetry
         run: curl -sSL https://install.python-poetry.org | python3 -
       - name: Link with black
-        run: poetry run black .
+        run: /home/runner/.local/bin/poetry run black .
       - name: Test with pytest
-        run: poetry run pytest
+        run: /home/runner/.local/bin/poetry run pytest
 

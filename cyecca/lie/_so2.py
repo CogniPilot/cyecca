@@ -27,7 +27,9 @@ class SO2LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left.param + right.param)
 
-    def scalar_multipication(self, left : (float, int), right: LieAlgebraElement) -> LieAlgebraElement:
+    def scalar_multipication(
+        self, left: (float, int), right: LieAlgebraElement
+    ) -> LieAlgebraElement:
         assert self == right.algebra
         return self.element(param=left * right.param)
 
@@ -36,17 +38,17 @@ class SO2LieAlgebra(LieAlgebra):
         return ca.SX.zeros(1, 1)
 
     def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
-        print(type(left.param[0,0]))
+        print(type(left.param[0, 0]))
         assert self == left.algebra
-        M = ca.SX.zeros(2,2)
-        M[0, 1] = -left.param[0,0]
-        M[1, 0] = left.param[0,0]
+        M = ca.SX.zeros(2, 2)
+        M[0, 1] = -left.param[0, 0]
+        M[1, 0] = left.param[0, 0]
         return M
-    
+
     def wedge(self, left: (ca.SX, ca.DM)) -> LieAlgebraElement:
         self = SO2LieAlgebra()
         return self.element(param=left)
-    
+
     def vee(self, left: LieAlgebraElement) -> ca.SX:
         assert self == left.algebra
         return left.param
@@ -83,10 +85,10 @@ class SO2LieGroup(LieGroup):
 
     def to_matrix(self, left: LieGroupElement) -> ca.SX:
         assert self == left.group
-        theta = left.param[0,0]
+        theta = left.param[0, 0]
         c = ca.cos(theta)
         s = ca.sin(theta)
-        M = ca.SX.zeros(2,2)
+        M = ca.SX.zeros(2, 2)
         M[0, 0] = c
         M[0, 1] = -s
         M[1, 0] = s

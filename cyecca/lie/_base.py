@@ -14,7 +14,7 @@ class LieAlgebraElement:
 
     def __init__(self, algebra: LieAlgebra, param: (ca.SX, ca.DM)):
         self.algebra = algebra
-        assert param.shape == (self.algebra.n_param,1)
+        assert param.shape == (self.algebra.n_param, 1)
         self.param = ca.SX(param)
 
     def ad(self) -> ca.SX:
@@ -108,7 +108,7 @@ class LieGroupElement:
 
     def __init__(self, group: LieGroup, param: (ca.SX, ca.DM)):
         self.group = group
-        assert param.shape == (self.group.n_param,1)
+        assert param.shape == (self.group.n_param, 1)
         self.param = ca.SX(param)
 
     def inverse(self) -> LieGroupElement:
@@ -133,7 +133,7 @@ class LieGroupElement:
         return "{:s}({:s}, {:s})".format(
             self.__class__.__name__, self.group.__class__.__name__, repr(self.param)
         )
-    
+
 
 @beartype
 class LieGroup:
@@ -141,7 +141,9 @@ class LieGroup:
     This is a generic Lie group, not necessarily represented as a matrix
     """
 
-    def __init__(self, algebra: LieAlgebra, n_param: int, matrix_shape: tuple[int, int]):
+    def __init__(
+        self, algebra: LieAlgebra, n_param: int, matrix_shape: tuple[int, int]
+    ):
         self.algebra = algebra
         self.n_param = n_param
         self.matrix_shape = matrix_shape

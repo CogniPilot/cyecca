@@ -11,7 +11,7 @@ jobs:
       - name: Install dependencies
         run: /home/runner/.local/bin/poetry install
       - name: Lint with black
-        run: /home/runner/.local/bin/poetry run black .
+        run: /home/runner/.local/bin/poetry run black --check .
       - name: Test with pytest
         run: /home/runner/.local/bin/poetry run pytest --cov
 

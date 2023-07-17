@@ -2,7 +2,7 @@ name: format
 on: [push, pull_request]
 jobs:
   linter_name:
-    name: runner / black formatter
+    name: CI
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -13,5 +13,5 @@ jobs:
       - name: Lint with black
         run: /home/runner/.local/bin/poetry run black .
       - name: Test with pytest
-        run: /home/runner/.local/bin/poetry run pytest
+        run: /home/runner/.local/bin/poetry run pytest --cov
 

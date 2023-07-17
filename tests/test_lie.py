@@ -966,3 +966,30 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
 
     def test_ctor(self):
         SE23Mrp.element(param=self.v1)
+
+
+class Test_LieGroupDirectProduct(ProfiledTestCase):
+    def setUp(self):
+        super().setUp()
+        self.G = SE2 * R3 * R3
+
+    def test_group_product(self):
+        G1 = self.G.element(ca.SX([1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        G2 = self.G.element(ca.SX([0, 0, 0, 0, 0, 0, 0, 0, 0]))
+        G3 = G1 * G2
+
+    def test_group_inverse(self):
+        G1 = self.G.element(ca.SX([1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        self.assertTrue(SX_close((G1 * G1.inverse()).param, self.G.identity().param))
+
+    def test_repr(self):
+        repr(self.G)
+
+
+class Test_LieAlgebraDirectProduct(ProfiledTestCase):
+    def setUp(self):
+        super().setUp()
+        self.g = se2 * r3 * r3
+
+    def test_repr(self):
+        repr(self.g)

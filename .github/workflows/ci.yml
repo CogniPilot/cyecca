@@ -13,3 +13,5 @@ jobs:
         run: /home/runner/.local/bin/poetry run black --check .
       - name: Test with pytest
         run: /home/runner/.local/bin/poetry run pytest --cov
+      - name: Test with pytest
+        run: /home/runner/.local/bin/poetry run pytest --nbmake

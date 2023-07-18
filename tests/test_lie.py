@@ -1,5 +1,7 @@
 import unittest
 
+from beartype.roar import BeartypeCallHintParamViolation
+
 from pathlib import Path
 import cProfile
 from pstats import Stats
@@ -54,9 +56,9 @@ class Test_LieGroupR3(ProfiledTestCase):
         G1 = R3.element(self.v1)
         G2 = R3.element(self.v2)
         s = 1
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 + G2
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -250,9 +252,9 @@ class Test_LieGroupSE2(ProfiledTestCase):
         G1 = SE2.element(self.v1)
         G2 = SE2.element(self.v2)
         s = 1
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 + G2
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -385,9 +387,9 @@ class Test_LieGroupSO2(ProfiledTestCase):
         G1 = SO2.element(self.v1)
         G2 = SO2.element(self.v2)
         s = 1
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 + G2
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -535,9 +537,9 @@ class Test_LieGroupSO3Euler(ProfiledTestCase):
         G1 = SO3EulerB321.element(self.v1)
         G2 = SO3EulerB321.element(self.v2)
         s = 1
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 + G2
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -613,9 +615,9 @@ class Test_LieGroupSO3Quat(ProfiledTestCase):
         G1 = SO3Quat.element(self.v1)
         G2 = SO3Quat.element(self.v2)
         s = 1
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 + G2
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -688,9 +690,9 @@ class Test_LieGroupSO3Mrp(ProfiledTestCase):
         G1 = SO3Mrp.element(self.v1)
         G2 = SO3Mrp.element(self.v2)
         s = 1
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 + G2
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -827,9 +829,9 @@ class Test_LieGroupSE3Mrp(ProfiledTestCase):
         G1 = SE3Mrp.element(self.v1)
         G2 = SE3Mrp.element(self.v2)
         s = 1
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 + G2
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -901,9 +903,9 @@ class Test_LieGroupSE3Quat(ProfiledTestCase):
         G1 = SE3Quat.element(self.v1)
         G2 = SE3Quat.element(self.v2)
         s = 1
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 + G2
-        with self.assertRaises(TypeError):
+        with self.assertRaises(BeartypeCallHintParamViolation):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2

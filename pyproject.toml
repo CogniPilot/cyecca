@@ -16,6 +16,7 @@ sympy = "^1.11.1"
 beartype = "^0.14.0"
 jaxlib = { extras = ["tpu"], version = "^0.4.13" }
 black = {extras = ["jupyter"], version = "^23.7.0"}
+matplotlib = "^3.7.2"
 
 
 [tool.poetry.group.dev.dependencies]

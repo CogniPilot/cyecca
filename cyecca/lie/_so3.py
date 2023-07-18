@@ -8,6 +8,7 @@ from beartype import beartype
 from beartype.typing import List
 
 from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
+from ._base import PARAM_TYPE, SCALAR_TYPE
 
 
 @beartype
@@ -31,7 +32,7 @@ class SO3LieAlgebra(LieAlgebra):
         return self.element(param=left.param + right.param)
 
     def scalar_multipication(
-        self, left: (float, int), right: LieAlgebraElement
+        self, left: SCALAR_TYPE, right: LieAlgebraElement
     ) -> LieAlgebraElement:
         assert self == right.algebra
         return self.element(param=left * right.param)
@@ -51,7 +52,7 @@ class SO3LieAlgebra(LieAlgebra):
         M[2, 1] = left.param[0, 0]
         return M
 
-    def wedge(self, left: (ca.SX, ca.DM)) -> LieAlgebraElement:
+    def wedge(self, left: PARAM_TYPE) -> LieAlgebraElement:
         self = SO3LieAlgebra()
         return self.element(param=left)
 
@@ -317,19 +318,18 @@ class SO3MrpLieGroup(SO3LieGroup):
     def identity(self) -> LieGroupElement:
         return self.element(param=ca.SX([0, 0, 0, 0]))
 
-    def shadow(self, left: LieGroupElement):
-        assert self == left.group
-        r = left.param
-        n_sq = ca.dot(r[:3], r[:3])
+    def shadow_param(self, param: PARAM_TYPE):
+        n_sq = ca.dot(param[:3], param[:3])
         res = ca.SX.zeros((4, 1))
-        res[:3] = -r[:3] / n_sq
-        res[3] = ca.logical_not(r[3])
+        res[:3] = -param[:3] / n_sq
+        res[3] = ca.logic_not(param[3])
         return res
 
     def shadow_if_necessary(self, left: LieGroupElement):
         assert self == left.group
         r = left.param
-        return ca.if_else(ca.norm_2(r[:3]) > 1, self.shadow(r), r)
+        param = ca.if_else(ca.norm_2(left.param[:3]) > 1, self.shadow_param(r), r)
+        return LieGroupElement(self, param)
 
     def adjoint(self, left: LieGroupElement):
         assert self == left.group

@@ -1,7 +1,7 @@
 import casadi as ca
 import sympy
 
-__all__ = ['taylor_series_near_zero', 'sympy_to_casadi']
+__all__ = ["taylor_series_near_zero", "sympy_to_casadi"]
 
 
 def taylor_series_near_zero(x, f, order=6, eps=1e-7, verbose=False):

@@ -69,7 +69,7 @@ se3 = SE3LieAlgebra()
 @beartype
 class SE3LieGroup(LieGroup):
     def __init__(self, SO3: SO3LieGroup):
-        super().__init__(algebra=se3, n_param=7, matrix_shape=(4, 4))
+        super().__init__(algebra=se3, n_param=SO3.n_param + 3, matrix_shape=(4, 4))
         self.SO3 = SO3
 
     def product(self, left: LieGroupElement, right: LieGroupElement):

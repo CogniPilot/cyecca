@@ -675,8 +675,8 @@ class Test_LieGroupSO3Quat(ProfiledTestCase):
 class Test_LieGroupSO3Mrp(ProfiledTestCase):
     def setUp(self):
         super().setUp()
-        self.v1 = ca.DM([1.0, 0.0, 0.0, 0.0])
-        self.v2 = ca.DM([0.0, 1.0, 0.0, 0.0])
+        self.v1 = ca.DM([1.0, 0.0, 0.0])
+        self.v2 = ca.DM([0.0, 1.0, 0.0])
 
     def test_ctor(self):
         SO3Mrp.element(self.v1)
@@ -696,7 +696,7 @@ class Test_LieGroupSO3Mrp(ProfiledTestCase):
 
     def test_product(self):
         q0 = SO3Mrp.element(self.v1)
-        q1 = SO3Mrp.element(ca.DM([0, 0, 0, 0]))
+        q1 = SO3Mrp.element(ca.DM([0, 0, 0]))
         q2 = q0 * q1
         self.assertTrue(SX_close(q0.param, q2.param))
 
@@ -814,8 +814,8 @@ class Test_LieAlgebraSE3(ProfiledTestCase):
 class Test_LieGroupSE3Mrp(ProfiledTestCase):
     def setUp(self):
         super().setUp()
-        self.v1 = ca.DM([3.0, 2.0, 1.0, 1.0, 0.0, 0.0, 0.0])
-        self.v2 = ca.DM([4.0, 5.0, 6.0, 0.0, 1.0, 0.0, 0.0])
+        self.v1 = ca.DM([3.0, 2.0, 1.0, 1.0, 0.0, 0.0])
+        self.v2 = ca.DM([4.0, 5.0, 6.0, 0.0, 1.0, 0.0])
 
     def test_ctor(self):
         SE3Mrp.element(self.v1)
@@ -835,7 +835,7 @@ class Test_LieGroupSE3Mrp(ProfiledTestCase):
 
     def test_product(self):
         G1 = SE3Mrp.element(self.v1)
-        G2 = SE3Mrp.element(ca.DM([0, 0, 0, 0, 0, 0, 0]))
+        G2 = SE3Mrp.element(ca.DM([0, 0, 0, 0, 0, 0]))
         G3 = G1 * G2
         self.assertTrue(SX_close(G3.param, G1.param))
 

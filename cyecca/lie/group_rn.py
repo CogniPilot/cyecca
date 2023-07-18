@@ -8,7 +8,9 @@ import casadi as ca
 
 from beartype import beartype
 
-from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
+from .base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
+
+__all__ = ["r2", "R2", "r3", "R3"]
 
 
 @beartype
@@ -32,15 +34,15 @@ class RnLieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left * right.param)
 
-    def adjoint(self, left: LieAlgebraElement) -> ca.SX:
-        assert self == left.algebra
+    def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
+        assert self == arg.algebra
         return ca.SX.zeros((self.n_param, self.n_param))
 
-    def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
-        assert self == left.algebra
+    def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
+        assert self == arg.algebra
         A = ca.SX.zeros(self.matrix_shape)
         for i in range(self.n_param):
-            A[i, self.n_param] = left.param[i]
+            A[i, self.n_param] = arg.param[i]
         return A
 
     def __str__(self):
@@ -58,32 +60,32 @@ class RnLieGroup(LieGroup):
         assert self == right.group
         return self.element(param=left.param + right.param)
 
-    def inverse(self, left: LieGroupElement) -> LieGroupElement:
-        assert self == left.group
-        return self.element(param=-left.param)
+    def inverse(self, arg: LieGroupElement) -> LieGroupElement:
+        assert self == arg.group
+        return self.element(param=-arg.param)
 
     def identity(self) -> LieGroupElement:
         return self.element(param=ca.SX.zeros(self.n_param))
 
-    def adjoint(self, left: LieGroupElement) -> ca.SX:
-        assert self == left.group
+    def adjoint(self, arg: LieGroupElement) -> ca.SX:
+        assert self == arg.group
         return ca.SX_eye(self.n_param + 1)
 
-    def exp(self, left: LieAlgebraElement) -> LieGroupElement:
+    def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
         """It is the identity map"""
-        assert self.algebra == left.algebra
-        return self.element(param=left.param)
+        assert self.algebra == arg.algebra
+        return self.element(param=arg.param)
 
-    def log(self, left: LieGroupElement) -> LieAlgebraElement:
+    def log(self, arg: LieGroupElement) -> LieAlgebraElement:
         """It is the identity map"""
-        assert self == left.group
-        return left.group.algebra.element(left.param)
+        assert self == arg.group
+        return arg.group.algebra.element(arg.param)
 
-    def to_matrix(self, left: LieGroupElement) -> ca.SX:
-        assert self == left.group
+    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
+        assert self == arg.group
         A = ca.SX_eye(self.n_param + 1)
         for i in range(self.n_param):
-            A[i, self.n_param] = left.param[i]
+            A[i, self.n_param] = arg.param[i]
         return A
 
     def __str__(self):

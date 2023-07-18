@@ -8,12 +8,7 @@ from pstats import Stats
 
 import casadi as ca
 
-from cyecca.lie import r3, R3
-from cyecca.lie import so2, SO2
-from cyecca.lie import so3, SO3Mrp, SO3Quat, SO3EulerB321
-from cyecca.lie import se2, SE2
-from cyecca.lie import se3, SE3Mrp, SE3Quat, SE3EulerB321
-from cyecca.lie import se23, SE23Mrp, SE23Quat, SE23EulerB321
+from cyecca.lie import *
 
 
 EPS = 1e-9
@@ -77,9 +72,9 @@ class Test_LieGroupR3(ProfiledTestCase):
         G2 = G1 * R3.identity()
         self.assertTrue(SX_close(G1.param, G2.param))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         G1 = R3.element(ca.DM([1.0, 2.0, 3.0]))
-        X = G1.to_matrix()
+        X = G1.to_Matrix()
 
     def test_inverse(self):
         G1 = R3.element(ca.DM([1.0, 2.0, 3.0]))
@@ -135,9 +130,9 @@ class Test_LieAlgebraR(ProfiledTestCase):
         g3 = g1 + g2
         self.assertTrue(SX_close(g3.param, v3))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         g1 = r3.element(self.v1)
-        X = g1.to_matrix()
+        X = g1.to_Matrix()
 
     def test_ad(self):
         g1 = r3.element(self.v1)
@@ -195,9 +190,9 @@ class Test_LieAlgebraSE2(ProfiledTestCase):
         g3 = g1 + g2
         self.assertTrue(SX_close(g3.param, v3))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         g1 = se2.element(self.v1)
-        X = g1.to_matrix()
+        X = g1.to_Matrix()
 
     def test_ad(self):
         g1 = se2.element(self.v1)
@@ -272,9 +267,9 @@ class Test_LieGroupSE2(ProfiledTestCase):
         G2 = G1 * SE2.identity()
         self.assertTrue(SX_close(G1.param, G2.param))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         G1 = SE2.element(self.v1)
-        X = G1.to_matrix()
+        X = G1.to_Matrix()
 
     def test_inverse(self):
         G1 = SE2.element(self.v1)
@@ -330,9 +325,9 @@ class Test_LieAlgebraSO2(ProfiledTestCase):
         g3 = g1 + g2
         self.assertTrue(SX_close(g3.param, v3))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         g1 = so2.element(self.v1)
-        X = g1.to_matrix()
+        X = g1.to_Matrix()
 
     def test_ad(self):
         g1 = so2.element(self.v1)
@@ -408,9 +403,9 @@ class Test_LieGroupSO2(ProfiledTestCase):
         G2 = G1 * SO2.identity()
         self.assertTrue(SX_close(G1.param, G2.param))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         G1 = SO2.element(self.v1)
-        X = G1.to_matrix()
+        X = G1.to_Matrix()
 
     def test_inverse(self):
         G1 = SO2.element(self.v1)
@@ -466,9 +461,9 @@ class Test_LieAlgebraSO3(ProfiledTestCase):
         g3 = g1 + g2
         self.assertTrue(SX_close(g3.param, v3))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         g1 = so3.element(self.v1)
-        X = g1.to_matrix()
+        X = g1.to_Matrix()
 
     def test_ad(self):
         g1 = so3.element(self.v1)
@@ -558,9 +553,9 @@ class Test_LieGroupSO3Euler(ProfiledTestCase):
         G2 = G1 * SO3EulerB321.identity()
         self.assertTrue(SX_close(G1.param, G2.param))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         G1 = SO3EulerB321.element(self.v1)
-        X = G1.to_matrix()
+        X = G1.to_Matrix()
 
     def test_inverse(self):
         G1 = SO3EulerB321.element(self.v1)
@@ -635,9 +630,9 @@ class Test_LieGroupSO3Quat(ProfiledTestCase):
         G2 = G1 * SO3Quat.identity()
         self.assertTrue(SX_close(G1.param, G2.param))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         G1 = SO3Quat.element(self.v1)
-        X = G1.to_matrix()
+        X = G1.to_Matrix()
 
     def test_inverse(self):
         G1 = SO3Quat.element(self.v1)
@@ -710,9 +705,9 @@ class Test_LieGroupSO3Mrp(ProfiledTestCase):
         G2 = G1 * SO3Mrp.identity()
         self.assertTrue(SX_close(G1.param, G2.param))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         G1 = SO3Mrp.element(self.v1)
-        X = G1.to_matrix()
+        X = G1.to_Matrix()
 
     def test_inverse(self):
         G1 = SO3Mrp.element(self.v1)
@@ -768,9 +763,9 @@ class Test_LieAlgebraSE3(ProfiledTestCase):
         g3 = g1 + g2
         self.assertTrue(SX_close(g3.param, v3))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         g1 = se3.element(self.v1)
-        X = g1.to_matrix()
+        X = g1.to_Matrix()
 
     def test_ad(self):
         g1 = se3.element(self.v1)
@@ -849,9 +844,9 @@ class Test_LieGroupSE3Mrp(ProfiledTestCase):
         G2 = G1 * SE3Mrp.identity()
         self.assertTrue(SX_close(G1.param, G2.param))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         G1 = SE3Mrp.element(self.v1)
-        X = G1.to_matrix()
+        X = G1.to_Matrix()
 
     def test_inverse(self):
         G1 = SE3Mrp.element(self.v1)
@@ -921,12 +916,12 @@ class Test_LieGroupSE3Quat(ProfiledTestCase):
     def test_identity(self):
         G1 = SE3Quat.element(self.v1)
         G2 = G1 * SE3Quat.identity()
-        print(SE3Quat.identity().to_matrix())
+        print(SE3Quat.identity().to_Matrix())
         self.assertTrue(SX_close(G1.param, G2.param))
 
-    def test_to_matrix(self):
+    def test_to_Matrix(self):
         G1 = SE3Quat.element(self.v1)
-        X = G1.to_matrix()
+        X = G1.to_Matrix()
 
     def test_inverse(self):
         G1 = SE3Quat.element(self.v1)

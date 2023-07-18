@@ -5,8 +5,11 @@ import casadi as ca
 from beartype import beartype
 from beartype.typing import List
 
-from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
-from ._so2 import SO2, so2
+from .base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
+from .group_so2 import SO2, so2
+
+
+__all__ = ["se2", "SE2"]
 
 
 @beartype
@@ -19,7 +22,8 @@ class SE2LieAlgebra(LieAlgebra):
     ) -> LieAlgebraElement:
         assert self == left.algebra
         assert self == right.algebra
-        c = left.to_matrix() @ right.to_matrix() - right.to_matrix() @ left.to_matrix()
+        ## TODO: hard code the bracket here, avoid matrix math
+        c = left.to_Matrix() @ right.to_Matrix() - right.to_Matrix() @ left.to_Matrix()
         return self.element(param=ca.vertcat(c[0, 2], c[1, 2], c[1, 0]))
 
     def addition(
@@ -35,11 +39,11 @@ class SE2LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left * right.param)
 
-    def adjoint(self, left: LieAlgebraElement) -> ca.SX:
-        assert self == left.algebra
-        x = left.param[0, 0]
-        y = left.param[1, 0]
-        theta = left.param[2, 0]
+    def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
+        assert self == arg.algebra
+        x = arg.param[0, 0]
+        y = arg.param[1, 0]
+        theta = arg.param[2, 0]
         ad = ca.SX.zeros(3, 3)
         ad[0, 1] = -theta
         ad[1, 0] = theta
@@ -47,21 +51,21 @@ class SE2LieAlgebra(LieAlgebra):
         ad[1, 2] = -x
         return ad
 
-    def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
-        assert self == left.algebra
-        Omega = so2.element(left.param[2:, 0]).to_matrix()
-        v = left.param[:2, 0]
+    def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
+        assert self == arg.algebra
+        Omega = so2.element(arg.param[2:, 0]).to_Matrix()
+        v = arg.param[:2, 0]
         Z13 = ca.SX.zeros(1, 3)
         horz = ca.horzcat(Omega, v)
         return ca.vertcat(horz, Z13)
 
-    def wedge(self, left: (ca.SX, ca.DM)) -> LieAlgebraElement:
+    def wedge(self, arg: (ca.SX, ca.DM)) -> LieAlgebraElement:
         self = SE2LieAlgebra()
-        return self.element(param=left)
+        return self.element(param=arg)
 
-    def vee(self, left: LieAlgebraElement) -> ca.SX:
-        assert self == left.algebra
-        return left.param
+    def vee(self, arg: LieAlgebraElement) -> ca.SX:
+        assert self == arg.algebra
+        return arg.param
 
 
 @beartype
@@ -72,33 +76,33 @@ class SE2LieGroup(LieGroup):
     def product(self, left: LieGroupElement, right: LieGroupElement):
         assert self == left.group
         assert self == right.group
-        R = SO2.element(left.param[2:, 0]).to_matrix()
+        R = SO2.element(left.param[2:, 0]).to_Matrix()
         v = R @ right.param[:2, 0] + left.param[:2, 0]
         x = ca.vertcat(v, left.param[2:, 0] + right.param[2:, 0])
         return self.element(param=x)
 
-    def inverse(self, left: LieGroupElement) -> LieGroupElement:
-        assert self == left.group
-        v = left.param[:2, 0]
-        theta = left.param[2:, 0]
-        R = SO2.element(param=theta).to_matrix()
+    def inverse(self, arg: LieGroupElement) -> LieGroupElement:
+        assert self == arg.group
+        v = arg.param[:2, 0]
+        theta = arg.param[2:, 0]
+        R = SO2.element(param=theta).to_Matrix()
         p = -R.T @ v
         return self.element(param=ca.vertcat(p, -theta))
 
     def identity(self) -> LieGroupElement:
         return self.element(param=ca.SX.zeros(self.n_param, 1))
 
-    def adjoint(self, left: LieGroupElement):
-        assert self == left.group
-        v = ca.vertcat(left.param[1], -left.param[0])
-        theta = SO2.element(param=left.param[2:])
-        horz1 = ca.horzcat(theta.to_matrix(), v)
+    def adjoint(self, arg: LieGroupElement):
+        assert self == arg.group
+        v = ca.vertcat(arg.param[1], -arg.param[0])
+        theta = SO2.element(param=arg.param[2:])
+        horz1 = ca.horzcat(theta.to_Matrix(), v)
         horz2 = ca.horzcat(ca.SX.zeros(1, 2), 1)
         return ca.vertcat(horz1, horz2)
 
-    def exp(self, left: LieAlgebraElement) -> LieGroupElement:
-        assert self.algebra == left.algebra
-        theta = left.param[2, 0]
+    def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
+        assert self.algebra == arg.algebra
+        theta = arg.param[2, 0]
         sin_th = ca.sin(theta)
         cos_th = ca.cos(theta)
         a = sin_th / theta
@@ -106,13 +110,13 @@ class SE2LieGroup(LieGroup):
         horz1 = ca.horzcat(a, -b)
         horz2 = ca.horzcat(b, a)
         V = ca.vertcat(horz1, horz2)
-        v = V @ left.param[:2]
+        v = V @ arg.param[:2]
         return self.element(ca.vertcat(v, theta))
 
-    def log(self, left: LieGroupElement) -> LieAlgebraElement:
-        assert self == left.group
-        v = left.param[:2, 0]
-        theta = left.param[2, 0]
+    def log(self, arg: LieGroupElement) -> LieAlgebraElement:
+        assert self == arg.group
+        v = arg.param[:2, 0]
+        theta = arg.param[2, 0]
         x = ca.SX.sym("x")
         C1 = ca.Function(
             "a",
@@ -145,10 +149,10 @@ class SE2LieGroup(LieGroup):
         p = V_inv @ v
         return self.algebra.element(ca.vertcat(p, theta))
 
-    def to_matrix(self, left: LieGroupElement) -> ca.SX:
-        assert self == left.group
-        R = SO2.element(left.param[2:, 0]).to_matrix()
-        t = left.param[:2, 0]
+    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
+        assert self == arg.group
+        R = SO2.element(arg.param[2:, 0]).to_Matrix()
+        t = arg.param[:2, 0]
         Z12 = ca.SX.zeros(1, 2)
         I1 = ca.SX_eye(1)
         horz1 = ca.horzcat(R, t)

@@ -19,8 +19,8 @@ class LieAlgebraElement:
 
     def __init__(self, algebra: LieAlgebra, param: PARAM_TYPE):
         self.algebra = algebra
-        assert param.shape == (self.algebra.n_param, 1)
         self.param = ca.SX(param)
+        assert self.param.shape == (self.algebra.n_param, 1)
 
     def ad(self) -> ca.SX:
         """returns the adjoint as a linear operator on the parameter vector"""
@@ -42,14 +42,14 @@ class LieAlgebraElement:
         elif isinstance(right, SCALAR_TYPE):
             return self.algebra.scalar_multipication(left=right, right=self)
 
-    def __rmul__(self, left: SCALAR_TYPE) -> LieAlgebraElement:
-        return self.algebra.scalar_multipication(left=left, right=self)
+    def __rmul__(self, arg: SCALAR_TYPE) -> LieAlgebraElement:
+        return self.algebra.scalar_multipication(left=arg, right=self)
 
-    def __add__(self, right: "LieAlgebraElement") -> "LieAlgebraElement":
-        return self.algebra.addition(left=self, right=right)
+    def __add__(self, arg: "LieAlgebraElement") -> "LieAlgebraElement":
+        return self.algebra.addition(left=self, right=arg)
 
-    def to_matrix(self) -> ca.SX:
-        return self.algebra.to_matrix(self)
+    def to_Matrix(self) -> ca.SX:
+        return self.algebra.to_Matrix(self)
 
     def exp(self, group: "LieGroup") -> "LieGroupElement":
         return group.exp(self)
@@ -77,13 +77,13 @@ class LieAlgebra(ABC):
     def element(self, param: PARAM_TYPE) -> LieAlgebraElement:
         return LieAlgebraElement(algebra=self, param=param)
 
-    def wedge(self, left: PARAM_TYPE) -> LieAlgebraElement:
+    def wedge(self, arg: PARAM_TYPE) -> LieAlgebraElement:
         """given a parameter vector, creates a LieAlgebraElement"""
-        return self.element(param=left)
+        return self.element(param=arg)
 
-    def vee(self, left: LieAlgebraElement) -> ca.SX:
+    def vee(self, arg: LieAlgebraElement) -> ca.SX:
         """given a LieAlgebraElement, returns a parameter vector"""
-        return left.param
+        return arg.param
 
     @abstractmethod
     def bracket(
@@ -104,11 +104,11 @@ class LieAlgebra(ABC):
         pass
 
     @abstractmethod
-    def adjoint(self, left: LieAlgebraElement) -> ca.SX:
+    def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
         pass
 
     @abstractmethod
-    def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
+    def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         pass
 
     def __repr__(self):
@@ -123,11 +123,11 @@ class LieGroupElement:
 
     def __init__(self, group: LieGroup, param: PARAM_TYPE):
         self.group = group
-        assert param.shape == (self.group.n_param, 1)
         self.param = ca.SX(param)
+        assert self.param.shape == (self.group.n_param, 1)
 
     def inverse(self) -> LieGroupElement:
-        return self.group.inverse(left=self)
+        return self.group.inverse(arg=self)
 
     def __add__(self, other: LieAlgebraElement):
         return self * other.exp(self.group)
@@ -142,13 +142,13 @@ class LieGroupElement:
         return self.group.product(left=self, right=right)
 
     def Ad(self) -> ca.SX:
-        return self.group.adjoint(left=self)
+        return self.group.adjoint(arg=self)
 
-    def to_matrix(self):
-        return self.group.to_matrix(left=self)
+    def to_Matrix(self):
+        return self.group.to_Matrix(arg=self)
 
     def log(self) -> LieAlgebraElement:
-        return self.group.log(left=self)
+        return self.group.log(arg=self)
 
     def __repr__(self):
         return "{:s}: {:s}".format(repr(self.group), repr(self.param))
@@ -181,7 +181,7 @@ class LieGroup(ABC):
         pass
 
     @abstractmethod
-    def inverse(self, left: LieGroupElement) -> LieGroupElement:
+    def inverse(self, arg: LieGroupElement) -> LieGroupElement:
         pass
 
     @abstractmethod
@@ -189,19 +189,19 @@ class LieGroup(ABC):
         pass
 
     @abstractmethod
-    def adjoint(self, left: LieGroupElement) -> ca.SX:
+    def adjoint(self, arg: LieGroupElement) -> ca.SX:
         pass
 
     @abstractmethod
-    def exp(self, left: LieAlgebraElement) -> LieGroupElement:
+    def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
         pass
 
     @abstractmethod
-    def log(self, algebra: LieAlgebra, left: LieGroupElement) -> LieAlgebraElement:
+    def log(self, algebra: LieAlgebra, arg: LieGroupElement) -> LieAlgebraElement:
         pass
 
     @abstractmethod
-    def to_matrix(self, left: LieGroupElement) -> ca.SX:
+    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
         pass
 
     def __repr__(self):
@@ -251,10 +251,10 @@ class LieAlgebraDirectProduct(LieAlgebra):
     ) -> LieAlgebraElement:
         raise NotImplementedError("")
 
-    def adjoint(self, left: LieAlgebraElement) -> ca.SX:
+    def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
         raise NotImplementedError("")
 
-    def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
+    def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         raise NotImplementedError("")
 
     def __repr__(self):
@@ -311,12 +311,12 @@ class LieGroupDirectProduct(LieGroup):
         param = ca.vertcat(*param_list)
         return LieGroupElement(group=self, param=param)
 
-    def inverse(self, left: LieGroupElement) -> LieGroupElement:
-        assert left.group == self
+    def inverse(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.group == self
         param_list = []
         for i in range(len(self.groups)):
             group = self.groups[i]
-            X = LieGroupElement(group, self.subgroup_param(i=i, param=left.param))
+            X = LieGroupElement(group, self.subgroup_param(i=i, param=arg.param))
             X_inv = X.inverse()
             param_list.append(X_inv.param)
         param = ca.vertcat(*param_list)
@@ -330,16 +330,16 @@ class LieGroupDirectProduct(LieGroup):
         param = ca.vertcat(*param_list)
         return LieGroupElement(group=self, param=param)
 
-    def adjoint(self, left: LieGroupElement) -> ca.SX:
+    def adjoint(self, arg: LieGroupElement) -> ca.SX:
         raise NotImplementedError("")
 
-    def exp(self, left: LieAlgebraElement) -> LieGroupElement:
+    def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
         raise NotImplementedError("")
 
-    def log(self, algebra: LieAlgebra, left: LieGroupElement) -> LieAlgebraElement:
+    def log(self, algebra: LieAlgebra, arg: LieGroupElement) -> LieAlgebraElement:
         raise NotImplementedError("")
 
-    def to_matrix(self, left: LieGroupElement) -> ca.SX:
+    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
         raise NotImplementedError("")
 
     def __repr__(self):

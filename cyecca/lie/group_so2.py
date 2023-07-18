@@ -5,7 +5,9 @@ import casadi as ca
 from beartype import beartype
 from beartype.typing import List
 
-from ._base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
+from .base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
+
+__all__ = ["so2", "SO2"]
 
 
 @beartype
@@ -33,25 +35,25 @@ class SO2LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.element(param=left * right.param)
 
-    def adjoint(self, left: LieAlgebraElement) -> ca.SX:
-        assert self == left.algebra
+    def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
+        assert self == arg.algebra
         return ca.SX.zeros(1, 1)
 
-    def to_matrix(self, left: LieAlgebraElement) -> ca.SX:
-        print(type(left.param[0, 0]))
-        assert self == left.algebra
+    def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
+        print(type(arg.param[0, 0]))
+        assert self == arg.algebra
         M = ca.SX.zeros(2, 2)
-        M[0, 1] = -left.param[0, 0]
-        M[1, 0] = left.param[0, 0]
+        M[0, 1] = -arg.param[0, 0]
+        M[1, 0] = arg.param[0, 0]
         return M
 
-    def wedge(self, left: (ca.SX, ca.DM)) -> LieAlgebraElement:
+    def wedge(self, arg: (ca.SX, ca.DM)) -> LieAlgebraElement:
         self = SO2LieAlgebra()
-        return self.element(param=left)
+        return self.element(param=arg)
 
-    def vee(self, left: LieAlgebraElement) -> ca.SX:
-        assert self == left.algebra
-        return left.param
+    def vee(self, arg: LieAlgebraElement) -> ca.SX:
+        assert self == arg.algebra
+        return arg.param
 
 
 @beartype
@@ -64,28 +66,28 @@ class SO2LieGroup(LieGroup):
         assert self == right.group
         return self.element(param=left.param + right.param)
 
-    def inverse(self, left: LieGroupElement) -> LieGroupElement:
-        assert self == left.group
-        return self.element(param=-left.param)
+    def inverse(self, arg: LieGroupElement) -> LieGroupElement:
+        assert self == arg.group
+        return self.element(param=-arg.param)
 
     def identity(self) -> LieGroupElement:
         return self.element(param=ca.SX.zeros(self.n_param))
 
-    def adjoint(self, left: LieGroupElement):
-        assert self == left.group
+    def adjoint(self, arg: LieGroupElement):
+        assert self == arg.group
         return ca.SX_eye(1)
 
-    def exp(self, left: LieAlgebraElement) -> LieGroupElement:
-        assert self.algebra == left.algebra
-        return self.element(param=left.param)
+    def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
+        assert self.algebra == arg.algebra
+        return self.element(param=arg.param)
 
-    def log(self, left: LieGroupElement) -> LieAlgebraElement:
-        assert self == left.group
-        return self.algebra.element(param=left.param)
+    def log(self, arg: LieGroupElement) -> LieAlgebraElement:
+        assert self == arg.group
+        return self.algebra.element(param=arg.param)
 
-    def to_matrix(self, left: LieGroupElement) -> ca.SX:
-        assert self == left.group
-        theta = left.param[0, 0]
+    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
+        assert self == arg.group
+        theta = arg.param[0, 0]
         c = ca.cos(theta)
         s = ca.sin(theta)
         M = ca.SX.zeros(2, 2)

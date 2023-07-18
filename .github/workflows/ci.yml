@@ -11,7 +11,7 @@ jobs:
         run: /home/runner/.local/bin/poetry install
       - name: Lint with black
         run: /home/runner/.local/bin/poetry run black --check .
-      - name: Test with pytest
+      - name: Run tests
         run: /home/runner/.local/bin/poetry run pytest --cov
-      - name: Test with pytest
+      - name: Check notebooks
         run: /home/runner/.local/bin/poetry run pytest --nbmake

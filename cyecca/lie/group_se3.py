@@ -77,9 +77,7 @@ class SE3LieGroup(LieGroup):
         assert self == right.group
         R = self.SO3.elem(left.param[3:]).to_Matrix()
         v = R @ right.param[:3] + left.param[:3]
-        theta = (
-            self.SO3.elem(left.param[3:]) * self.SO3.elem(right.param[3:])
-        ).param
+        theta = (self.SO3.elem(left.param[3:]) * self.SO3.elem(right.param[3:])).param
         x = ca.vertcat(v, theta)
         return self.elem(param=x)
 

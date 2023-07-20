@@ -7,8 +7,7 @@ import casadi as ca
 from beartype import beartype
 from beartype.typing import List
 
-from .base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
-from .base import PARAM_TYPE, SCALAR_TYPE
+from .base import *
 
 from .util import series_dict
 
@@ -21,6 +20,7 @@ __all__ = [
     "SO3Quat",
     "SO3Mrp",
     "SO3Dcm",
+    "SO3LieGroup",
 ]
 
 
@@ -140,7 +140,7 @@ class SO3DcmLieGroup(SO3LieGroup):
         assert self == arg.group
 
     def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
-        theta = ca.norm_2(v)
+        theta = ca.norm_2(arg.param)
         X = arg.to_Matrix()
         A = series_dict["sin(x)/x"]
         B = series_dict["(1 - cos(x))/x^2"]
@@ -409,14 +409,14 @@ class SO3MrpLieGroup(SO3LieGroup):
     def identity(self) -> LieGroupElement:
         return self.element(param=ca.SX([0, 0, 0]))
 
-    def shadow_param(self, param: PARAM_TYPE):
+    def shadow_if_necessary(self, arg: LieGroupElement):
+        assert self == arg.group
+        param = arg.param
+        assert param.shape == (3, 1)
         n_sq = ca.dot(param, param)
-        res = -param / n_sq
-        return res
-
-    def shadow_param_if_necessary(self, param: PARAM_TYPE):
-        param = ca.if_else(ca.norm_2(param) > 1, self.shadow_param(param), param)
-        return param
+        shadow_param = -param / n_sq
+        param = ca.if_else(ca.norm_2(param) > 1, shadow_param, param)
+        arg.param = param
 
     def adjoint(self, arg: LieGroupElement):
         assert self == arg.group
@@ -428,7 +428,9 @@ class SO3MrpLieGroup(SO3LieGroup):
         angle = ca.norm_2(v)
         res = ca.tan(angle / 4) * v / angle
         p = ca.if_else(angle > 1e-7, res, ca.SX([0, 0, 0]))
-        return self.element(param=p)
+        V = self.element(param=p)
+        self.shadow_if_necessary(arg=V)
+        return V
 
     def log(self, arg: LieGroupElement) -> LieAlgebraElement:
         assert self == arg.group
@@ -455,8 +457,8 @@ class SO3MrpLieGroup(SO3LieGroup):
         x[0] = q.param[1] / den
         x[1] = q.param[2] / den
         x[2] = q.param[3] / den
-        r = self.shadow_param_if_necessary(x)
-        return self.element(param=r)
+        self.shadow_if_necessary(arg=self.element(param=x))
+        return arg
 
 
 SO3Mrp = SO3MrpLieGroup()

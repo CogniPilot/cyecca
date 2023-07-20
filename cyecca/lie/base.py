@@ -6,6 +6,14 @@ from abc import ABC, abstractmethod
 from beartype import beartype
 from beartype.typing import List
 
+__all__ = [
+    "LieAlgebraElement",
+    "LieAlgebra",
+    "LieGroupElement",
+    "LieGroup",
+    "SCALAR_TYPE",
+    "PARAM_TYPE",
+]
 
 SCALAR_TYPE = (ca.SX, ca.DM, float, int)
 PARAM_TYPE = (ca.SX, ca.DM)
@@ -83,7 +91,12 @@ class LieAlgebra(ABC):
 
     def vee(self, arg: LieAlgebraElement) -> ca.SX:
         """given a LieAlgebraElement, returns a parameter vector"""
+        assert arg.algebra == self
         return arg.param
+
+    def scalar_multipication(self, left: SCALAR_TYPE, right: LieAlgebraElement):
+        assert right.algebra == self
+        return LieGroupElement(self.groups[i], self.sub_param(i=i, param=arg.param))
 
     @abstractmethod
     def bracket(
@@ -197,7 +210,7 @@ class LieGroup(ABC):
         pass
 
     @abstractmethod
-    def log(self, algebra: LieAlgebra, arg: LieGroupElement) -> LieAlgebraElement:
+    def log(self, arg: LieGroupElement) -> LieAlgebraElement:
         pass
 
     @abstractmethod
@@ -208,139 +221,4 @@ class LieGroup(ABC):
         return self.__class__.__name__
 
 
-class LieAlgebraDirectProduct(LieAlgebra):
-    def __init__(self, algebras: List[LieAlgebra]):
-        self.algebras = algebras
-        self.n_param_list = [algebra.n_param for algebra in self.algebras]
-        n_param = sum(self.n_param_list)
-
-        # param start indices for subgroups
-        count = 0
-        self.subparam_start = [0]
-        matrix_shape = [0, 0]
-        for i in range(len(self.algebras)):
-            count += self.n_param_list[i]
-            self.subparam_start.append(count)
-            matrix_shape[0] += self.algebras[i].matrix_shape[0]
-            matrix_shape[1] += self.algebras[i].matrix_shape[1]
-        super().__init__(n_param=n_param, matrix_shape=tuple(matrix_shape))
-
-    def __mul__(self, other: LieAlgebra):
-        """
-        Implements Direct Product of Lie Algebras
-        """
-        return LieAlgebraDirectProduct(algebras=self.algebras + [other])
-
-    def subalgebra_param(self, i: int, param: PARAM_TYPE):
-        start = self.subparam_start[i]
-        stop = start + self.groups[i].n_param
-        return param[start:stop]
-
-    def bracket(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
-        raise NotImplementedError("")
-
-    def scalar_multipication(
-        self, left: SCALAR_TYPE, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
-        raise NotImplementedError("")
-
-    def addition(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
-        raise NotImplementedError("")
-
-    def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
-        raise NotImplementedError("")
-
-    def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
-        raise NotImplementedError("")
-
-    def __repr__(self):
-        return " x ".join([algebra.__class__.__name__ for algebra in self.algebras])
-
-
-class LieGroupDirectProduct(LieGroup):
-    def __init__(self, groups: List[LieGroup]):
-        self.groups = groups
-        self.n_param_list = [group.n_param for group in self.groups]
-        n_param = sum(self.n_param_list)
-
-        # param start indices for subgroups
-        count = 0
-        self.subparam_start = [0]
-        algebra = None
-        matrix_shape = [0, 0]
-        for i in range(len(self.groups)):
-            group = self.groups[i]
-            if algebra is None:
-                algebra = group.algebra
-            else:
-                algebra = algebra * group.algebra
-            count += self.n_param_list[i]
-            self.subparam_start.append(count)
-            matrix_shape[0] += group.matrix_shape[0]
-            matrix_shape[1] += group.matrix_shape[1]
-
-        super().__init__(
-            algebra=algebra, n_param=n_param, matrix_shape=tuple(matrix_shape)
-        )
-
-    def __mul__(self, other: LieGroup):
-        """
-        Implements Direct Product of Lie Groups
-        """
-        return LieGroupDirectProduct(groups=self.groups + [other])
-
-    def subgroup_param(self, i: int, param: PARAM_TYPE):
-        start = self.subparam_start[i]
-        stop = start + self.groups[i].n_param
-        return param[start:stop]
-
-    def product(self, left: LieGroupElement, right: LieGroupElement) -> LieGroupElement:
-        assert left.group == self
-        assert right.group == self
-        param_list = []
-        for i in range(len(self.groups)):
-            group = self.groups[i]
-            X1 = LieGroupElement(group, self.subgroup_param(i=i, param=left.param))
-            X2 = LieGroupElement(group, self.subgroup_param(i=i, param=right.param))
-            X3 = X1 * X2
-            param_list.append(X3.param)
-        param = ca.vertcat(*param_list)
-        return LieGroupElement(group=self, param=param)
-
-    def inverse(self, arg: LieGroupElement) -> LieGroupElement:
-        assert arg.group == self
-        param_list = []
-        for i in range(len(self.groups)):
-            group = self.groups[i]
-            X = LieGroupElement(group, self.subgroup_param(i=i, param=arg.param))
-            X_inv = X.inverse()
-            param_list.append(X_inv.param)
-        param = ca.vertcat(*param_list)
-        return LieGroupElement(group=self, param=param)
-
-    def identity(self) -> LieGroupElement:
-        param_list = []
-        for i in range(len(self.groups)):
-            group = self.groups[i]
-            param_list.append(group.identity().param)
-        param = ca.vertcat(*param_list)
-        return LieGroupElement(group=self, param=param)
-
-    def adjoint(self, arg: LieGroupElement) -> ca.SX:
-        raise NotImplementedError("")
-
-    def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
-        raise NotImplementedError("")
-
-    def log(self, algebra: LieAlgebra, arg: LieGroupElement) -> LieAlgebraElement:
-        raise NotImplementedError("")
-
-    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
-        raise NotImplementedError("")
-
-    def __repr__(self):
-        return " x ".join([group.__class__.__name__ for group in self.groups])
+from .direct_product import LieGroupDirectProduct, LieAlgebraDirectProduct

@@ -5,8 +5,8 @@ import casadi as ca
 from beartype import beartype
 from beartype.typing import List
 
-from .base import LieAlgebra, LieAlgebraElement, LieGroup, LieGroupElement
-from .group_so2 import SO2, so2
+from .base import *
+from .group_so2 import *
 
 
 __all__ = ["se2", "SE2"]

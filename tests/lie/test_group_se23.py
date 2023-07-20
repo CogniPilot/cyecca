@@ -9,4 +9,4 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
         self.v1 = ca.DM([1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 0.0])
 
     def test_ctor(self):
-        SE23Mrp.element(param=self.v1)
+        SE23Mrp.elem(param=self.v1)

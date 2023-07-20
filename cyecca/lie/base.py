@@ -22,7 +22,7 @@ PARAM_TYPE = (ca.SX, ca.DM)
 @beartype
 class LieAlgebraElement:
     """
-    This is a generic Lie algebra element, not necessarily represented as a matrix
+    This is a generic Lie algebra elem, not necessarily represented as a matrix
     """
 
     def __init__(self, algebra: LieAlgebra, param: PARAM_TYPE):
@@ -82,12 +82,12 @@ class LieAlgebra(ABC):
         """
         return LieAlgebraDirectProduct(algebras=[self, other])
 
-    def element(self, param: PARAM_TYPE) -> LieAlgebraElement:
+    def elem(self, param: PARAM_TYPE) -> LieAlgebraElement:
         return LieAlgebraElement(algebra=self, param=param)
 
     def wedge(self, arg: PARAM_TYPE) -> LieAlgebraElement:
         """given a parameter vector, creates a LieAlgebraElement"""
-        return self.element(param=arg)
+        return self.elem(param=arg)
 
     def vee(self, arg: LieAlgebraElement) -> ca.SX:
         """given a LieAlgebraElement, returns a parameter vector"""
@@ -131,7 +131,7 @@ class LieAlgebra(ABC):
 @beartype
 class LieGroupElement:
     """
-    This is a generic Lie group element, not necessarily represented as a matrix
+    This is a generic Lie group elem, not necessarily represented as a matrix
     """
 
     def __init__(self, group: LieGroup, param: PARAM_TYPE):
@@ -180,7 +180,7 @@ class LieGroup(ABC):
         self.n_param = n_param
         self.matrix_shape = matrix_shape
 
-    def element(self, param: PARAM_TYPE) -> LieGroupElement:
+    def elem(self, param: PARAM_TYPE) -> LieGroupElement:
         return LieGroupElement(group=self, param=param)
 
     def __mul__(self, other: LieGroup):

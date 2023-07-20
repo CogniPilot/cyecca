@@ -32,7 +32,7 @@ class LieAlgebraDirectProduct(LieAlgebra):
         stop = start + self.algebras[i].n_param
         return param[start:stop]
 
-    def sub_elements(self, arg: LieAlgebraElement):
+    def sub_elems(self, arg: LieAlgebraElement):
         return [
             LieAlgebraElement(self.algebras[i], self.sub_param(i=i, param=arg.param))
             for i in range(len(self.algebras))
@@ -56,13 +56,13 @@ class LieAlgebraDirectProduct(LieAlgebra):
 
     def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
         assert arg.group == self
-        return ca.diagcat(*[x.ad() for x in self.sub_elements(arg)])
+        return ca.diagcat(*[x.ad() for x in self.sub_elems(arg)])
 
     def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         assert arg.algebra == self
         matrix_list = []
         for i in range(len(self.groups)):
-            X = self.sub_element(i=i, arg=left).to_Matrix()
+            X = self.sub_elem(i=i, arg=left).to_Matrix()
             matrix_list.append(X)
         return ca.diagcat(*matrix_list)
 
@@ -102,7 +102,7 @@ class LieGroupDirectProduct(LieGroup):
         """
         return LieGroupDirectProduct(groups=self.groups + [other])
 
-    def sub_elements(self, arg: LieGroupElement):
+    def sub_elems(self, arg: LieGroupElement):
         return [
             LieGroupElement(self.groups[i], self.sub_param(i=i, param=arg.param))
             for i in range(len(self.groups))
@@ -122,7 +122,7 @@ class LieGroupDirectProduct(LieGroup):
                 *[
                     (X1 * X2).param
                     for X1, X2 in zip(
-                        self.sub_elements(arg=left), self.sub_elements(arg=right)
+                        self.sub_elems(arg=left), self.sub_elems(arg=right)
                     )
                 ]
             ),
@@ -132,7 +132,7 @@ class LieGroupDirectProduct(LieGroup):
         assert self == arg.group
         return LieGroupElement(
             group=self,
-            param=ca.vertcat(*[X.inverse().param for X in self.sub_elements(arg)]),
+            param=ca.vertcat(*[X.inverse().param for X in self.sub_elems(arg)]),
         )
 
     def identity(self) -> LieGroupElement:
@@ -152,7 +152,7 @@ class LieGroupDirectProduct(LieGroup):
             param=ca.vertcat(
                 *[
                     x1.exp(group=group).param
-                    for group, x1 in zip(self.groups, algebra.sub_elements(arg))
+                    for group, x1 in zip(self.groups, algebra.sub_elems(arg))
                 ]
             ),
         )
@@ -160,12 +160,12 @@ class LieGroupDirectProduct(LieGroup):
     def log(self, arg: LieGroupElement) -> LieAlgebraElement:
         return LieAlgebraElement(
             algebra=self.algebra,
-            param=ca.vertcat(*[X1.log().param for X1 in self.sub_elements(arg)]),
+            param=ca.vertcat(*[X1.log().param for X1 in self.sub_elems(arg)]),
         )
 
     def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
         assert arg.group == self
-        return ca.diagcat(*[X.to_Matrix() for X in self.sub_elements(arg)])
+        return ca.diagcat(*[X.to_Matrix() for X in self.sub_elems(arg)])
 
     def __repr__(self):
         return " x ".join([group.__class__.__name__ for group in self.groups])

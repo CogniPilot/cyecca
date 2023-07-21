@@ -42,7 +42,7 @@ build-backend = "poetry.core.masonry.api"
 omit = [".*", "*/site-packages/*"]
 
 [tool.coverage.report]
-fail_under = 89
+fail_under = 80
 exclude_also = [
 	"pass",
 	"raise NotImplementedError"

@@ -8,7 +8,7 @@ import casadi as ca
 
 from beartype import beartype
 
-from .base import *
+from cyecca.lie.base import *
 
 __all__ = ["r2", "R2", "r3", "R3"]
 
@@ -45,6 +45,9 @@ class RnLieAlgebra(LieAlgebra):
         for i in range(self.n_param):
             A[i, self.n_param] = arg.param[i]
         return ca.sparsify(A)
+
+    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
+        raise NotImplementedError("")
 
     def __str__(self):
         return "{:s}({:d})".format(self.__class__.__name__, self.n_param)
@@ -88,6 +91,9 @@ class RnLieGroup(LieGroup):
         for i in range(self.n_param):
             A[i, self.n_param] = arg.param[i]
         return ca.sparsify(A)
+
+    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+        raise NotImplementedError("")
 
     def __str__(self):
         return "{:s}({:d})".format(self.__class__.__name__, self.n_param)

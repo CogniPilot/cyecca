@@ -5,8 +5,8 @@ import casadi as ca
 from beartype import beartype
 from beartype.typing import List
 
-from .base import *
-from .group_so2 import *
+from cyecca.lie.base import *
+from cyecca.lie.group_so2 import *
 
 
 __all__ = ["se2", "SE2"]
@@ -59,8 +59,10 @@ class SE2LieAlgebra(LieAlgebra):
         horz = ca.horzcat(Omega, v)
         return ca.vertcat(horz, Z13)
 
+    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
+        raise NotImplementedError("")
+
     def wedge(self, arg: (ca.SX, ca.DM)) -> LieAlgebraElement:
-        self = SE2LieAlgebra()
         return self.elem(param=arg)
 
     def vee(self, arg: LieAlgebraElement) -> ca.SX:
@@ -158,6 +160,10 @@ class SE2LieGroup(LieGroup):
         horz1 = ca.horzcat(R, t)
         horz2 = ca.horzcat(Z12, I1)
         return ca.vertcat(horz1, horz2)
+
+    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
+        assert arg.shape == self.matrix_shape
+        return self.LieAlgebraElement(arg[0, 2], arg[1,], arg[1, 0])
 
 
 se2 = SE2LieAlgebra()

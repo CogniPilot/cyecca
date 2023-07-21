@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import casadi as ca
-from .base import *
+from cyecca.lie.base import *
 
 
 class LieAlgebraDirectProduct(LieAlgebra):
@@ -61,6 +61,10 @@ class LieAlgebraDirectProduct(LieAlgebra):
     def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         assert arg.algebra == self
         return ca.diagcat(*[X.to_Matrix() for X in self.sub_elems(arg)])
+
+    def from_Matrix(self, arg: ca.SX) -> LieAlgebraDirectProduct:
+        assert arg.shape == self.matrix_shape
+        raise NotImplementedError("")
 
     def __repr__(self):
         return " x ".join([algebra.__class__.__name__ for algebra in self.algebras])
@@ -162,6 +166,10 @@ class LieGroupDirectProduct(LieGroup):
     def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
         assert arg.group == self
         return ca.diagcat(*[X.to_Matrix() for X in self.sub_elems(arg)])
+
+    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+        assert arg.shape == self.matrix_shape
+        raise NotImplementedError("")
 
     def __repr__(self):
         return " x ".join([group.__class__.__name__ for group in self.groups])

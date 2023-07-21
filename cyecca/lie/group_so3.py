@@ -6,10 +6,9 @@ import casadi as ca
 
 from beartype import beartype
 from beartype.typing import List
+from cyecca.lie.base import *
 
-from .base import *
-
-from .util import series_dict
+from cyecca.lie.util import series_dict
 
 __all__ = [
     "so3",
@@ -54,6 +53,13 @@ class SO3LieAlgebra(LieAlgebra):
         assert self == left.algebra
         return left.to_Matrix()
 
+    def wedge(self, left: PARAM_TYPE) -> LieAlgebraElement:
+        return self.elem(param=left)
+
+    def vee(self, left: LieAlgebraElement) -> ca.SX:
+        assert self == left.algebra
+        return left.param
+
     def to_Matrix(self, left: LieAlgebraElement) -> ca.SX:
         assert self == left.algebra
         M = ca.SX(3, 3)
@@ -65,13 +71,9 @@ class SO3LieAlgebra(LieAlgebra):
         M[2, 1] = left.param[0, 0]
         return ca.sparsify(M)
 
-    def wedge(self, left: PARAM_TYPE) -> LieAlgebraElement:
-        self = SO3LieAlgebra()
-        return self.elem(param=left)
-
-    def vee(self, left: LieAlgebraElement) -> ca.SX:
-        assert self == left.algebra
-        return left.param
+    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
+        assert arg.shape == (3, 3)
+        return self.elem(ca.vertcat(arg[2, 1], arg[0, 2], arg[1, 0]))
 
 
 class Axis(Enum):
@@ -131,7 +133,7 @@ class SO3DcmLieGroup(SO3LieGroup):
 
     def inverse(self, arg: LieGroupElement) -> LieGroupElement:
         assert self == arg.group
-        return self.from_matrix(param=arg.to_Matrix().T())
+        return self.from_Matrix(param=arg.to_Matrix().T())
 
     def identity(self) -> LieGroupElement:
         return self.elem(param=ca.SX(self.n_param, 1))
@@ -140,20 +142,33 @@ class SO3DcmLieGroup(SO3LieGroup):
         assert self == arg.group
 
     def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
+        assert self.algebra == arg.algebra
         theta = ca.norm_2(arg.param)
         X = arg.to_Matrix()
         A = series_dict["sin(x)/x"]
         B = series_dict["(1 - cos(x))/x^2"]
-        return self.from_matrix(ca.SX.eye(3) + A(theta) * X + B(theta) * X @ X)
+        return self.from_Matrix(ca.SX.eye(3) + A(theta) * X + B(theta) * X @ X)
 
     def log(self, arg: LieGroupElement) -> LieAlgebraElement:
-        R = self.to_Matrix()
+        R = self.to_Matrix(arg)
         theta = ca.arccos((ca.trace(R) - 1) / 2)
         A = series_dict["sin(x)/x"]
-        return self.algebra.from_matrix((R - R.T) / (A(theta) * 2))
+        return self.algebra.from_Matrix((R - R.T) / (A(theta) * 2))
 
-    def from_SO3Quat(self, arg: LieGroupElement):
-        assert isinstance(arg.group, SO3QuatLieGroup)
+    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
+        assert self == arg.group
+        return arg.param.reshape((3, 3))
+
+    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+        assert arg.shape == (3, 3)
+        return self.elem(arg.reshape((9, 1)))
+
+    def from_Mrp(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.group == SO3Mrp
+        return self.from_Quat(SO3Quat.from_Mrp(arg))
+
+    def from_Quat(self, arg: LieGroupElement):
+        assert arg.group == SO3Quat
         R = ca.SX(3, 3)
         a = arg.param[0]
         b = arg.param[1]
@@ -178,23 +193,20 @@ class SO3DcmLieGroup(SO3LieGroup):
         R[2, 0] = 2 * (bd - ac)
         R[2, 1] = 2 * (cd + ab)
         R[2, 2] = aa + dd - bb - cc
-        return self.from_matrix(arg=R)
+        return self.from_Matrix(arg=R)
 
-    def from_SO3Mrp(self, arg: LieGroupElement):
-        assert isinstance(arg.group, SO3MrpLieGroup)
-        a = arg.param[:3]
-        X = self.to_Matrix(a)
-        n_sq = ca.dot(a, a)
+    def from_Mrp(self, arg: LieGroupElement):
+        assert arg.group == SO3MrpLieGroup
+        X = arg.to_Matrix()
+        n_sq = ca.dot(arg.param, arg.param)
         X_sq = X @ X
         R = ca.SX.eye(3) + (8 * X_sq - 4 * (1 - n_sq) * X) / (1 + n_sq) ** 2
         # return transpose, due to convention difference in book
-        return self.from_matrix(R.T)
+        return self.from_Matrix(R.T)
 
-    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
-        return arg.param.reshape((3, 3))
-
-    def from_matrix(self, arg: ca.SX) -> LieGroupElement:
-        return SO3Dcm.elem(param=arg.reshape((9, 1)))
+    def from_EulerB321(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.group == SO3EulerB321
+        return self.from_Quat(SO3Quat.from_EulerB321(arg))
 
 
 SO3Dcm = SO3DcmLieGroup()
@@ -226,61 +238,11 @@ class SO3EulerLieGroup(SO3LieGroup):
 
     def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == arg.algebra
-        omega = arg.param
-        omega_x = arg.to_Matrix()
-        omega_n = ca.norm_2(omega)
-        A = ca.if_else(
-            ca.fabs(omega_n) < 1e-7,
-            1 - omega_n**2 / 6 + omega_n**4 / 120,
-            ca.sin(omega_n) / omega_n,
-        )
-        B = ca.if_else(
-            ca.fabs(omega_n) < 1e-7,
-            0.5 - omega_n**2 / 24 + omega_n**4 / 720,
-            (1 - ca.cos(omega_n)) / omega_n**2,
-        )
-        R = ca.SX_eye(3) + A * omega_x + B * (omega_x @ omega_x)
-
-        if self.euler_type == EulerType.body_fixed:
-            theta = ca.asin(-R[2, 0])
-            if ca.fabs(theta - ca.pi / 2) < 1e-7:
-                phi = 0
-                psi = ca.atan2(R[1, 2], R[0, 2])
-            elif ca.fabs(theta + ca.pi / 2) < 1e-7:
-                psi = 0
-                phi = ca.atan2(-R[0, 1], R[1, 1])
-            else:
-                phi = ca.atan2(R[2, 1], R[2, 2])
-                psi = ca.atan2(R[1, 0], R[0, 0])
-            angle = ca.vertcat(psi, theta, phi)
-        elif self.euler_type == EulerType.space_fixed:
-            theta = ca.asin(R[0, 2])
-            if ca.fabs(theta - ca.pi / 2) < 1e-7:
-                phi = 0
-                psi = ca.atan2(-R[1, 0], R[2, 0])
-            elif ca.fabs(theta + ca.pi / 2) < 1e-7:
-                psi = 0
-                phi = ca.atan2(-R[1, 0], R[1, 1])
-            else:
-                phi = ca.atan2(-R[1, 2], R[2, 2])
-                psi = ca.atan2(-R[0, 1], R[0, 0])
-            angle = ca.vertcat(psi, theta, phi)
-        else:
-            raise ValueError("euler_type must be body_fixed or space_fixed")
-        return self.elem(param=angle)
+        return self.from_Dcm(SO3Dcm.exp(arg))
 
     def log(self, arg: LieGroupElement) -> LieAlgebraElement:
         assert self == arg.group
-        R = arg.to_Matrix()
-        theta = ca.acos((ca.trace(R) - 1) / 2)
-        A = ca.if_else(
-            ca.fabs(theta) < 1e-7,
-            1 - theta**2 / 6 + theta**4 / 120,
-            ca.sin(theta) / theta,
-        )
-        r_matrix = (R - R.T) / (A * 2)  # matrix of so3 in np.array
-        r = ca.vertcat(r_matrix[2, 1], r_matrix[0, 2], r_matrix[1, 0])  # vector of so3
-        return self.algebra.elem(param=r)
+        return SO3Dcm.log(SO3Dcm.from_EulerB321(arg))
 
     def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
         assert self == arg.group
@@ -294,10 +256,45 @@ class SO3EulerLieGroup(SO3LieGroup):
                 raise ValueError("euler_type must be body_fixed or space_fixed")
         return m
 
+    def from_Matrix(self, arg: ca.SX) -> ca.SX:
+        assert arg.shape == (3, 3)
+        raise NotImplementedError("need to implement for each Euler sequence")
 
-SO3EulerB321 = SO3EulerLieGroup(
-    euler_type=EulerType.body_fixed, sequence=[Axis.z, Axis.y, Axis.x]
-)
+    def from_Dcm(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.group == SO3Dcm
+        return self.from_Matrix(SO3Dcm.to_Matrix(arg))
+
+    def from_Quat(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.group == SO3Quat
+        return self.from_Matrix(SO3Quat.to_Matrix())
+
+
+class SO3EulerB321LieGroup(SO3EulerLieGroup):
+    def __init__(self):
+        super().__init__(
+            euler_type=EulerType.body_fixed, sequence=[Axis.z, Axis.y, Axis.z]
+        )
+
+    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+        assert arg.shape == (3, 3)
+        theta = ca.asin(-arg[2, 0])
+        param = ca.if_else(
+            ca.fabs(theta - ca.pi / 2) < 1e-3,
+            ca.vertcat(0, theta, ca.atan2(arg[1, 2], arg[0, 2])),
+            ca.if_else(
+                ca.fabs(theta + ca.pi / 2) < 1e-3,
+                ca.vertcat(0, theta, ca.atan2(-arg[1, 2], -arg[0, 2])),
+                ca.vertcat(
+                    ca.atan2(arg[2, 1], arg[2, 2]),
+                    theta,
+                    ca.atan2(arg[1, 0], arg[0, 0]),
+                ),
+            ),
+        )
+        return LieGroupElement(group=self, param=param)
+
+
+SO3EulerB321 = SO3EulerB321LieGroup()
 
 
 @beartype
@@ -382,6 +379,78 @@ class SO3QuatLieGroup(SO3LieGroup):
         R[2, 2] = aa + dd - bb - cc
         return R
 
+    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+        assert arg.shape == (3, 3)
+        R = arg
+        b1 = 0.5 * ca.sqrt(1 + R[0, 0] + R[1, 1] + R[2, 2])
+        b2 = 0.5 * ca.sqrt(1 + R[0, 0] - R[1, 1] - R[2, 2])
+        b3 = 0.5 * ca.sqrt(1 - R[0, 0] + R[1, 1] - R[2, 2])
+        b4 = 0.5 * ca.sqrt(1 - R[0, 0] - R[1, 1] + R[2, 2])
+
+        q1 = ca.SX(4, 1)
+        q1[0] = b1
+        q1[1] = (R[2, 1] - R[1, 2]) / (4 * b1)
+        q1[2] = (R[0, 2] - R[2, 0]) / (4 * b1)
+        q1[3] = (R[1, 0] - R[0, 1]) / (4 * b1)
+
+        q2 = ca.SX(4, 1)
+        q2[0] = (R[2, 1] - R[1, 2]) / (4 * b2)
+        q2[1] = b2
+        q2[2] = (R[0, 1] + R[1, 0]) / (4 * b2)
+        q2[3] = (R[0, 2] + R[2, 0]) / (4 * b2)
+
+        q3 = ca.SX(4, 1)
+        q3[0] = (R[0, 2] - R[2, 0]) / (4 * b3)
+        q3[1] = (R[0, 1] + R[1, 0]) / (4 * b3)
+        q3[2] = b3
+        q3[3] = (R[1, 2] + R[2, 1]) / (4 * b3)
+
+        q4 = ca.SX(4, 1)
+        q4[0] = (R[1, 0] - R[0, 1]) / (4 * b4)
+        q4[1] = (R[0, 2] + R[2, 0]) / (4 * b4)
+        q4[2] = (R[1, 2] + R[2, 1]) / (4 * b4)
+        q4[3] = b4
+
+        q = ca.if_else(
+            ca.trace(R) > 0,
+            q1,
+            ca.if_else(
+                ca.logic_and(R[0, 0] > R[1, 1], R[0, 0] > R[2, 2]),
+                q2,
+                ca.if_else(R[1, 1] > R[2, 2], q3, q4),
+            ),
+        )
+        return SO3Quat.elem(q)
+
+    def from_Mrp(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.group == SO3Mrp
+        q = ca.SX(4, 1)
+        n_sq = ca.dot(arg.param, arg.param)
+        den = 1 + n_sq
+        q[0] = (1 - n_sq) / den
+        for i in range(3):
+            q[i + 1] = 2 * arg.param[i] / den
+        return SO3Quat.elem(q)
+
+    def from_Dcm(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.group == SO3Dcm
+        return self.from_Matrix(SO3Dcm.to_Matrix(arg))
+
+    def from_EulerB321(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.group == SO3EulerB321
+        q = ca.SX(4, 1)
+        cosPhi_2 = ca.cos(arg.param[0] / 2)
+        cosTheta_2 = ca.cos(arg.param[1] / 2)
+        cosPsi_2 = ca.cos(arg.param[2] / 2)
+        sinPhi_2 = ca.sin(arg.param[0] / 2)
+        sinTheta_2 = ca.sin(arg.param[1] / 2)
+        sinPsi_2 = ca.sin(arg.param[2] / 2)
+        q[0] = cosPhi_2 * cosTheta_2 * cosPsi_2 + sinPhi_2 * sinTheta_2 * sinPsi_2
+        q[1] = sinPhi_2 * cosTheta_2 * cosPsi_2 - cosPhi_2 * sinTheta_2 * sinPsi_2
+        q[2] = cosPhi_2 * sinTheta_2 * cosPsi_2 + sinPhi_2 * cosTheta_2 * sinPsi_2
+        q[3] = cosPhi_2 * cosTheta_2 * sinPsi_2 - sinPhi_2 * sinTheta_2 * cosPsi_2
+        return SO3Quat.elem(q)
+
 
 SO3Quat = SO3QuatLieGroup()
 
@@ -450,15 +519,27 @@ class SO3MrpLieGroup(SO3LieGroup):
         # return transpose, due to convention difference in book
         return R.T
 
-    def from_SO3Quat(self, q: LieGroupElement) -> LieGroupElement:
-        assert q.group == SO3Quat
+    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+        assert arg.shape == (3, 3)
+        return self.from_Dcm(SO3Dcm.from_Matrix(arg))
+
+    def from_Dcm(self, arg: LieGroupElement) -> LieGroupElement:
+        return self.from_Quat(SO3Quat.from_Dcm(arg))
+
+    def from_Quat(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.group == SO3Quat
         x = ca.SX(3, 1)
-        den = 1 + q.param[0]
-        x[0] = q.param[1] / den
-        x[1] = q.param[2] / den
-        x[2] = q.param[3] / den
-        self.shadow_if_necessary(arg=self.elem(param=x))
-        return arg
+        den = 1 + arg.param[0]
+        x[0] = arg.param[1] / den
+        x[1] = arg.param[2] / den
+        x[2] = arg.param[3] / den
+        X = self.elem(param=x)
+        self.shadow_if_necessary(X)
+        return X
+
+    def from_EulerB321(self, arg: LieGroupElement) -> LieGroupElement:
+        assert arg.shape == (3, 3)
+        return self.from_Quat(SO3Quat.from_EulerB321(arg))
 
 
 SO3Mrp = SO3MrpLieGroup()

@@ -5,7 +5,7 @@ import casadi as ca
 from beartype import beartype
 from beartype.typing import List
 
-from .base import *
+from cyecca.lie.base import *
 
 __all__ = ["so2", "SO2"]
 
@@ -47,8 +47,10 @@ class SO2LieAlgebra(LieAlgebra):
         M[1, 0] = arg.param[0, 0]
         return M
 
+    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
+        return self.elem(M[1, 0])
+
     def wedge(self, arg: (ca.SX, ca.DM)) -> LieAlgebraElement:
-        self = SO2LieAlgebra()
         return self.elem(param=arg)
 
     def vee(self, arg: LieAlgebraElement) -> ca.SX:
@@ -96,6 +98,9 @@ class SO2LieGroup(LieGroup):
         M[1, 0] = s
         M[1, 1] = c
         return M
+
+    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+        raise NotImplementedError()
 
 
 so2 = SO2LieAlgebra()

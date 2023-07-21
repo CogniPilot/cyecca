@@ -5,8 +5,8 @@ import casadi as ca
 from beartype import beartype
 from beartype.typing import List
 
-from .base import *
-from .group_so3 import *
+from cyecca.lie.base import *
+from cyecca.lie.group_so3 import *
 
 __all__ = ["se3", "SE3EulerB321", "SE3Quat", "SE3Mrp"]
 
@@ -54,8 +54,13 @@ class SE3LieAlgebra(LieAlgebra):
         horz = ca.horzcat(Omega, v)
         return ca.vertcat(horz, Z14)
 
+    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
+        assert arg.shape == self.matrix_shape
+        return self.elem(
+            ca.vertcat(arg[0, 3], arg[1, 3], arg[2, 3], arg[2, 1], arg[0, 2], arg[1, 0])
+        )
+
     def wedge(self, arg: (ca.SX, ca.DM)) -> LieAlgebraElement:
-        self = SE3LieAlgebra()
         return self.elem(param=arg)
 
     def vee(self, arg: LieAlgebraElement) -> ca.SX:
@@ -174,6 +179,10 @@ class SE3LieGroup(LieGroup):
         horz1 = ca.horzcat(R, t)
         horz2 = ca.horzcat(Z13, I1)
         return ca.vertcat(horz1, horz2)
+
+    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+        assert arg.shape == self.matrix_shape
+        raise NotImplementedError("")
 
 
 SE3Mrp = SE3LieGroup(SO3=SO3Mrp)

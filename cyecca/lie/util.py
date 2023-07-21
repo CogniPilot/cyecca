@@ -1,7 +1,7 @@
 import casadi as ca
 import sympy
 
-from ..symbolic import taylor_series_near_zero
+from cyecca.symbolic import taylor_series_near_zero
 
 # see https://ethaneade.com/lie.pdf
 

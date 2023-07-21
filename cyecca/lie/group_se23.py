@@ -7,8 +7,8 @@ from numpy import floating
 from beartype import beartype
 from beartype.typing import List
 
-from .base import *
-from .group_so3 import *
+from cyecca.lie.base import *
+from cyecca.lie.group_so3 import *
 
 
 __all__ = ["se23", "SE23EulerB321", "SE23Quat", "SE23Mrp"]
@@ -69,8 +69,11 @@ class SE23LieAlgebra(LieAlgebra):
         Z15 = ca.SX(1, 5)
         return np.block([[Omega, v, p], [Z15]])
 
+    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
+        assert arg.shape == self.matrix_shape
+        raise NotImplementedError("")
+
     def wedge(self, arg: npt.NDArray[np.floating]) -> LieAlgebraElement:
-        self = SE3LieAlgebra()
         return self.elem(param=arg)
 
     def vee(self, arg: LieAlgebraElement) -> npt.NDArray[np.floating]:
@@ -187,6 +190,10 @@ class SE23LieGroup(LieGroup):
                 [Z13, I1],
             ]
         )
+
+    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+        assert arg.shape == self.matrix_shape
+        raise NotImplementedError("")
 
 
 se23 = SE23LieAlgebra()

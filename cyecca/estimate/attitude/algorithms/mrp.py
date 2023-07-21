@@ -1,4 +1,4 @@
-from .common import *
+from cyecca.estimate.attitude.algorithms.common import *
 
 """
 A right invariant extended kalman filter parameterized with
@@ -14,8 +14,8 @@ G = SO3Mrp * R3
 x = ca.SX.sym("x", G.n_param)
 X = G.elem(x)
 r, b_gyro = G.sub_elems(X)
-q = SO3Mrp.to_Quat(r)
-C_nb = SO3Dcm.from_SO3Mrp(r)
+q = SO3Quat.from_Mrp(r)
+C_nb = r.to_Matrix()
 
 # e, error state (6)
 # ----------------
@@ -41,7 +41,9 @@ def initialize(**kwargs):
     g_b = ca.SX.sym("g_b", 3)
     B_b = ca.SX.sym("B_b", 3)
 
-    C_nm = SO3DcmB321.elem(ca.vertcat(mag_decl, -mag_incl, 0)).to_Matrix()
+    C_nm = (
+        so3.elem(mag_decl * e3).exp(SO3Mrp) * so3.elem(-mag_incl * e2).exp(SO3Mrp)
+    ).to_Matrix()
 
     B_n = C_nm @ e1
 
@@ -68,7 +70,7 @@ def initialize(**kwargs):
     n2_b = n2_dir / n2_dir_norm
 
     # correct based on declination to true east
-    n2_b = ca.mtimes(so3.Dcm.exp(-mag_decl * n3_b), n2_b)
+    n2_b = so3.elem(-mag_decl * n3_b).exp(SO3Mrp).to_Matrix() @ n2_b
 
     tmp = ca.cross(n2_b, n3_b)
     n1_b = tmp / ca.norm_2(tmp)
@@ -78,10 +80,10 @@ def initialize(**kwargs):
     R0[1, :] = n2_b
     R0[2, :] = n3_b
 
-    r0 = so3.Mrp.from_dcm(R0)
-    r0 = so3.Mrp.shadow_if_necessary(r0)
-    b0 = ca.SX.zeros(3)  # initial bias
-    x0 = ca.if_else(init_ret == 0, ca.vertcat(r0, b0), ca.SX.zeros(7))
+    r0 = SO3Mrp.from_Matrix(R0)
+    SO3Mrp.shadow_if_necessary(r0)
+    b0 = ca.SX(3, 1)  # initial bias, zero
+    x0 = ca.if_else(init_ret == 0, ca.vertcat(r0.param, b0), ca.SX(G.n_param, 1))
     return ca.Function(
         "init",
         [g_b, B_b, mag_decl],
@@ -115,7 +117,7 @@ def predict(**kwargs):
     f = ca.Function(
         "f",
         [omega_m, eta, x, w_gyro_rw],
-        [ca.vertcat(-ca.mtimes(so3.Dcm.from_mrp(r), eta[3:6]), w_gyro_rw)],
+        [ca.vertcat(-ca.mtimes(SO3EulerB321.from_Mrp(r), eta[3:6]), w_gyro_rw)],
     )
 
     # linearized error dynamics
@@ -152,7 +154,7 @@ def predict(**kwargs):
 
 
 def correct_mag(**kwargs):
-    C_nm = so3.Dcm.product(so3.Dcm.exp(mag_decl * e3), so3.Dcm.exp(-mag_incl * e2))
+    C_nm = SO3EulerB321.elem(ca.vertcat(mag_decl, -mag_incl, 0)).to_Matrix()
     B_n = mag_str * ca.mtimes(C_nm, ca.SX([1, 0, 0]))
     h_mag = ca.Function(
         "h_mag",

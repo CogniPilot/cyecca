@@ -53,13 +53,16 @@ class LieAlgebraElement:
     def __rmul__(self, arg: SCALAR_TYPE) -> LieAlgebraElement:
         return self.algebra.scalar_multipication(left=arg, right=self)
 
-    def __add__(self, arg: "LieAlgebraElement") -> "LieAlgebraElement":
+    def __add__(self, arg: LieAlgebraElement) -> LieAlgebraElement:
         return self.algebra.addition(left=self, right=arg)
 
     def to_Matrix(self) -> ca.SX:
         return self.algebra.to_Matrix(self)
 
-    def exp(self, group: "LieGroup") -> "LieGroupElement":
+    def from_Matrix(self) -> ca.SX:
+        return self.algebra.from_Matrix(self)
+
+    def exp(self, group: LieGroup) -> LieGroupElement:
         return group.exp(self)
 
     def __repr__(self):
@@ -124,6 +127,10 @@ class LieAlgebra(ABC):
     def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         pass
 
+    @abstractmethod
+    def from_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
+        pass
+
     def __repr__(self):
         return self.__class__.__name__
 
@@ -159,6 +166,9 @@ class LieGroupElement:
 
     def to_Matrix(self):
         return self.group.to_Matrix(arg=self)
+
+    def from_Matrix(self) -> ca.SX:
+        return self.group.from_Matrix(self)
 
     def log(self) -> LieAlgebraElement:
         return self.group.log(arg=self)
@@ -215,6 +225,10 @@ class LieGroup(ABC):
 
     @abstractmethod
     def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
+        pass
+
+    @abstractmethod
+    def from_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         pass
 
     def __repr__(self):

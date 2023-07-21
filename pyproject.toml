@@ -12,6 +12,7 @@ casadi = {version = "^3.5.6rc2", allow-prereleases = true}
 sympy = "^1.11.1"
 beartype = "^0.14.0"
 scipy = "^1.11.1"
+pydot = "^1.4.2"
 
 [tool.poetry.group.dev.dependencies]
 black = {extras = ["jupyter"], version = "^23.7.0"}

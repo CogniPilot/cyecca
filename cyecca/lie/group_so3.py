@@ -56,14 +56,14 @@ class SO3LieAlgebra(LieAlgebra):
 
     def to_Matrix(self, left: LieAlgebraElement) -> ca.SX:
         assert self == left.algebra
-        M = ca.SX.zeros(3, 3)
+        M = ca.SX(3, 3)
         M[0, 1] = -left.param[2, 0]
         M[1, 0] = left.param[2, 0]
         M[0, 2] = left.param[1, 0]
         M[2, 0] = -left.param[1, 0]
         M[1, 2] = -left.param[0, 0]
         M[2, 1] = left.param[0, 0]
-        return M
+        return ca.sparsify(M)
 
     def wedge(self, left: PARAM_TYPE) -> LieAlgebraElement:
         self = SO3LieAlgebra()
@@ -134,7 +134,7 @@ class SO3DcmLieGroup(SO3LieGroup):
         return self.from_matrix(param=arg.to_Matrix().T())
 
     def identity(self) -> LieGroupElement:
-        return self.elem(param=ca.SX.zeros(self.n_param, 1))
+        return self.elem(param=ca.SX(self.n_param, 1))
 
     def adjoint(self, arg: LieGroupElement):
         assert self == arg.group
@@ -218,7 +218,7 @@ class SO3EulerLieGroup(SO3LieGroup):
         return self.elem(param=-arg.param)
 
     def identity(self) -> LieGroupElement:
-        return self.elem(param=ca.SX.zeros(self.n_param, 1))
+        return self.elem(param=ca.SX(self.n_param, 1))
 
     def adjoint(self, arg: LieGroupElement):
         assert self == arg.group

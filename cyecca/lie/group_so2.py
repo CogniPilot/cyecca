@@ -37,12 +37,12 @@ class SO2LieAlgebra(LieAlgebra):
 
     def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
         assert self == arg.algebra
-        return ca.SX.zeros(1, 1)
+        return ca.SX(1, 1)
 
     def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         print(type(arg.param[0, 0]))
         assert self == arg.algebra
-        M = ca.SX.zeros(2, 2)
+        M = ca.SX(2, 2)
         M[0, 1] = -arg.param[0, 0]
         M[1, 0] = arg.param[0, 0]
         return M
@@ -71,7 +71,7 @@ class SO2LieGroup(LieGroup):
         return self.elem(param=-arg.param)
 
     def identity(self) -> LieGroupElement:
-        return self.elem(param=ca.SX.zeros(self.n_param))
+        return self.elem(param=ca.SX(self.n_param, 1))
 
     def adjoint(self, arg: LieGroupElement):
         assert self == arg.group
@@ -90,7 +90,7 @@ class SO2LieGroup(LieGroup):
         theta = arg.param[0, 0]
         c = ca.cos(theta)
         s = ca.sin(theta)
-        M = ca.SX.zeros(2, 2)
+        M = ca.SX(2, 2)
         M[0, 0] = c
         M[0, 1] = -s
         M[1, 0] = s

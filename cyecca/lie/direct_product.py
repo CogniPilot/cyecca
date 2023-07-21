@@ -55,16 +55,12 @@ class LieAlgebraDirectProduct(LieAlgebra):
         return LieAlgebraElement(group=self, param=left.param + right.param)
 
     def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
-        assert arg.group == self
+        assert arg.algebra == self
         return ca.diagcat(*[x.ad() for x in self.sub_elems(arg)])
 
     def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         assert arg.algebra == self
-        matrix_list = []
-        for i in range(len(self.groups)):
-            X = self.sub_elem(i=i, arg=left).to_Matrix()
-            matrix_list.append(X)
-        return ca.diagcat(*matrix_list)
+        return ca.diagcat(*[X.to_Matrix() for X in self.sub_elems(arg)])
 
     def __repr__(self):
         return " x ".join([algebra.__class__.__name__ for algebra in self.algebras])

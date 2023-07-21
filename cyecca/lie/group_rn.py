@@ -21,7 +21,7 @@ class RnLieAlgebra(LieAlgebra):
     def bracket(self, left: LieAlgebraElement, right: LieAlgebraElement):
         assert self == left.algebra
         assert self == right.algebra
-        return self.elem(param=ca.SX.zeros(self.n_param))
+        return self.elem(param=ca.SX(self.n_param, 1))
 
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
@@ -36,14 +36,15 @@ class RnLieAlgebra(LieAlgebra):
 
     def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
         assert self == arg.algebra
-        return ca.SX.zeros((self.n_param, self.n_param))
+        return ca.SX(self.matrix_shape)
 
     def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         assert self == arg.algebra
-        A = ca.SX.zeros(self.matrix_shape)
+        A = ca.SX(*self.matrix_shape)
+        print("A shape", A.shape)
         for i in range(self.n_param):
             A[i, self.n_param] = arg.param[i]
-        return A
+        return ca.sparsify(A)
 
     def __str__(self):
         return "{:s}({:d})".format(self.__class__.__name__, self.n_param)
@@ -65,7 +66,7 @@ class RnLieGroup(LieGroup):
         return self.elem(param=-arg.param)
 
     def identity(self) -> LieGroupElement:
-        return self.elem(param=ca.SX.zeros(self.n_param))
+        return self.elem(param=ca.SX(self.n_param, 1))
 
     def adjoint(self, arg: LieGroupElement) -> ca.SX:
         assert self == arg.group
@@ -86,7 +87,7 @@ class RnLieGroup(LieGroup):
         A = ca.SX_eye(self.n_param + 1)
         for i in range(self.n_param):
             A[i, self.n_param] = arg.param[i]
-        return A
+        return ca.sparsify(A)
 
     def __str__(self):
         return "{:s}({:d})".format(self.__class__.__name__, self.n_param)

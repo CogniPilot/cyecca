@@ -59,14 +59,14 @@ class SE23LieAlgebra(LieAlgebra):
         v = arg.param[0:3]
         vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
         w = so3.elem(arg.param[6:]).to_Matrix()
-        return np.block([[w, vx], [np.zeros((3, 3)), w]])
+        return np.block([[w, vx], [ca.SX(3, 3), w]])
 
     def to_Matrix(self, arg: LieAlgebraElement) -> npt.NDArray[np.floating]:
         assert self == arg.algebra
         Omega = so3.elem(arg.param[6:]).to_Matrix()
         p = arg.param[:3].reshape(3, 1)
         v = arg.param[3:6].reshape(3, 1)
-        Z15 = np.zeros(5)
+        Z15 = ca.SX(1, 5)
         return np.block([[Omega, v, p], [Z15]])
 
     def wedge(self, arg: npt.NDArray[np.floating]) -> LieAlgebraElement:
@@ -103,14 +103,14 @@ class SE23LieGroup(LieGroup):
         return self.elem(param=np.block([p, theta_inv.param]))
 
     def identity(self) -> LieGroupElement:
-        return self.elem(np.zeros((self.n_param, 1)))
+        return self.elem(ca.SX(self.n_param, 1))
 
     def adjoint(self, arg: LieGroupElement):
         assert self == arg.group
         v = arg.param[:3]
         vx = so3.elem(param=v).to_Matrix()
         R = self.SO3.elem(param=arg.param[3:]).to_Matrix()
-        return np.block([[R, vx @ R], [np.zeros((3, 3)), R]])
+        return np.block([[R, vx @ R], [ca.SX(3, 3), R]])
 
     def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == arg.algebra
@@ -179,8 +179,8 @@ class SE23LieGroup(LieGroup):
         assert self == arg.group
         R = self.SO3.elem(arg.param[3:]).to_Matrix()
         t = arg.param[:3].reshape(3, 1)
-        Z13 = np.zeros(3)
-        I1 = np.eye(1)
+        Z13 = ca.SX(1, 3)
+        I1 = ca.SX.eye(1)
         return np.block(
             [
                 [R, t],

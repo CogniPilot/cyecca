@@ -12,7 +12,10 @@ EPS = 1e-9
 
 
 def SX_close(e1: (ca.SX, ca.DM), e2: (ca.SX, ca.DM)):
-    return ca.norm_2(e1 - e2) < EPS
+    close = ca.norm_2(e1 - e2) < EPS
+    if not close:
+        print(ca.DM(e1), ca.DM(e2))
+    return close
 
 
 class ProfiledTestCase(unittest.TestCase):

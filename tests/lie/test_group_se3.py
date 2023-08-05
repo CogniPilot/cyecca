@@ -6,8 +6,8 @@ from cyecca.lie.group_se3 import *
 class Test_LieAlgebraSE3(ProfiledTestCase):
     def setUp(self):
         super().setUp()
-        self.v1 = ca.DM([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
-        self.v2 = ca.DM([4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+        self.v1 = ca.DM([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        self.v2 = ca.DM([0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
 
     def test_ctor(self):
         se3.elem(self.v1)
@@ -112,10 +112,12 @@ class Test_LieGroupSE3Mrp(ProfiledTestCase):
         G1 = SE3Mrp.elem(self.v1)
         G1.log()
 
-    @unittest.skip
     def test_exp_log(self):
         G1 = SE3Mrp.elem(self.v1)
-        G2 = G1.log().exp(SE3Mrp)
+        g1 = G1.log()
+        print(g1.param)
+        G2 = g1.exp(SE3Mrp)
+        print(G2.param)
         self.assertTrue(SX_close(G1.param, G2.param))
 
     def test_print_group(self):

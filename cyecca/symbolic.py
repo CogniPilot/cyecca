@@ -121,7 +121,7 @@ def derive_series():
     series["sin(x)/x"] = taylor_series_near_zero(x, sin(x) / x)
     series["(1 - cos(x))/x"] = taylor_series_near_zero(x, (1 - cos(x)) / x)
     series["(1 - cos(x))/x^2"] = taylor_series_near_zero(x, (1 - cos(x)) / x**2)
-    series["(1 - sin(x))/x^3"] = taylor_series_near_zero(x, (1 - sin(x)) / x**3)
+    series["(x - sin(x))/x^3"] = taylor_series_near_zero(x, (x - sin(x)) / x**3)
     series["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"] = taylor_series_near_zero(
         x, (1 - x * sin(x) / (2 * (1 - cos(x)))) / x**2
     )

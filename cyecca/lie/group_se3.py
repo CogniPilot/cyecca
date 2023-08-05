@@ -110,40 +110,32 @@ class SE3LieGroup(LieGroup):
 
     def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == arg.algebra
-        v = arg.param
-        omega_so3 = self.SO3.algebra.elem(
-            v[3:]
-        )  # grab only rotation terms for so3 uses ##corrected to v_so3 = v[3:6]
-        Omega = omega_so3.to_Matrix()  # matrix for so3
-        omega = ca.norm_2(
-            v[3:]
-        )  # theta term using norm for sqrt(theta1**2+theta2**2+theta3**2)
-        theta = omega_so3.exp(self.SO3).param
 
-        # translational components u
-        u = ca.vertcat(v[0], v[1], v[2])
+        u = arg.param[:3]  # translation
+        omega = self.SO3.algebra.elem(arg.param[3:])
+        Omega = omega.to_Matrix()
+        rotation = omega.exp(self.SO3).param
+        theta = ca.norm_2(omega.param)
 
-        A = SERIES["(1 - cos(x))/x^2"](omega)
-        B = SERIES["(1 - sin(x))/x^3"](omega)
+        A = SERIES["(1 - cos(x))/x^2"](theta)
+        B = SERIES["(x - sin(x))/x^3"](theta)
         V = ca.SX.eye(3) + A * Omega + B * Omega @ Omega
-
-        return self.elem(ca.vertcat(V @ u, theta))
+        p = V @ u  # position
+        return self.elem(ca.vertcat(p, rotation))
 
     def log(self, arg: LieGroupElement) -> LieAlgebraElement:
         assert self == arg.group
-        X = arg.to_Matrix()
-        angle = arg.param[3:]
-        R = X[0:3, 0:3]  # get the SO3 Lie group matrix
-        omega = ca.acos((ca.trace(R) - 1) / 2)
-        angle_so3 = self.SO3.elem(angle).log()
-        Omega = angle_so3.to_Matrix()
+        X = self.SO3.elem(arg.param[3:])
+        t = arg.param[:3]
 
-        A = SERIES["sin(x)/x"](omega)
-        B = SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](omega)
-        V_inv = ca.SX.eye(3) - A * Omega + B * Omega @ Omega
-        t = X[0:3, 3]
-        uInv = V_inv @ t
-        return self.algebra.elem(ca.vertcat(uInv, angle_so3.param))
+        omega = X.log()
+        theta = ca.norm_2(omega.param)
+        Omega = omega.to_Matrix()
+
+        A = SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](theta)
+        V_inv = ca.SX.eye(3) - Omega / 2 + A * Omega @ Omega
+        u = V_inv @ t
+        return self.algebra.elem(ca.vertcat(u, omega.param))
 
     def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
         assert self == arg.group

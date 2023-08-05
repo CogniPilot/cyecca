@@ -9,6 +9,7 @@ from beartype.typing import List
 
 from cyecca.lie.base import *
 from cyecca.lie.group_so3 import *
+from cyecca.symbolic import SERIES
 
 
 __all__ = ["se23", "SE23EulerB321", "SE23Quat", "SE23Mrp"]
@@ -47,7 +48,7 @@ class SE23LieAlgebra(LieAlgebra):
         return self.elem(param=left.param + right.param)
 
     def scalar_multipication(
-        self, left: Real, right: LieAlgebraElement
+        self, left: SCALAR_TYPE, right: LieAlgebraElement
     ) -> LieAlgebraElement:
         assert self == right.algebra
         return self.elem(param=left * right.param)
@@ -130,16 +131,8 @@ class SE23LieGroup(LieGroup):
         # translational components u
         u = np.array([v[0], v[1], v[2]])
 
-        C1 = np.where(
-            np.abs(omega) < 1e-7,
-            1 - omega**2 / 6 + omega**4 / 120,
-            np.sin(omega) / omega,
-        )
-        C2 = np.where(
-            np.abs(omega) < 1e-7,
-            0.5 - omega**2 / 24 + omega**4 / 720,
-            (1 - np.cos(omega)) / omega**2,
-        )
+        C1 = SERIES["sin(x)/x"]
+        C2 = SERIES["(1 - cos(x))/x^2"]
         C = np.where(
             np.abs(omega) < 1e-7,
             1 / 6 - omega**2 / 120 + omega**4 / 5040,
@@ -158,16 +151,8 @@ class SE23LieGroup(LieGroup):
         theta = np.arccos((np.trace(R) - 1) / 2)
         angle_so3 = self.SO3.elem(angle).log()
         wSkew = angle_so3.to_Matrix()
-        C1 = np.where(
-            np.abs(theta) < 1e-7,
-            1 - theta**2 / 6 + theta**4 / 120,
-            np.sin(theta) / theta,
-        )
-        C2 = np.where(
-            np.abs(theta) < 1e-7,
-            0.5 - theta**2 / 24 + theta**4 / 720,
-            (1 - np.cos(theta)) / theta**2,
-        )
+        C1 = SERIES["sin(x)/x"]
+        C2 = SERIES["(1 - cos(x))/x^2"]
         V_inv = (
             np.eye(3)
             - wSkew / 2

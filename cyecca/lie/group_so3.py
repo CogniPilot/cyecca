@@ -8,7 +8,7 @@ from beartype import beartype
 from beartype.typing import List
 from cyecca.lie.base import *
 
-from cyecca.lie.util import series_dict
+from cyecca.symbolic import SERIES
 
 __all__ = [
     "so3",
@@ -145,14 +145,14 @@ class SO3DcmLieGroup(SO3LieGroup):
         assert self.algebra == arg.algebra
         theta = ca.norm_2(arg.param)
         X = arg.to_Matrix()
-        A = series_dict["sin(x)/x"]
-        B = series_dict["(1 - cos(x))/x^2"]
+        A = SERIES["sin(x)/x"]
+        B = SERIES["(1 - cos(x))/x^2"]
         return self.from_Matrix(ca.SX.eye(3) + A(theta) * X + B(theta) * X @ X)
 
     def log(self, arg: LieGroupElement) -> LieAlgebraElement:
         R = self.to_Matrix(arg)
         theta = ca.arccos((ca.trace(R) - 1) / 2)
-        A = series_dict["sin(x)/x"]
+        A = SERIES["sin(x)/x"]
         return self.algebra.from_Matrix((R - R.T) / (A(theta) * 2))
 
     def to_Matrix(self, arg: LieGroupElement) -> ca.SX:

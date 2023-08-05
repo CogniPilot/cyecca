@@ -30,7 +30,7 @@ class SO2LieAlgebra(LieAlgebra):
         return self.elem(param=left.param + right.param)
 
     def scalar_multipication(
-        self, left: (float, int), right: LieAlgebraElement
+        self, left: SCALAR_TYPE, right: LieAlgebraElement
     ) -> LieAlgebraElement:
         assert self == right.algebra
         return self.elem(param=left * right.param)

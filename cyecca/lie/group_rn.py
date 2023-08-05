@@ -30,7 +30,9 @@ class RnLieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.elem(param=left.param + right.param)
 
-    def scalar_multipication(self, left, right: LieAlgebraElement) -> LieAlgebraElement:
+    def scalar_multipication(
+        self, left: SCALAR_TYPE, right: LieAlgebraElement
+    ) -> LieAlgebraElement:
         assert self == right.algebra
         return self.elem(param=left * right.param)
 

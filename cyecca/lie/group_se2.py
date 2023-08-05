@@ -7,7 +7,7 @@ from beartype.typing import List
 
 from cyecca.lie.base import *
 from cyecca.lie.group_so2 import *
-
+from cyecca.symbolic import SERIES
 
 __all__ = ["se2", "SE2"]
 
@@ -34,7 +34,7 @@ class SE2LieAlgebra(LieAlgebra):
         return self.elem(param=left.param + right.param)
 
     def scalar_multipication(
-        self, left: (float, int), right: LieAlgebraElement
+        self, left: SCALAR_TYPE, right: LieAlgebraElement
     ) -> LieAlgebraElement:
         assert self == right.algebra
         return self.elem(param=left * right.param)
@@ -107,8 +107,8 @@ class SE2LieGroup(LieGroup):
         theta = arg.param[2, 0]
         sin_th = ca.sin(theta)
         cos_th = ca.cos(theta)
-        a = sin_th / theta
-        b = (1 - cos_th) / theta
+        a = SERIES["sin(x)/x"](theta)
+        b = SERIES["(1 - cos(x))/x"](theta)
         horz1 = ca.horzcat(a, -b)
         horz2 = ca.horzcat(b, a)
         V = ca.vertcat(horz1, horz2)
@@ -120,28 +120,8 @@ class SE2LieGroup(LieGroup):
         v = arg.param[:2, 0]
         theta = arg.param[2, 0]
         x = ca.SX.sym("x")
-        C1 = ca.Function(
-            "a",
-            [x],
-            [
-                ca.if_else(
-                    ca.fabs(x) < 1e-3, 1 - x**2 / 6 + x**4 / 120, ca.sin(x) / x
-                )
-            ],
-        )
-        C2 = ca.Function(
-            "b",
-            [x],
-            [
-                ca.if_else(
-                    ca.fabs(x) < 1e-3,
-                    x / 2 - x**3 / 24 + x**5 / 720,
-                    (1 - ca.cos(x)) / x,
-                )
-            ],
-        )
-        a = C1(theta)
-        b = C2(theta)
+        a = SERIES["sin(x)/x"](theta)
+        b = SERIES["(1 - cos(x))/x"](theta)
         V_inv = ca.SX(2, 2)
         V_inv[0, 0] = a
         V_inv[0, 1] = b

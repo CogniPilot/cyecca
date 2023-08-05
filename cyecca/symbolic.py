@@ -1,7 +1,7 @@
 import casadi as ca
 import sympy
 
-__all__ = ["taylor_series_near_zero", "sympy_to_casadi"]
+__all__ = ["taylor_series_near_zero", "sympy_to_casadi", "SERIES"]
 
 
 def taylor_series_near_zero(x, f, order=6, eps=1e-7, verbose=False):
@@ -111,3 +111,21 @@ def _sympy_parser(f, f_dict=None, symbols=None, depth=0, cse=False, verbose=Fals
             return f_dict[dict_keys[i]](prs(f.args[0]))
     else:
         print("unhandled type", type(f), f)
+
+
+def derive_series():
+    x = sympy.symbols("x")
+    cos = sympy.cos
+    sin = sympy.sin
+    series = {}
+    series["sin(x)/x"] = taylor_series_near_zero(x, sin(x) / x)
+    series["(1 - cos(x))/x"] = taylor_series_near_zero(x, (1 - cos(x)) / x)
+    series["(1 - cos(x))/x^2"] = taylor_series_near_zero(x, (1 - cos(x)) / x**2)
+    series["(1 - sin(x))/x^3"] = taylor_series_near_zero(x, (1 - sin(x)) / x**3)
+    series["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"] = taylor_series_near_zero(
+        x, (1 - x * sin(x) / (2 * (1 - cos(x)))) / x**2
+    )
+    return series
+
+
+SERIES = derive_series()

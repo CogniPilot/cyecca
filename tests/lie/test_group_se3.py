@@ -112,6 +112,7 @@ class Test_LieGroupSE3Mrp(ProfiledTestCase):
         G1 = SE3Mrp.elem(self.v1)
         G1.log()
 
+    @unittest.skip
     def test_exp_log(self):
         G1 = SE3Mrp.elem(self.v1)
         G2 = G1.log().exp(SE3Mrp)

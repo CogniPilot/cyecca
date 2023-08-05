@@ -7,6 +7,7 @@ from beartype.typing import List
 
 from cyecca.lie.base import *
 from cyecca.lie.group_so3 import *
+from cyecca.symbolic import SERIES, taylor_series_near_zero
 
 __all__ = ["se3", "SE3EulerB321", "SE3Quat", "SE3Mrp"]
 
@@ -113,7 +114,7 @@ class SE3LieGroup(LieGroup):
         omega_so3 = self.SO3.algebra.elem(
             v[3:]
         )  # grab only rotation terms for so3 uses ##corrected to v_so3 = v[3:6]
-        omega_matrix = omega_so3.to_Matrix()  # matrix for so3
+        Omega = omega_so3.to_Matrix()  # matrix for so3
         omega = ca.norm_2(
             v[3:]
         )  # theta term using norm for sqrt(theta1**2+theta2**2+theta3**2)
@@ -122,23 +123,9 @@ class SE3LieGroup(LieGroup):
         # translational components u
         u = ca.vertcat(v[0], v[1], v[2])
 
-        C1 = ca.if_else(
-            ca.fabs(omega) < 1e-7,
-            1 - omega**2 / 6 + omega**4 / 120,
-            ca.sin(omega) / omega,
-        )
-        C2 = ca.if_else(
-            ca.fabs(omega) < 1e-7,
-            0.5 - omega**2 / 24 + omega**4 / 720,
-            (1 - ca.cos(omega)) / omega**2,
-        )
-        C = ca.if_else(
-            ca.fabs(omega) < 1e-7,
-            1 / 6 - omega**2 / 120 + omega**4 / 5040,
-            (1 - C1) / omega**2,
-        )
-
-        V = ca.SX_eye(3) + C2 * omega_matrix + C * omega_matrix @ omega_matrix
+        A = SERIES["(1 - cos(x))/x^2"](omega)
+        B = SERIES["(1 - sin(x))/x^3"](omega)
+        V = ca.SX.eye(3) + A * Omega + B * Omega @ Omega
 
         return self.elem(ca.vertcat(V @ u, theta))
 
@@ -147,25 +134,13 @@ class SE3LieGroup(LieGroup):
         X = arg.to_Matrix()
         angle = arg.param[3:]
         R = X[0:3, 0:3]  # get the SO3 Lie group matrix
-        theta = ca.acos((ca.trace(R) - 1) / 2)
+        omega = ca.acos((ca.trace(R) - 1) / 2)
         angle_so3 = self.SO3.elem(angle).log()
-        wSkew = angle_so3.to_Matrix()
-        C1 = ca.if_else(
-            ca.fabs(theta) < 1e-7,
-            1 - theta**2 / 6 + theta**4 / 120,
-            ca.sin(theta) / theta,
-        )
-        C2 = ca.if_else(
-            ca.fabs(theta) < 1e-7,
-            0.5 - theta**2 / 24 + theta**4 / 720,
-            (1 - ca.cos(theta)) / theta**2,
-        )
-        V_inv = (
-            ca.SX_eye(3)
-            - wSkew / 2
-            + (1 / theta**2) * (1 - C1 / (2 * C2)) * wSkew @ wSkew
-        )
+        Omega = angle_so3.to_Matrix()
 
+        A = SERIES["sin(x)/x"](omega)
+        B = SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](omega)
+        V_inv = ca.SX.eye(3) - A * Omega + B * Omega @ Omega
         t = X[0:3, 3]
         uInv = V_inv @ t
         return self.algebra.elem(ca.vertcat(uInv, angle_so3.param))
@@ -175,7 +150,7 @@ class SE3LieGroup(LieGroup):
         R = self.SO3.elem(arg.param[3:]).to_Matrix()
         t = arg.param[:3]
         Z13 = ca.SX(1, 3)
-        I1 = ca.SX_eye(1)
+        I1 = ca.SX.eye(1)
         horz1 = ca.horzcat(R, t)
         horz2 = ca.horzcat(Z13, I1)
         return ca.vertcat(horz1, horz2)

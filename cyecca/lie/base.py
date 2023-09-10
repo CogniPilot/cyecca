@@ -4,7 +4,7 @@ import casadi as ca
 
 from abc import ABC, abstractmethod
 from beartype import beartype
-from beartype.typing import List
+from beartype.typing import List, Union
 
 __all__ = [
     "LieAlgebraElement",
@@ -15,8 +15,8 @@ __all__ = [
     "PARAM_TYPE",
 ]
 
-SCALAR_TYPE = (ca.SX, ca.DM, float, int)
-PARAM_TYPE = (ca.SX, ca.DM)
+SCALAR_TYPE = Union[ca.SX, ca.DM, float, int]
+PARAM_TYPE = Union[ca.SX, ca.DM]
 
 
 @beartype
@@ -38,34 +38,37 @@ class LieAlgebraElement:
         """maps from Lie algebra to its parameters as a vector"""
         return self.algebra.vee(self)
 
-    def __neg__(self):
+    def __neg__(self) -> LieAlgebraElement:
         return -1 * self
 
-    def __eq__(self, other: LieAlgebraElement):
-        return ca.logic_all(self.param == other.param)
+    def __eq__(self, other: LieAlgebraElement) -> bool:
+        return bool(ca.logic_all(self.param == other.param))
 
-    def __mul__(self, right) -> LieAlgebraElement:
+    def __mul__(self, right: LieAlgebraElement) -> LieAlgebraElement:
         if isinstance(right, LieAlgebraElement):
             return self.algebra.bracket(left=self, right=right)
         elif isinstance(right, SCALAR_TYPE):
-            return self.algebra.scalar_multipication(left=right, right=self)
+            return self.algebra.scalar_multiplication(left=right, right=self)
 
     def __rmul__(self, arg: SCALAR_TYPE) -> LieAlgebraElement:
-        return self.algebra.scalar_multipication(left=arg, right=self)
+        return self.algebra.scalar_multiplication(left=arg, right=self)
 
     def __add__(self, arg: LieAlgebraElement) -> LieAlgebraElement:
         return self.algebra.addition(left=self, right=arg)
 
+    def __sub__(self, arg: LieAlgebraElement) -> LieAlgebraElement:
+        return self.algebra.addition(left=self, right=-arg)
+
     def to_Matrix(self) -> ca.SX:
         return self.algebra.to_Matrix(self)
 
-    def from_Matrix(self) -> ca.SX:
+    def from_Matrix(self) -> LieGroupElement:
         return self.algebra.from_Matrix(self)
 
     def exp(self, group: LieGroup) -> LieGroupElement:
         return group.exp(self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{:s}: {:s}".format(repr(self.algebra), repr(self.param))
 
 
@@ -79,7 +82,7 @@ class LieAlgebra(ABC):
         self.n_param = n_param
         self.matrix_shape = matrix_shape
 
-    def __mul__(self, other: LieAlgebra):
+    def __mul__(self, other: LieAlgebra) -> LieAlgebraDirectProduct:
         """
         Implements Direct Product of Lie Algebras
         """
@@ -97,7 +100,9 @@ class LieAlgebra(ABC):
         assert arg.algebra == self
         return arg.param
 
-    def scalar_multipication(self, left: SCALAR_TYPE, right: LieAlgebraElement):
+    def scalar_multiplication(
+        self, left: SCALAR_TYPE, right: LieAlgebraElement
+    ) -> LieAlgebraElement:
         assert right.algebra == self
         return LieGroupElement(self.groups[i], self.sub_param(i=i, param=arg.param))
 
@@ -108,7 +113,7 @@ class LieAlgebra(ABC):
         pass
 
     @abstractmethod
-    def scalar_multipication(
+    def scalar_multiplication(
         self, left: SCALAR_TYPE, right: LieAlgebraElement
     ) -> LieAlgebraElement:
         pass
@@ -131,7 +136,7 @@ class LieAlgebra(ABC):
     def from_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         pass
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__class__.__name__
 
 
@@ -149,14 +154,14 @@ class LieGroupElement:
     def inverse(self) -> LieGroupElement:
         return self.group.inverse(arg=self)
 
-    def __add__(self, other: LieAlgebraElement):
+    def __add__(self, other: LieAlgebraElement) -> LieGroupElement:
         return self * other.exp(self.group)
 
-    def __sub__(self, other: LieAlgebraElement):
+    def __sub__(self, other: LieAlgebraElement) -> LieGroupElement:
         return self * (-other).exp(self.group)
 
-    def __eq__(self, other):
-        return ca.logic_all(self.param == other.param)
+    def __eq__(self, other) -> bool:
+        return bool(ca.logic_all(self.param == other.param))
 
     def __mul__(self, right: LieGroupElement) -> LieGroupElement:
         return self.group.product(left=self, right=right)
@@ -164,16 +169,16 @@ class LieGroupElement:
     def Ad(self) -> ca.SX:
         return self.group.adjoint(arg=self)
 
-    def to_Matrix(self):
+    def to_Matrix(self) -> ca.SX:
         return self.group.to_Matrix(arg=self)
 
-    def from_Matrix(self) -> ca.SX:
+    def from_Matrix(self) -> LieGroupElement:
         return self.group.from_Matrix(self)
 
     def log(self) -> LieAlgebraElement:
         return self.group.log(arg=self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{:s}: {:s}".format(repr(self.group), repr(self.param))
 
 
@@ -193,7 +198,7 @@ class LieGroup(ABC):
     def elem(self, param: PARAM_TYPE) -> LieGroupElement:
         return LieGroupElement(group=self, param=param)
 
-    def __mul__(self, other: LieGroup):
+    def __mul__(self, other: LieGroup) -> LieGroupDirectProduct:
         """
         Implements Direct Product of Groups
         """
@@ -231,7 +236,7 @@ class LieGroup(ABC):
     def from_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
         pass
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__class__.__name__
 
 

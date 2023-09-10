@@ -43,7 +43,7 @@ class SO3LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.elem(param=left.param + right.param)
 
-    def scalar_multipication(
+    def scalar_multiplication(
         self, left: SCALAR_TYPE, right: LieAlgebraElement
     ) -> LieAlgebraElement:
         assert self == right.algebra
@@ -126,7 +126,7 @@ class SO3DcmLieGroup(SO3LieGroup):
     def __init__(self):
         super().__init__(algebra=so3, n_param=9, matrix_shape=(3, 3))
 
-    def product(self, left: LieGroupElement, right: LieGroupElement):
+    def product(self, left: LieGroupElement, right: LieGroupElement) -> LieGroupElement:
         assert self == left.group
         assert self == right.group
         return self.elem(param=left.param + right.param)
@@ -138,8 +138,8 @@ class SO3DcmLieGroup(SO3LieGroup):
     def identity(self) -> LieGroupElement:
         return self.elem(param=ca.SX(self.n_param, 1))
 
-    def adjoint(self, arg: LieGroupElement):
-        assert self == arg.group
+    def adjoint(self, arg: LieGroupElement) -> ca.SX:
+        return self.to_Matrix()
 
     def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
         assert self.algebra == arg.algebra
@@ -167,7 +167,7 @@ class SO3DcmLieGroup(SO3LieGroup):
         assert arg.group == SO3Mrp
         return self.from_Quat(SO3Quat.from_Mrp(arg))
 
-    def from_Quat(self, arg: LieGroupElement):
+    def from_Quat(self, arg: LieGroupElement) -> LieGroupElement:
         assert arg.group == SO3Quat
         R = ca.SX(3, 3)
         a = arg.param[0]
@@ -195,7 +195,7 @@ class SO3DcmLieGroup(SO3LieGroup):
         R[2, 2] = aa + dd - bb - cc
         return self.from_Matrix(arg=R)
 
-    def from_Mrp(self, arg: LieGroupElement):
+    def from_Mrp(self, arg: LieGroupElement) -> LieGroupElement:
         assert arg.group == SO3MrpLieGroup
         X = arg.to_Matrix()
         n_sq = ca.dot(arg.param, arg.param)

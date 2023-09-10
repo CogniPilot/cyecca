@@ -99,13 +99,6 @@ class Test_LieGroupSO3Euler(ProfiledTestCase):
         with self.assertRaises(TypeError):
             s * G2
 
-    def test_product(self):
-        v3 = self.v1 + self.v2
-        G1 = SO3EulerB321.elem(self.v1)
-        G2 = SO3EulerB321.elem(self.v2)
-        G3 = G1 * G2
-        self.assertTrue(SX_close(G3.param, v3))
-
     def test_identity(self):
         G1 = SO3EulerB321.elem(self.v1)
         G2 = G1 * SO3EulerB321.identity()

@@ -47,7 +47,7 @@ class SE23LieAlgebra(LieAlgebra):
         assert self == right.algebra
         return self.elem(param=left.param + right.param)
 
-    def scalar_multipication(
+    def scalar_multiplication(
         self, left: SCALAR_TYPE, right: LieAlgebraElement
     ) -> LieAlgebraElement:
         assert self == right.algebra

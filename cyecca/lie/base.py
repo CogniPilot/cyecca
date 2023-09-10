@@ -41,10 +41,12 @@ class LieAlgebraElement:
     def __neg__(self) -> LieAlgebraElement:
         return -1 * self
 
-    def __eq__(self, other: LieAlgebraElement) -> bool:
-        return bool(ca.logic_all(self.param == other.param))
+    def __eq__(self, other: LieAlgebraElement) -> ca.SX:
+        return ca.logic_all(self.param == other.param)
 
-    def __mul__(self, right: LieAlgebraElement) -> LieAlgebraElement:
+    def __mul__(
+        self, right: Union[LieAlgebraElement, SCALAR_TYPE]
+    ) -> LieAlgebraElement:
         if isinstance(right, LieAlgebraElement):
             return self.algebra.bracket(left=self, right=right)
         elif isinstance(right, SCALAR_TYPE):
@@ -160,8 +162,8 @@ class LieGroupElement:
     def __sub__(self, other: LieAlgebraElement) -> LieGroupElement:
         return self * (-other).exp(self.group)
 
-    def __eq__(self, other) -> bool:
-        return bool(ca.logic_all(self.param == other.param))
+    def __eq__(self, other: LieGroupElement) -> ca.SX:
+        return ca.logic_all(self.param == other.param)
 
     def __mul__(self, right: LieGroupElement) -> LieGroupElement:
         return self.group.product(left=self, right=right)

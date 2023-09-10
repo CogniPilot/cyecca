@@ -87,42 +87,7 @@ class LieAlgebraDirectProductElement(LieAlgebraElement):
     """
 
     def __init__(self, algebra: LieAlgebraDirectProduct, param: PARAM_TYPE):
-        self.algebra = algebra
-        self.param = ca.SX(param)
-        assert self.param.shape == (self.algebra.n_param, 1)
-
-    def __eq__(self, other: LieAlgebraDirectProductElement) -> bool:
-        return bool(ca.logic_all(self.param == other.param))
-
-    def __mul__(
-        self, right: Union[LieAlgebraDirectProductElement, SCALAR_TYPE]
-    ) -> LieAlgebraDirectProductElement:
-        if isinstance(right, LieAlgebraDirectProductElement):
-            return self.algebra.bracket(left=self, right=right)
-        elif isinstance(right, SCALAR_TYPE):
-            return self.algebra.scalar_multiplication(left=right, right=self)
-
-    def __neg__(self) -> LieAlgebraDirectProductElement:
-        return -1 * self
-
-    def __rmul__(self, arg: SCALAR_TYPE) -> LieAlgebraDirectProductElement:
-        return self.algebra.scalar_multiplication(left=arg, right=self)
-
-    def __add__(
-        self, arg: LieAlgebraDirectProductElement
-    ) -> LieAlgebraDirectProductElement:
-        return self.algebra.addition(left=self, right=arg)
-
-    def __sub__(
-        self, arg: LieAlgebraDirectProductElement
-    ) -> LieAlgebraDirectProductElement:
-        return self.algebra.addition(left=self, right=-arg)
-
-    def exp(self, group: LieGroupDirectProduct) -> LieGroupDirectProductElement:
-        return group.exp(self)
-
-    def __repr__(self):
-        return "{:s}: {:s}".format(repr(self.algebra), repr(self.param))
+        super().__init__(algebra, param)
 
 
 @beartype
@@ -248,30 +213,4 @@ class LieGroupDirectProductElement(LieGroupElement):
     """
 
     def __init__(self, group: LieGroupDirectProduct, param: PARAM_TYPE):
-        self.group = group
-        self.param = ca.SX(param)
-        assert self.param.shape == (self.group.n_param, 1)
-
-    def inverse(self) -> LieGroupDirectProductElement:
-        return self.group.inverse(arg=self)
-
-    def __add__(
-        self, other: LieAlgebraDirectProductElement
-    ) -> LieGroupDirectProductElement:
-        return self * other.exp(self.group)
-
-    def __sub__(
-        self, other: LieAlgebraDirectProductElement
-    ) -> LieGroupDirectProductElement:
-        return self * (-other).exp(self.group)
-
-    def __eq__(self, other: LieGroupDirectProductElement) -> bool:
-        return bool(ca.logic_all(self.param == other.param))
-
-    def __mul__(
-        self, right: LieGroupDirectProductElement
-    ) -> LieGroupDirectProductElement:
-        return self.group.product(left=self, right=right)
-
-    def log(self) -> LieAlgebraDirectProductElement:
-        return self.group.log(arg=self)
+        super().__init__(group, param)

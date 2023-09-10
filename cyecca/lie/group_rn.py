@@ -65,30 +65,7 @@ class RnLieAlgebraElement(LieAlgebraElement):
     """
 
     def __init__(self, algebra: RnLieAlgebra, param: PARAM_TYPE):
-        self.algebra = algebra
-        self.param = ca.SX(param)
-        assert self.param.shape == (self.algebra.n_param, 1)
-
-    def __eq__(self, other: RnLieAlgebraElement) -> bool:
-        return bool(ca.logic_all(self.param == other.param))
-
-    def __mul__(self, right: RnLieAlgebraElement) -> RnLieAlgebraElement:
-        if isinstance(right, RnLieAlgebraElement):
-            return self.algebra.bracket(left=self, right=right)
-        elif isinstance(right, SCALAR_TYPE):
-            return self.algebra.scalar_multiplication(left=right, right=self)
-
-    def __rmul__(self, arg: SCALAR_TYPE) -> RnLieAlgebraElement:
-        return self.algebra.scalar_multiplication(left=arg, right=self)
-
-    def __add__(self, arg: RnLieAlgebraElement) -> RnLieAlgebraElement:
-        return self.algebra.addition(left=self, right=arg)
-
-    def exp(self, group: RnLieGroup) -> RnLieGroupElement:
-        return group.exp(self)
-
-    def __repr__(self):
-        return "{:s}: {:s}".format(repr(self.algebra), repr(self.param))
+        super().__init__(algebra, param)
 
 
 @beartype
@@ -149,27 +126,7 @@ class RnLieGroupElement(LieGroupElement):
     """
 
     def __init__(self, group: RnLieGroup, param: PARAM_TYPE):
-        self.group = group
-        self.param = ca.SX(param)
-        assert self.param.shape == (self.group.n_param, 1)
-
-    def inverse(self) -> RnLieGroupElement:
-        return self.group.inverse(arg=self)
-
-    def __add__(self, other: RnLieAlgebraElement) -> RnLieGroupElement:
-        return self * other.exp(self.group)
-
-    def __sub__(self, other: RnLieAlgebraElement) -> RnLieGroupElement:
-        return self * (-other).exp(self.group)
-
-    def __eq__(self, other: RnLieGroupElement) -> bool:
-        return bool(ca.logic_all(self.param == other.param))
-
-    def __mul__(self, right: RnLieGroupElement) -> RnLieGroupElement:
-        return self.group.product(left=self, right=right)
-
-    def log(self) -> RnLieAlgebraElement:
-        return self.group.log(arg=self)
+        super().__init__(group, param)
 
 
 r2 = RnLieAlgebra(n=2)

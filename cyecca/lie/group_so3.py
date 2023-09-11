@@ -28,6 +28,9 @@ class SO3LieAlgebra(LieAlgebra):
     def __init__(self):
         super().__init__(n_param=3, matrix_shape=(3, 3))
 
+    def elem(self, param: PARAM_TYPE) -> SO3LieAlgebraElement:
+        return SO3LieAlgebraElement(algebra=self, param=param)
+
     def bracket(
         self, left: LieAlgebraElement, right: LieAlgebraElement
     ) -> LieAlgebraElement:
@@ -76,18 +79,31 @@ class SO3LieAlgebra(LieAlgebra):
         return self.elem(ca.vertcat(arg[2, 1], arg[0, 2], arg[1, 0]))
 
 
+@beartype
+class SO3LieAlgebraElement(LieAlgebraElement):
+    """
+    This is an SO3 Lie algebra elem
+    """
+
+    def __init__(self, algebra: SO3LieAlgebra, param: PARAM_TYPE):
+        super().__init__(algebra, param)
+
+
+@beartype
 class Axis(Enum):
     x = 1
     y = 2
     z = 3
 
 
+@beartype
 class EulerType(Enum):
     body_fixed = 1
     space_fixed = 2
 
 
-def rotation_matrix(axis: Axis, angle: Real):
+@beartype
+def rotation_matrix(axis: Axis, angle: SCALAR_TYPE):
     if axis == Axis.x:
         R = ca.SX_eye(3)
         R[1, 1] = ca.cos(angle)
@@ -125,6 +141,9 @@ class SO3LieGroup(LieGroup):
 class SO3DcmLieGroup(SO3LieGroup):
     def __init__(self):
         super().__init__(algebra=so3, n_param=9, matrix_shape=(3, 3))
+
+    def elem(self, param: PARAM_TYPE) -> SO3DcmLieGroupElement:
+        return SO3DcmLieGroupElement(group=self, param=param)
 
     def product(self, left: LieGroupElement, right: LieGroupElement) -> LieGroupElement:
         assert self == left.group
@@ -209,6 +228,16 @@ class SO3DcmLieGroup(SO3LieGroup):
         return self.from_Quat(SO3Quat.from_EulerB321(arg))
 
 
+@beartype
+class SO3DcmLieGroupElement(LieGroupElement):
+    """
+    This is an SO3Dcm Lie group elem
+    """
+
+    def __init__(self, group: SO3DcmLieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
+
+
 SO3Dcm = SO3DcmLieGroup()
 
 
@@ -219,6 +248,9 @@ class SO3EulerLieGroup(SO3LieGroup):
         self.euler_type = euler_type
         assert len(sequence) == 3
         self.sequence = sequence
+
+    def elem(self, param: PARAM_TYPE) -> SO3EulerLieGroupElement:
+        return SO3EulerLieGroupElement(group=self, param=param)
 
     def product(self, left: LieGroupElement, right: LieGroupElement):
         assert self == left.group
@@ -269,11 +301,25 @@ class SO3EulerLieGroup(SO3LieGroup):
         return self.from_Matrix(SO3Quat.to_Matrix())
 
 
+@beartype
+class SO3EulerLieGroupElement(LieGroupElement):
+    """
+    This is an SO3Euler Lie group elem
+    """
+
+    def __init__(self, group: SO3EulerLieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
+
+
+@beartype
 class SO3EulerB321LieGroup(SO3EulerLieGroup):
     def __init__(self):
         super().__init__(
             euler_type=EulerType.body_fixed, sequence=[Axis.z, Axis.y, Axis.z]
         )
+
+    def elem(self, param: PARAM_TYPE) -> SO3EulerB321LieGroupElement:
+        return SO3EulerB321LieGroupElement(group=self, param=param)
 
     def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
         assert arg.shape == (3, 3)
@@ -294,6 +340,16 @@ class SO3EulerB321LieGroup(SO3EulerLieGroup):
         return LieGroupElement(group=self, param=param)
 
 
+@beartype
+class SO3EulerB321LieGroupElement(LieGroupElement):
+    """
+    This is an SO3EulerB321 Lie group elem
+    """
+
+    def __init__(self, group: SO3EulerB321LieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
+
+
 SO3EulerB321 = SO3EulerB321LieGroup()
 
 
@@ -301,6 +357,9 @@ SO3EulerB321 = SO3EulerB321LieGroup()
 class SO3QuatLieGroup(SO3LieGroup):
     def __init__(self):
         super().__init__(algebra=so3, n_param=4, matrix_shape=(3, 3))
+
+    def elem(self, param: PARAM_TYPE) -> SO3QuatLieGroupElement:
+        return SO3QuatLieGroupElement(group=self, param=param)
 
     def product(self, left: LieGroupElement, right: LieGroupElement):
         assert self == left.group
@@ -452,6 +511,16 @@ class SO3QuatLieGroup(SO3LieGroup):
         return SO3Quat.elem(q)
 
 
+@beartype
+class SO3QuatLieGroupElement(LieGroupElement):
+    """
+    This is an SO3Quat Lie group elem
+    """
+
+    def __init__(self, group: SO3QuatLieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
+
+
 SO3Quat = SO3QuatLieGroup()
 
 
@@ -459,6 +528,9 @@ SO3Quat = SO3QuatLieGroup()
 class SO3MrpLieGroup(SO3LieGroup):
     def __init__(self):
         super().__init__(algebra=so3, n_param=3, matrix_shape=(3, 3))
+
+    def elem(self, param: PARAM_TYPE) -> SO3MrpLieGroupElement:
+        return SO3MrpLieGroupElement(group=self, param=param)
 
     def product(self, left: LieGroupElement, right: LieGroupElement):
         assert self == left.group
@@ -540,6 +612,16 @@ class SO3MrpLieGroup(SO3LieGroup):
     def from_EulerB321(self, arg: LieGroupElement) -> LieGroupElement:
         assert arg.shape == (3, 3)
         return self.from_Quat(SO3Quat.from_EulerB321(arg))
+
+
+@beartype
+class SO3MrpLieGroupElement(LieGroupElement):
+    """
+    This is an SO3Mrp Lie group elem
+    """
+
+    def __init__(self, group: SO3MrpLieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
 
 
 SO3Mrp = SO3MrpLieGroup()

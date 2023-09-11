@@ -18,7 +18,7 @@ class RnLieAlgebra(LieAlgebra):
     def __init__(self, n: int):
         super().__init__(n_param=n, matrix_shape=(n + 1, n + 1))
 
-    def elem(self, param: PARAM_TYPE) -> LieAlgebraElement:
+    def elem(self, param: PARAM_TYPE) -> RnLieAlgebraElement:
         return RnLieAlgebraElement(algebra=self, param=param)
 
     def bracket(self, left: RnLieAlgebraElement, right: RnLieAlgebraElement):

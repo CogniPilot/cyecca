@@ -15,31 +15,34 @@ class SO2LieAlgebra(LieAlgebra):
     def __init__(self):
         super().__init__(n_param=1, matrix_shape=(2, 2))
 
+    def elem(self, param: PARAM_TYPE) -> SO2LieAlgebraElement:
+        return SO2LieAlgebraElement(algebra=self, param=param)
+
     def bracket(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
+        self, left: SO2LieAlgebraElement, right: SO2LieAlgebraElement
+    ) -> SO2LieAlgebraElement:
         assert self == left.algebra
         assert self == right.algebra
         return self.elem(param=ca.DM([0]))
 
     def addition(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
+        self, left: SO2LieAlgebraElement, right: SO2LieAlgebraElement
+    ) -> SO2LieAlgebraElement:
         assert self == left.algebra
         assert self == right.algebra
         return self.elem(param=left.param + right.param)
 
     def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
+        self, left: SCALAR_TYPE, right: SO2LieAlgebraElement
+    ) -> SO2LieAlgebraElement:
         assert self == right.algebra
         return self.elem(param=left * right.param)
 
-    def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
+    def adjoint(self, arg: SO2LieAlgebraElement) -> ca.SX:
         assert self == arg.algebra
         return ca.SX(1, 1)
 
-    def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
+    def to_Matrix(self, arg: SO2LieAlgebraElement) -> ca.SX:
         print(type(arg.param[0, 0]))
         assert self == arg.algebra
         M = ca.SX(2, 2)
@@ -47,15 +50,25 @@ class SO2LieAlgebra(LieAlgebra):
         M[1, 0] = arg.param[0, 0]
         return M
 
-    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
+    def from_Matrix(self, arg: ca.SX) -> SO2LieAlgebraElement:
         return self.elem(M[1, 0])
 
-    def wedge(self, arg: (ca.SX, ca.DM)) -> LieAlgebraElement:
+    def wedge(self, arg: (ca.SX, ca.DM)) -> SO2LieAlgebraElement:
         return self.elem(param=arg)
 
-    def vee(self, arg: LieAlgebraElement) -> ca.SX:
+    def vee(self, arg: SO2LieAlgebraElement) -> ca.SX:
         assert self == arg.algebra
         return arg.param
+
+
+@beartype
+class SO2LieAlgebraElement(LieAlgebraElement):
+    """
+    This is an SO2 Lie algebra elem
+    """
+
+    def __init__(self, algebra: SO2LieAlgebra, param: PARAM_TYPE):
+        super().__init__(algebra, param)
 
 
 @beartype
@@ -63,31 +76,34 @@ class SO2LieGroup(LieGroup):
     def __init__(self):
         super().__init__(algebra=so2, n_param=1, matrix_shape=(2, 2))
 
-    def product(self, left: LieGroupElement, right: LieGroupElement):
+    def elem(self, param: PARAM_TYPE) -> SO2LieGroupElement:
+        return SO2LieGroupElement(group=self, param=param)
+
+    def product(self, left: SO2LieGroupElement, right: SO2LieGroupElement):
         assert self == left.group
         assert self == right.group
         return self.elem(param=left.param + right.param)
 
-    def inverse(self, arg: LieGroupElement) -> LieGroupElement:
+    def inverse(self, arg: SO2LieGroupElement) -> SO2LieGroupElement:
         assert self == arg.group
         return self.elem(param=-arg.param)
 
-    def identity(self) -> LieGroupElement:
+    def identity(self) -> SO2LieGroupElement:
         return self.elem(param=ca.SX(self.n_param, 1))
 
-    def adjoint(self, arg: LieGroupElement):
+    def adjoint(self, arg: SO2LieGroupElement):
         assert self == arg.group
         return ca.SX_eye(1)
 
-    def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
+    def exp(self, arg: SO2LieAlgebraElement) -> SO2LieGroupElement:
         assert self.algebra == arg.algebra
         return self.elem(param=arg.param)
 
-    def log(self, arg: LieGroupElement) -> LieAlgebraElement:
+    def log(self, arg: SO2LieGroupElement) -> SO2LieAlgebraElement:
         assert self == arg.group
         return self.algebra.elem(param=arg.param)
 
-    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
+    def to_Matrix(self, arg: SO2LieGroupElement) -> ca.SX:
         assert self == arg.group
         theta = arg.param[0, 0]
         c = ca.cos(theta)
@@ -99,8 +115,18 @@ class SO2LieGroup(LieGroup):
         M[1, 1] = c
         return M
 
-    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+    def from_Matrix(self, arg: ca.SX) -> SO2LieGroupElement:
         raise NotImplementedError()
+
+
+@beartype
+class SO2LieGroupElement(LieGroupElement):
+    """
+    This is an SO2 Lie group elem
+    """
+
+    def __init__(self, group: SO2LieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
 
 
 so2 = SO2LieAlgebra()

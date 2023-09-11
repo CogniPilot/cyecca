@@ -269,7 +269,11 @@ class SO3EulerLieGroup(SO3LieGroup):
 
     def from_Matrix(self, arg: ca.SX) -> SO3EulerLieGroupElement:
         assert arg.shape == (3, 3)
-        if self.sequence == [Axis.z, Axis.y, Axis.x]:
+        if self.euler_type == EulerType.body_fixed and self.sequence == [
+            Axis.z,
+            Axis.y,
+            Axis.x,
+        ]:
             theta = ca.asin(-arg[2, 0])
 
             cond1 = ca.fabs(theta - ca.pi / 2) < 1e-3
@@ -289,6 +293,10 @@ class SO3EulerLieGroup(SO3LieGroup):
                 ca.if_else(
                     cond2, ca.vertcat(psi2, theta, phi2), ca.vertcat(psi3, theta, phi3)
                 ),
+            )
+        else:
+            raise NotImplementedError(
+                f"from_Matrix not implemented for {self.euler_type}, {self.sequence}"
             )
         return SO3EulerLieGroupElement(group=self, param=param)
 

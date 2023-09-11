@@ -21,30 +21,23 @@ class SO2LieAlgebra(LieAlgebra):
     def bracket(
         self, left: SO2LieAlgebraElement, right: SO2LieAlgebraElement
     ) -> SO2LieAlgebraElement:
-        assert self == left.algebra
-        assert self == right.algebra
         return self.elem(param=ca.DM([0]))
 
     def addition(
         self, left: SO2LieAlgebraElement, right: SO2LieAlgebraElement
     ) -> SO2LieAlgebraElement:
-        assert self == left.algebra
-        assert self == right.algebra
         return self.elem(param=left.param + right.param)
 
     def scalar_multiplication(
         self, left: SCALAR_TYPE, right: SO2LieAlgebraElement
     ) -> SO2LieAlgebraElement:
-        assert self == right.algebra
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: SO2LieAlgebraElement) -> ca.SX:
-        assert self == arg.algebra
         return ca.SX(1, 1)
 
     def to_Matrix(self, arg: SO2LieAlgebraElement) -> ca.SX:
         print(type(arg.param[0, 0]))
-        assert self == arg.algebra
         M = ca.SX(2, 2)
         M[0, 1] = -arg.param[0, 0]
         M[1, 0] = arg.param[0, 0]
@@ -57,7 +50,6 @@ class SO2LieAlgebra(LieAlgebra):
         return self.elem(param=arg)
 
     def vee(self, arg: SO2LieAlgebraElement) -> ca.SX:
-        assert self == arg.algebra
         return arg.param
 
 
@@ -80,31 +72,24 @@ class SO2LieGroup(LieGroup):
         return SO2LieGroupElement(group=self, param=param)
 
     def product(self, left: SO2LieGroupElement, right: SO2LieGroupElement):
-        assert self == left.group
-        assert self == right.group
         return self.elem(param=left.param + right.param)
 
     def inverse(self, arg: SO2LieGroupElement) -> SO2LieGroupElement:
-        assert self == arg.group
         return self.elem(param=-arg.param)
 
     def identity(self) -> SO2LieGroupElement:
         return self.elem(param=ca.SX(self.n_param, 1))
 
     def adjoint(self, arg: SO2LieGroupElement):
-        assert self == arg.group
         return ca.SX_eye(1)
 
     def exp(self, arg: SO2LieAlgebraElement) -> SO2LieGroupElement:
-        assert self.algebra == arg.algebra
         return self.elem(param=arg.param)
 
     def log(self, arg: SO2LieGroupElement) -> SO2LieAlgebraElement:
-        assert self == arg.group
         return self.algebra.elem(param=arg.param)
 
     def to_Matrix(self, arg: SO2LieGroupElement) -> ca.SX:
-        assert self == arg.group
         theta = arg.param[0, 0]
         c = ca.cos(theta)
         s = ca.sin(theta)

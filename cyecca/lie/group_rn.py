@@ -22,29 +22,22 @@ class RnLieAlgebra(LieAlgebra):
         return RnLieAlgebraElement(algebra=self, param=param)
 
     def bracket(self, left: RnLieAlgebraElement, right: RnLieAlgebraElement):
-        assert self == left.algebra
-        assert self == right.algebra
         return self.elem(param=ca.SX(self.n_param, 1))
 
     def addition(
         self, left: RnLieAlgebraElement, right: RnLieAlgebraElement
     ) -> RnLieAlgebraElement:
-        assert self == left.algebra
-        assert self == right.algebra
         return self.elem(param=left.param + right.param)
 
     def scalar_multiplication(
         self, left: SCALAR_TYPE, right: RnLieAlgebraElement
     ) -> RnLieAlgebraElement:
-        assert self == right.algebra
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: RnLieAlgebraElement) -> ca.SX:
-        assert self == arg.algebra
         return ca.SX(self.matrix_shape)
 
     def to_Matrix(self, arg: RnLieAlgebraElement) -> ca.SX:
-        assert self == arg.algebra
         A = ca.SX(*self.matrix_shape)
         print("A shape", A.shape)
         for i in range(self.n_param):
@@ -80,33 +73,26 @@ class RnLieGroup(LieGroup):
     def product(
         self, left: RnLieGroupElement, right: RnLieGroupElement
     ) -> RnLieGroupElement:
-        assert self == left.group
-        assert self == right.group
         return self.elem(param=left.param + right.param)
 
     def inverse(self, arg: RnLieGroupElement) -> RnLieGroupElement:
-        assert self == arg.group
         return self.elem(param=-arg.param)
 
     def identity(self) -> RnLieGroupElement:
         return self.elem(param=ca.SX(self.n_param, 1))
 
     def adjoint(self, arg: RnLieGroupElement) -> ca.SX:
-        assert self == arg.group
         return ca.SX_eye(self.n_param + 1)
 
     def exp(self, arg: RnLieAlgebraElement) -> RnLieGroupElement:
         """It is the identity map"""
-        assert self.algebra == arg.algebra
         return self.elem(param=arg.param)
 
     def log(self, arg: RnLieGroupElement) -> RnLieAlgebraElement:
         """It is the identity map"""
-        assert self == arg.group
         return arg.group.algebra.elem(arg.param)
 
     def to_Matrix(self, arg: RnLieGroupElement) -> ca.SX:
-        assert self == arg.group
         A = ca.SX_eye(self.n_param + 1)
         for i in range(self.n_param):
             A[i, self.n_param] = arg.param[i]

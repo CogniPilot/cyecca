@@ -9,7 +9,7 @@ from cyecca.lie.base import *
 from cyecca.lie.group_so3 import *
 from cyecca.symbolic import SERIES, taylor_series_near_zero
 
-__all__ = ["se3", "SE3EulerB321", "SE3Quat", "SE3Mrp"]
+__all__ = ["se3", "SE3Quat", "SE3Mrp"]
 
 
 @beartype
@@ -153,5 +153,4 @@ class SE3LieGroup(LieGroup):
 
 
 SE3Mrp = SE3LieGroup(SO3=SO3Mrp)
-SE3EulerB321 = SE3LieGroup(SO3=SO3EulerB321)
 SE3Quat = SE3LieGroup(SO3=SO3Quat)

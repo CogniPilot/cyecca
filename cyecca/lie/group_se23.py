@@ -12,7 +12,7 @@ from cyecca.lie.group_so3 import *
 from cyecca.symbolic import SERIES
 
 
-__all__ = ["se23", "SE23EulerB321", "SE23Quat", "SE23Mrp"]
+__all__ = ["se23", "SE23Quat", "SE23Mrp"]
 
 
 @beartype
@@ -184,4 +184,3 @@ class SE23LieGroup(LieGroup):
 se23 = SE23LieAlgebra()
 SE23Mrp = SE23LieGroup(SO3=SO3Mrp)
 SE23Quat = SE23LieGroup(SO3=SO3Quat)
-SE23EulerB321 = SE23LieGroup(SO3=SO3EulerB321)

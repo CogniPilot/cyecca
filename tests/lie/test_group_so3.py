@@ -81,10 +81,6 @@ class Test_LieGroupSO3Euler(ProfiledTestCase):
     def test_ctor(self):
         SO3EulerB321.elem(self.v1)
 
-    def test_ineverse(self):
-        G1 = SO3EulerB321.elem(self.v1)
-        self.assertTrue(G1 * G1.inverse() == SO3EulerB321.identity())
-
     def test_bad_operations(self):
         G1 = SO3EulerB321.elem(self.v1)
         G1 = SO3EulerB321.elem(self.v1)

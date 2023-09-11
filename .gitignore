@@ -162,4 +162,5 @@ cython_debug/
 .vscode/
 .profile/
 
-notebooks/gen
+notebook/gen
+notebook/Untitled*

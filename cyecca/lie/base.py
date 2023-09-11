@@ -99,13 +99,11 @@ class LieAlgebra(ABC):
 
     def vee(self, arg: LieAlgebraElement) -> ca.SX:
         """given a LieAlgebraElement, returns a parameter vector"""
-        assert arg.algebra == self
         return arg.param
 
     def scalar_multiplication(
         self, left: SCALAR_TYPE, right: LieAlgebraElement
     ) -> LieAlgebraElement:
-        assert right.algebra == self
         return LieGroupElement(self.groups[i], self.sub_param(i=i, param=arg.param))
 
     @abstractmethod

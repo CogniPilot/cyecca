@@ -6,6 +6,9 @@ from abc import ABC, abstractmethod
 from beartype import beartype
 from beartype.typing import List, Union
 
+from cyecca.symbolic import casadi_to_sympy
+import sympy
+
 __all__ = [
     "LieAlgebraElement",
     "LieAlgebra",

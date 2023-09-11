@@ -203,16 +203,13 @@ def casadi_to_sympy(expr, syms=None):
     elif op == ca.OP_COPYSIGN:
         raise NotImplementedError("")
     elif op == ca.OP_IF_ELSE_ZERO:
-        cond = expr.dep(0)
-        if_res = expr.dep(1)
-        else_res = expr.dep(2)
-        return sympy.Piecewise((cond, if_res), (True, else_res))
+        return binary(expr, lambda cond, val: sympy.Piecewise((val, cond), (0, True)))
     elif op == ca.OP_ERF:
         return unary(expr, lambda a: sympy.erf(a))
     elif op == ca.OP_FMIN:
-        return binary(expr, lambda a, b: sympy.Piecewise((a < b, a), (True, b)))
+        return binary(expr, lambda a, b: sympy.Piecewise((a, a < b), (b, True)))
     elif op == ca.OP_FMAX:
-        return binary(expr, lambda a, b: sympy.Piecewise((a > b, a), (True, b)))
+        return binary(expr, lambda a, b: sympy.Piecewise((a, a > b), (b, True)))
     elif op == ca.OP_SINH:
         return unary(expr, lambda a: sympy.sinh(a))
     elif op == ca.OP_COSH:

@@ -39,7 +39,6 @@ class RnLieAlgebra(LieAlgebra):
 
     def to_Matrix(self, arg: RnLieAlgebraElement) -> ca.SX:
         A = ca.SX(*self.matrix_shape)
-        print("A shape", A.shape)
         for i in range(self.n_param):
             A[i, self.n_param] = arg.param[i]
         return ca.sparsify(A)

@@ -54,7 +54,6 @@ class LieAlgebraDirectProduct(LieAlgebra):
     def scalar_multiplication(
         self, left: SCALAR_TYPE, right: LieAlgebraDirectProductElement
     ) -> LieAlgebraDirectProductElement:
-        assert right.algebra == self
         return LieAlgebraDirectProductElement(algebra=self, param=left * right.param)
 
     def addition(
@@ -65,11 +64,9 @@ class LieAlgebraDirectProduct(LieAlgebra):
         )
 
     def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
-        assert arg.algebra == self
         return ca.diagcat(*[x.ad() for x in self.sub_elems(arg)])
 
     def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
-        assert arg.algebra == self
         return ca.diagcat(*[X.to_Matrix() for X in self.sub_elems(arg)])
 
     def from_Matrix(self, arg: ca.SX) -> LieAlgebraDirectProduct:
@@ -143,8 +140,6 @@ class LieGroupDirectProduct(LieGroup):
     def product(
         self, left: LieGroupDirectProductElement, right: LieGroupDirectProductElement
     ) -> LieGroupDirectProductElement:
-        assert self == left.group
-        assert self == right.group
         return LieGroupDirectProductElement(
             group=self,
             param=ca.vertcat(
@@ -160,7 +155,6 @@ class LieGroupDirectProduct(LieGroup):
     def inverse(
         self, arg: LieGroupDirectProductElement
     ) -> LieGroupDirectProductElement:
-        assert self == arg.group
         return LieGroupDirectProductElement(
             group=self,
             param=ca.vertcat(*[X.inverse().param for X in self.sub_elems(arg)]),
@@ -176,7 +170,6 @@ class LieGroupDirectProduct(LieGroup):
         raise NotImplementedError("")
 
     def exp(self, arg: LieAlgebraDirectProductElement) -> LieGroupDirectProductElement:
-        assert self.algebra == arg.algebra
         algebra = arg.algebra  # type: LieAlgebraDirectProduct
         return LieGroupDirectProductElement(
             group=self,
@@ -195,7 +188,6 @@ class LieGroupDirectProduct(LieGroup):
         )
 
     def to_Matrix(self, arg: LieGroupDirectProductElement) -> ca.SX:
-        assert arg.group == self
         return ca.diagcat(*[X.to_Matrix() for X in self.sub_elems(arg)])
 
     def from_Matrix(self, arg: ca.SX) -> LieGroupDirectProductElement:

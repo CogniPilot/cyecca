@@ -17,29 +17,26 @@ class SE3LieAlgebra(LieAlgebra):
     def __init__(self):
         super().__init__(n_param=6, matrix_shape=(4, 4))
 
-    def bracket(self, left: LieAlgebraElement, right: LieAlgebraElement):
-        assert self == left.algebra
-        assert self == right.algebra
+    def elem(self, param: PARAM_TYPE) -> SE3LieAlgebraElement:
+        return SE3LieAlgebraElement(algebra=self, param=param)
+
+    def bracket(self, left: SE3LieAlgebraElement, right: SE3LieAlgebraElement):
         c = left.to_Matrix() @ right.to_Matrix() - right.to_Matrix() @ left.to_Matrix()
         return self.elem(
             param=ca.vertcat(c[0, 3], c[1, 3], c[2, 3], c[2, 1], c[0, 2], c[1, 0])
         )
 
     def addition(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
-        assert self == left.algebra
-        assert self == right.algebra
+        self, left: SE3LieAlgebraElement, right: SE3LieAlgebraElement
+    ) -> SE3LieAlgebraElement:
         return self.elem(param=left.param + right.param)
 
     def scalar_multiplication(
-        self, left: (float, int), right: LieAlgebraElement
-    ) -> LieAlgebraElement:
-        assert self == right.algebra
+        self, left: (float, int), right: SE3LieAlgebraElement
+    ) -> SE3LieAlgebraElement:
         return self.elem(param=left * right.param)
 
-    def adjoint(self, arg: LieAlgebraElement):
-        assert self == arg.algebra
+    def adjoint(self, arg: SE3LieAlgebraElement):
         v = arg.param[:3]
         vx = so3.elem(arg.param[:3]).to_Matrix()
         w = so3.elem(arg.param[3:]).to_Matrix()
@@ -47,26 +44,34 @@ class SE3LieAlgebra(LieAlgebra):
         horz2 = ca.horzcat(ca.SX(3, 3), w)
         return ca.vertcat(horz1, horz2)
 
-    def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
-        assert self == arg.algebra
+    def to_Matrix(self, arg: SE3LieAlgebraElement) -> ca.SX:
         Omega = so3.elem(arg.param[3:]).to_Matrix()
         v = arg.param[:3]
         Z14 = ca.SX(1, 4)
         horz = ca.horzcat(Omega, v)
         return ca.vertcat(horz, Z14)
 
-    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
+    def from_Matrix(self, arg: ca.SX) -> SE3LieAlgebraElement:
         assert arg.shape == self.matrix_shape
         return self.elem(
             ca.vertcat(arg[0, 3], arg[1, 3], arg[2, 3], arg[2, 1], arg[0, 2], arg[1, 0])
         )
 
-    def wedge(self, arg: (ca.SX, ca.DM)) -> LieAlgebraElement:
+    def wedge(self, arg: (ca.SX, ca.DM)) -> SE3LieAlgebraElement:
         return self.elem(param=arg)
 
-    def vee(self, arg: LieAlgebraElement) -> ca.SX:
-        assert self == arg.algebra
+    def vee(self, arg: SE3LieAlgebraElement) -> ca.SX:
         return arg.param
+
+
+@beartype
+class SE3LieAlgebraElement(LieAlgebraElement):
+    """
+    This is an SE3 Lie algebra elem
+    """
+
+    def __init__(self, algebra: SE3LieAlgebra, param: PARAM_TYPE):
+        super().__init__(algebra, param)
 
 
 se3 = SE3LieAlgebra()
@@ -78,17 +83,17 @@ class SE3LieGroup(LieGroup):
         super().__init__(algebra=se3, n_param=SO3.n_param + 3, matrix_shape=(4, 4))
         self.SO3 = SO3
 
-    def product(self, left: LieGroupElement, right: LieGroupElement):
-        assert self == left.group
-        assert self == right.group
+    def elem(self, param: PARAM_TYPE) -> SE3LieGroupElement:
+        return SE3LieGroupElement(group=self, param=param)
+
+    def product(self, left: SE3LieGroupElement, right: SE3LieGroupElement):
         R = self.SO3.elem(left.param[3:]).to_Matrix()
         v = R @ right.param[:3] + left.param[:3]
         theta = (self.SO3.elem(left.param[3:]) * self.SO3.elem(right.param[3:])).param
         x = ca.vertcat(v, theta)
         return self.elem(param=x)
 
-    def inverse(self, arg: LieGroupElement):
-        assert self == arg.group
+    def inverse(self, arg: SE3LieGroupElement):
         v = arg.param[:3]
         theta = arg.param[3:]
         theta_inv = self.SO3.elem(param=theta).inverse()
@@ -96,11 +101,10 @@ class SE3LieGroup(LieGroup):
         p = -R.T @ v
         return self.elem(param=ca.vertcat(p, theta_inv.param))
 
-    def identity(self) -> LieGroupElement:
+    def identity(self) -> SE3LieGroupElement:
         return self.elem(ca.vertcat(ca.SX(3, 1), self.SO3.identity().param))
 
-    def adjoint(self, arg: LieGroupElement):
-        assert self == arg.group
+    def adjoint(self, arg: SE3LieGroupElement):
         v = arg.param[:3]
         vx = so3.elem(param=v).to_Matrix()
         R = self.SO3.elem(param=arg.param[3:]).to_Matrix()
@@ -108,9 +112,7 @@ class SE3LieGroup(LieGroup):
         horz2 = ca.horzcat(ca.SX(3, 3), R)
         return ca.vertcat(horz1, horz2)
 
-    def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
-        assert self.algebra == arg.algebra
-
+    def exp(self, arg: SE3LieAlgebraElement) -> SE3LieGroupElement:
         u = arg.param[:3]  # translation
         omega = self.SO3.algebra.elem(arg.param[3:])
         Omega = omega.to_Matrix()
@@ -123,8 +125,7 @@ class SE3LieGroup(LieGroup):
         p = V @ u  # position
         return self.elem(ca.vertcat(p, rotation))
 
-    def log(self, arg: LieGroupElement) -> LieAlgebraElement:
-        assert self == arg.group
+    def log(self, arg: SE3LieGroupElement) -> SE3LieAlgebraElement:
         X = self.SO3.elem(arg.param[3:])
         t = arg.param[:3]
 
@@ -137,8 +138,7 @@ class SE3LieGroup(LieGroup):
         u = V_inv @ t
         return self.algebra.elem(ca.vertcat(u, omega.param))
 
-    def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
-        assert self == arg.group
+    def to_Matrix(self, arg: SE3LieGroupElement) -> ca.SX:
         R = self.SO3.elem(arg.param[3:]).to_Matrix()
         t = arg.param[:3]
         Z13 = ca.SX(1, 3)
@@ -147,9 +147,19 @@ class SE3LieGroup(LieGroup):
         horz2 = ca.horzcat(Z13, I1)
         return ca.vertcat(horz1, horz2)
 
-    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
+    def from_Matrix(self, arg: ca.SX) -> SE3LieGroupElement:
         assert arg.shape == self.matrix_shape
         raise NotImplementedError("")
+
+
+@beartype
+class SE3LieGroupElement(LieGroupElement):
+    """
+    This is an SE3 Lie group elem
+    """
+
+    def __init__(self, group: SE3LieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
 
 
 SE3Mrp = SE3LieGroup(SO3=SO3Mrp)

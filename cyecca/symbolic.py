@@ -132,14 +132,14 @@ def casadi_to_sympy(expr, syms=None):
         M = sympy.zeros(m, n)
         for i in range(m):
             for j in range(n):
-                M[i, j] = casadi_to_sympy(expr.elements()[i  + m*j], syms)
+                M[i, j] = casadi_to_sympy(expr.elements()[i + m * j], syms)
         return M
 
     # handle scalar expression
     op = expr.op()
 
     if op == ca.OP_ASSIGN:
-        raise NotImplementedError('op', op)
+        raise NotImplementedError("op", op)
     elif op == ca.OP_ADD:
         return binary(expr, lambda a, b: a + b)
     elif op == ca.OP_SUB:
@@ -157,13 +157,13 @@ def casadi_to_sympy(expr, syms=None):
     elif op == ca.OP_POW:
         return binary(expr, lambda a, b: a**b)
     elif op == ca.OP_CONSTPOW:
-        raise NotImplementedError('op', op)
+        raise NotImplementedError("op", op)
     elif op == ca.OP_SQRT:
         return unary(expr, lambda a: sympy.sqrt(a))
     elif op == ca.OP_SQ:
         return unary(expr, lambda a: a**2)
     elif op == ca.OP_TWICE:
-        return unary(expr, lambda a: 2*a)
+        return unary(expr, lambda a: 2 * a)
     elif op == ca.OP_SIN:
         return unary(expr, lambda a: sympy.sin(a))
     elif op == ca.OP_COS:
@@ -230,7 +230,7 @@ def casadi_to_sympy(expr, syms=None):
     elif op == ca.OP_CONST:
         f_num = float(expr)
         int_num = int(expr)
-        if (f_num - int_num == 0):
+        if f_num - int_num == 0:
             return int_num
         else:
             return f_num
@@ -343,7 +343,7 @@ def casadi_to_sympy(expr, syms=None):
     elif op == ca.OP_REMAINDER:
         raise NotImplementedError("")
     else:
-        raise NotImplementedError('op', op)
+        raise NotImplementedError("op", op)
 
 
 def derive_series():

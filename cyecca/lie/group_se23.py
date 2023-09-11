@@ -20,9 +20,10 @@ class SE23LieAlgebra(LieAlgebra):
     def __init__(self):
         super().__init__(n_param=9, matrix_shape=(5, 5))
 
-    def bracket(self, left: LieAlgebraElement, right: LieAlgebraElement):
-        assert self == left.algebra
-        assert self == right.algebra
+    def elem(self, param: PARAM_TYPE) -> SE23LieAlgebraElement:
+        return SE23LieAlgebraElement(algebra=self, param=param)
+
+    def bracket(self, left: SE23LieAlgebraElement, right: SE23LieAlgebraElement):
         c = left.to_Matrix() @ right.to_Matrix() - right.to_Matrix() @ left.to_Matrix()
         return self.elem(
             param=np.array(
@@ -41,20 +42,16 @@ class SE23LieAlgebra(LieAlgebra):
         )
 
     def addition(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
-        assert self == left.algebra
-        assert self == right.algebra
+        self, left: SE23LieAlgebraElement, right: SE23LieAlgebraElement
+    ) -> SE23LieAlgebraElement:
         return self.elem(param=left.param + right.param)
 
     def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
-        assert self == right.algebra
+        self, left: SCALAR_TYPE, right: SE23LieAlgebraElement
+    ) -> SE23LieAlgebraElement:
         return self.elem(param=left * right.param)
 
-    def adjoint(self, arg: LieAlgebraElement):
-        assert self == arg.algebra
+    def adjoint(self, arg: SE23LieAlgebraElement):
         a = arg.param[3:6]
         ax = np.array([[0, -p[2], p[1]], [p[2], 0, -p[0]], [-p[1], p[0], 0]])
         v = arg.param[0:3]
@@ -62,24 +59,31 @@ class SE23LieAlgebra(LieAlgebra):
         w = so3.elem(arg.param[6:]).to_Matrix()
         return np.block([[w, vx], [ca.SX(3, 3), w]])
 
-    def to_Matrix(self, arg: LieAlgebraElement) -> npt.NDArray[np.floating]:
-        assert self == arg.algebra
+    def to_Matrix(self, arg: SE23LieAlgebraElement) -> npt.NDArray[np.floating]:
         Omega = so3.elem(arg.param[6:]).to_Matrix()
         p = arg.param[:3].reshape(3, 1)
         v = arg.param[3:6].reshape(3, 1)
         Z15 = ca.SX(1, 5)
         return np.block([[Omega, v, p], [Z15]])
 
-    def from_Matrix(self, arg: ca.SX) -> LieAlgebraElement:
-        assert arg.shape == self.matrix_shape
+    def from_Matrix(self, arg: ca.SX) -> SE23LieAlgebraElement:
         raise NotImplementedError("")
 
-    def wedge(self, arg: npt.NDArray[np.floating]) -> LieAlgebraElement:
+    def wedge(self, arg: npt.NDArray[np.floating]) -> SE23LieAlgebraElement:
         return self.elem(param=arg)
 
-    def vee(self, arg: LieAlgebraElement) -> npt.NDArray[np.floating]:
-        assert self == arg.algebra
+    def vee(self, arg: SE23LieAlgebraElement) -> npt.NDArray[np.floating]:
         return arg.param
+
+
+@beartype
+class SE23LieAlgebraElement(LieAlgebraElement):
+    """
+    This is an SE23 Lie algebra elem
+    """
+
+    def __init__(self, algebra: RnLieAlgebra, param: PARAM_TYPE):
+        super().__init__(algebra, param)
 
 
 @beartype
@@ -88,9 +92,10 @@ class SE23LieGroup(LieGroup):
         self.SO3 = SO3
         super().__init__(algebra=se23, n_param=10, matrix_shape=(5, 5))
 
-    def product(self, left: LieGroupElement, right: LieGroupElement):
-        assert self == left.group
-        assert self == right.group
+    def elem(self, param: PARAM_TYPE) -> SE23LieGroupElement:
+        return SE23LieGroupElement(group=self, param=param)
+
+    def product(self, left: SE23LieGroupElement, right: SE23LieGroupElement):
         R = self.SO3.elem(left.param[3:]).to_Matrix()
         v = R @ right.param[:3] + left.param[:3]
         theta = (self.SO3.elem(left.param[3:]) * self.SO3.elem(right.param[3:])).param
@@ -98,7 +103,6 @@ class SE23LieGroup(LieGroup):
         return self.elem(param=x)
 
     def inverse(self, arg):
-        assert self == arg.group
         v = arg.param[:3]
         theta = arg.param[3:]
         theta_inv = self.SO3.elem(param=theta).inverse()
@@ -106,18 +110,16 @@ class SE23LieGroup(LieGroup):
         p = -R.T @ v
         return self.elem(param=np.block([p, theta_inv.param]))
 
-    def identity(self) -> LieGroupElement:
+    def identity(self) -> SE23LieGroupElement:
         return self.elem(ca.SX(self.n_param, 1))
 
-    def adjoint(self, arg: LieGroupElement):
-        assert self == arg.group
+    def adjoint(self, arg: SE23LieGroupElement):
         v = arg.param[:3]
         vx = so3.elem(param=v).to_Matrix()
         R = self.SO3.elem(param=arg.param[3:]).to_Matrix()
         return np.block([[R, vx @ R], [ca.SX(3, 3), R]])
 
-    def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
-        assert self.algebra == arg.algebra
+    def exp(self, arg: SE23LieAlgebraElement) -> SE23LieGroupElement:
         v = arg.param
         omega_so3 = self.SO3.algebra.elem(
             v[3:]
@@ -143,8 +145,7 @@ class SE23LieGroup(LieGroup):
 
         return self.elem(np.block([V @ u, theta]))
 
-    def log(self, arg: LieGroupElement) -> LieAlgebraElement:
-        assert self == arg.group
+    def log(self, arg: SE23LieGroupElement) -> SE23LieAlgebraElement:
         X = arg.to_Matrix()
         angle = arg.param[3:]
         R = X[0:3, 0:3]  # get the SO3 Lie group matrix
@@ -163,8 +164,7 @@ class SE23LieGroup(LieGroup):
         uInv = V_inv @ t
         return self.algebra.elem(np.block([uInv, angle_so3.param]))
 
-    def to_Matrix(self, arg: LieGroupElement) -> npt.NDArray[np.floating]:
-        assert self == arg.group
+    def to_Matrix(self, arg: SE23LieGroupElement) -> npt.NDArray[np.floating]:
         R = self.SO3.elem(arg.param[3:]).to_Matrix()
         t = arg.param[:3].reshape(3, 1)
         Z13 = ca.SX(1, 3)
@@ -176,9 +176,18 @@ class SE23LieGroup(LieGroup):
             ]
         )
 
-    def from_Matrix(self, arg: ca.SX) -> LieGroupElement:
-        assert arg.shape == self.matrix_shape
+    def from_Matrix(self, arg: ca.SX) -> SE23LieGroupElement:
         raise NotImplementedError("")
+
+
+@beartype
+class SE23LieGroupElement(LieGroupElement):
+    """
+    This is an SE23 Lie group elem, not necessarily represented as a matrix
+    """
+
+    def __init__(self, group: SE23LieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
 
 
 se23 = SE23LieAlgebra()

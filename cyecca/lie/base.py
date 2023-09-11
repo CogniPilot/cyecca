@@ -90,8 +90,9 @@ class LieAlgebra(ABC):
         """
         return LieAlgebraDirectProduct(algebras=[self, other])
 
+    @abstractmethod
     def elem(self, param: PARAM_TYPE) -> LieAlgebraElement:
-        return LieAlgebraElement(algebra=self, param=param)
+        ...
 
     def wedge(self, arg: PARAM_TYPE) -> LieAlgebraElement:
         """given a parameter vector, creates a LieAlgebraElement"""
@@ -110,31 +111,31 @@ class LieAlgebra(ABC):
     def bracket(
         self, left: LieAlgebraElement, right: LieAlgebraElement
     ) -> LieAlgebraElement:
-        pass
+        ...
 
     @abstractmethod
     def scalar_multiplication(
         self, left: SCALAR_TYPE, right: LieAlgebraElement
     ) -> LieAlgebraElement:
-        pass
+        ...
 
     @abstractmethod
     def addition(
         self, left: LieAlgebraElement, right: LieAlgebraElement
     ) -> LieAlgebraElement:
-        pass
+        ...
 
     @abstractmethod
     def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
-        pass
+        ...
 
     @abstractmethod
     def to_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
-        pass
+        ...
 
     @abstractmethod
     def from_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
-        pass
+        ...
 
     def __repr__(self) -> str:
         return self.__class__.__name__
@@ -206,35 +207,35 @@ class LieGroup(ABC):
 
     @abstractmethod
     def product(self, left: LieGroupElement, right: LieGroupElement) -> LieGroupElement:
-        pass
+        ...
 
     @abstractmethod
     def inverse(self, arg: LieGroupElement) -> LieGroupElement:
-        pass
+        ...
 
     @abstractmethod
     def identity(self) -> LieGroupElement:
-        pass
+        ...
 
     @abstractmethod
     def adjoint(self, arg: LieGroupElement) -> ca.SX:
-        pass
+        ...
 
     @abstractmethod
     def exp(self, arg: LieAlgebraElement) -> LieGroupElement:
-        pass
+        ...
 
     @abstractmethod
     def log(self, arg: LieGroupElement) -> LieAlgebraElement:
-        pass
+        ...
 
     @abstractmethod
     def to_Matrix(self, arg: LieGroupElement) -> ca.SX:
-        pass
+        ...
 
     @abstractmethod
     def from_Matrix(self, arg: LieAlgebraElement) -> ca.SX:
-        pass
+        ...
 
     def __repr__(self) -> str:
         return self.__class__.__name__

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import numpy as np
-import numpy.typing as npt
-from numpy import floating
-
 from beartype import beartype
 from beartype.typing import List
 
+import casadi as ca
+
 from cyecca.lie.base import *
+from cyecca.lie.group_rn import *
 from cyecca.lie.group_so3 import *
+from cyecca.lie.group_so3 import SO3LieGroupElement
 from cyecca.symbolic import SERIES
 
 
@@ -26,18 +26,16 @@ class SE23LieAlgebra(LieAlgebra):
     def bracket(self, left: SE23LieAlgebraElement, right: SE23LieAlgebraElement):
         c = left.to_Matrix() @ right.to_Matrix() - right.to_Matrix() @ left.to_Matrix()
         return self.elem(
-            param=np.array(
-                [
-                    c[0, 4],
-                    c[1, 4],
-                    c[2, 4],
-                    c[0, 3],
-                    c[1, 3],
-                    c[2, 3],
-                    c[2, 1],
-                    c[0, 2],
-                    c[1, 0],
-                ]
+            param=ca.vertcat(
+                c[0, 4],
+                c[1, 4],
+                c[2, 4],
+                c[0, 3],
+                c[1, 3],
+                c[2, 3],
+                c[2, 1],
+                c[0, 2],
+                c[1, 0],
             )
         )
 
@@ -59,7 +57,7 @@ class SE23LieAlgebra(LieAlgebra):
         w = so3.elem(arg.param[6:]).to_Matrix()
         return np.block([[w, vx], [ca.SX(3, 3), w]])
 
-    def to_Matrix(self, arg: SE23LieAlgebraElement) -> npt.NDArray[np.floating]:
+    def to_Matrix(self, arg: SE23LieAlgebraElement) -> ca.SX:
         Omega = so3.elem(arg.param[6:]).to_Matrix()
         p = arg.param[:3].reshape(3, 1)
         v = arg.param[3:6].reshape(3, 1)
@@ -68,12 +66,6 @@ class SE23LieAlgebra(LieAlgebra):
 
     def from_Matrix(self, arg: ca.SX) -> SE23LieAlgebraElement:
         raise NotImplementedError("")
-
-    def wedge(self, arg: npt.NDArray[np.floating]) -> SE23LieAlgebraElement:
-        return self.elem(param=arg)
-
-    def vee(self, arg: SE23LieAlgebraElement) -> npt.NDArray[np.floating]:
-        return arg.param
 
 
 @beartype
@@ -90,28 +82,28 @@ class SE23LieAlgebraElement(LieAlgebraElement):
 class SE23LieGroup(LieGroup):
     def __init__(self, SO3: SO3LieGroup):
         self.SO3 = SO3
-        super().__init__(algebra=se23, n_param=10, matrix_shape=(5, 5))
+        super().__init__(algebra=se23, n_param=SO3.n_param + 6, matrix_shape=(5, 5))
 
     def elem(self, param: PARAM_TYPE) -> SE23LieGroupElement:
         return SE23LieGroupElement(group=self, param=param)
 
     def product(self, left: SE23LieGroupElement, right: SE23LieGroupElement):
-        R = self.SO3.elem(left.param[3:]).to_Matrix()
-        v = R @ right.param[:3] + left.param[:3]
-        theta = (self.SO3.elem(left.param[3:]) * self.SO3.elem(right.param[3:])).param
-        x = np.block([v, theta])
-        return self.elem(param=x)
+        p = left.p + left.R @ right.p
+        v = left.v + left.R @ right.v
+        R = left.R * right.R
+        return self.elem(param=ca.vertcat(p, v, R.param))
 
     def inverse(self, arg):
-        v = arg.param[:3]
-        theta = arg.param[3:]
-        theta_inv = self.SO3.elem(param=theta).inverse()
-        R = self.SO3.elem(param=theta).to_Matrix()
-        p = -R.T @ v
-        return self.elem(param=np.block([p, theta_inv.param]))
+        R_inv = arg.R.inverse()
+        p_inv = -(R_inv @ arg.p)
+        v_inv = -(R_inv @ arg.v)
+        return self.elem(param=ca.vertcat(p_inv, v_inv, R_inv.param))
 
     def identity(self) -> SE23LieGroupElement:
-        return self.elem(ca.SX(self.n_param, 1))
+        p = R3.identity()
+        v = R3.identity()
+        R = self.SO3.identity()
+        return self.elem(param=ca.vertcat(p.param, v.param, R.param))
 
     def adjoint(self, arg: SE23LieGroupElement):
         v = arg.param[:3]
@@ -148,7 +140,7 @@ class SE23LieGroup(LieGroup):
     def log(self, arg: SE23LieGroupElement) -> SE23LieAlgebraElement:
         X = arg.to_Matrix()
         angle = arg.param[3:]
-        R = X[0:3, 0:3]  # get the SO3 Lie group matrix
+        R = X[0:3, 0:3]  # get the SO3 Lie groupbase matrix
         theta = np.arccos((np.trace(R) - 1) / 2)
         angle_so3 = self.SO3.elem(angle).log()
         wSkew = angle_so3.to_Matrix()
@@ -164,16 +156,10 @@ class SE23LieGroup(LieGroup):
         uInv = V_inv @ t
         return self.algebra.elem(np.block([uInv, angle_so3.param]))
 
-    def to_Matrix(self, arg: SE23LieGroupElement) -> npt.NDArray[np.floating]:
-        R = self.SO3.elem(arg.param[3:]).to_Matrix()
-        t = arg.param[:3].reshape(3, 1)
-        Z13 = ca.SX(1, 3)
-        I1 = ca.SX.eye(1)
-        return np.block(
-            [
-                [R, t],
-                [Z13, I1],
-            ]
+    def to_Matrix(self, arg: SE23LieGroupElement) -> ca.SX:
+        return ca.vertcat(
+            ca.horzcat(arg.R.to_Matrix(), arg.v, arg.p),
+            ca.horzcat(ca.SX(2, 3), ca.SX.eye(2)),
         )
 
     def from_Matrix(self, arg: ca.SX) -> SE23LieGroupElement:
@@ -188,6 +174,18 @@ class SE23LieGroupElement(LieGroupElement):
 
     def __init__(self, group: SE23LieGroup, param: PARAM_TYPE):
         super().__init__(group, param)
+
+    @property
+    def p(self) -> ca.SX:
+        return self.param[:3]
+
+    @property
+    def v(self) -> ca.SX:
+        return self.param[3:6]
+
+    @property
+    def R(self) -> SO3LieGroupElement:
+        return self.group.SO3.elem(self.param[6:])
 
 
 se23 = SE23LieAlgebra()

@@ -162,10 +162,16 @@ class SO3LieGroup(LieGroup):
         self, left: SO3LieGroupElement, right: SO3LieAlgebraElement
     ) -> SO3LieAlgebraElement:
         """
-        Default product with lie algebra, uses matrix conversion
+        Product with Lie algebra, uses matrix conversion
         """
         v = left.to_Matrix() @ right.param
         return SO3LieAlgebraElement(algebra=right.algebra, param=v)
+
+    def product_vector(self, left: SO3LieGroupElement, right: ca.SX) -> ca.SX:
+        """
+        Vector product, uses matrix conversion
+        """
+        return left.to_Matrix() @ right
 
 
 @beartype
@@ -187,6 +193,8 @@ class SO3LieGroupElement(LieGroupElement):
             return self.group.product_R3(self, right)
         elif isinstance(right, R3LieAlgebraElement):
             return self.group.prproduct_r3(self, right)
+        if isinstance(right, ca.SX):
+            return self.group.product_vector(self, right)
         else:
             raise TypeError("unhandled type in product {:s}".format(type(right)))
 

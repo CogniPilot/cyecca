@@ -11,12 +11,12 @@ class Test_LieGroupDirectProduct(ProfiledTestCase):
         self.G = SE2 * R3 * R3
 
     def test_product(self):
-        G1 = self.G.elem(ca.SX([1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        G1 = self.G.elem(ca.SX([0.1, 0.2, 0.3, 4, 5, 6, 7, 8, 9]))
         G2 = self.G.elem(ca.SX([0, 0, 0, 0, 0, 0, 0, 0, 0]))
         G3 = G1 * G2
 
     def test_inverse(self):
-        G1 = self.G.elem(ca.SX([1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        G1 = self.G.elem(ca.SX([0.1, 0.2, 0.3, 4, 5, 6, 7, 8, 9]))
         self.assertTrue(SX_close((G1 * G1.inverse()).param, self.G.identity().param))
 
     def test_log(self):
@@ -34,11 +34,11 @@ class Test_LieAlgebraDirectProduct(ProfiledTestCase):
         self.g = self.G.algebra
 
     def test_ctor(self):
-        g1 = self.g.elem(ca.SX([1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        g1 = self.g.elem(ca.SX([0.1, 0.2, 0.3, 4, 5, 6, 7, 8, 9]))
 
     def test_repr(self):
         repr(self.g)
 
     def test_exp(self):
-        g1 = self.g.elem(ca.SX([1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        g1 = self.g.elem(ca.SX([0.1, 0.2, 0.3, 4, 5, 6, 7, 8, 9]))
         g1.exp(self.G)

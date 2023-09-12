@@ -16,9 +16,9 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
         G1 = SE23Mrp.elem(self.v1)
         G2 = SE23Mrp.elem(self.v2)
         s = 1
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 + G2
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -43,6 +43,10 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
     def test_inverse(self):
         G1 = SE23Mrp.elem(self.v1)
         self.assertTrue(SX_close((G1 * G1.inverse()).param, SE23Mrp.identity().param))
+
+    def test_exp(self):
+        g1 = SE23Mrp.algebra.elem(self.v1)
+        g1.exp(SE23Mrp)
 
     @unittest.skip
     def test_log(self):

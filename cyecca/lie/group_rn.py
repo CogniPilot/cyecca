@@ -170,7 +170,7 @@ class R2LieGroup(RnLieGroup):
         super().__init__(algebra)
 
     def elem(self, param: PARAM_TYPE) -> R2LieGroupElement:
-        return R2LieGroupElement(algebra=self, param=param)
+        return R2LieGroupElement(group=self, param=param)
 
 
 @beartype

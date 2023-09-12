@@ -149,24 +149,6 @@ class SO3LieGroup(LieGroup):
         v = left.to_Matrix() @ right.param
         return R3LieAlgebraElement(algebra=right.algebra, param=v)
 
-    def product_R3(
-        self, left: SO3LieGroupElement, right: R3LieGroupElement
-    ) -> R3LieGroupElement:
-        """
-        Vector rotation for group R3, uses to_Matrix
-        """
-        v = left.to_Matrix() @ right.param
-        return R3LieGroupElement(group=right.group, param=v)
-
-    def product_so3(
-        self, left: SO3LieGroupElement, right: SO3LieAlgebraElement
-    ) -> SO3LieAlgebraElement:
-        """
-        Product with Lie algebra, uses matrix conversion
-        """
-        v = left.to_Matrix() @ right.param
-        return SO3LieAlgebraElement(algebra=right.algebra, param=v)
-
     def product_vector(self, left: SO3LieGroupElement, right: ca.SX) -> ca.SX:
         """
         Vector product, uses matrix conversion
@@ -187,13 +169,9 @@ class SO3LieGroupElement(LieGroupElement):
         """
         override matrix mul operator to use as actions on 3 vectors
         """
-        if isinstance(right, SO3LieAlgebraElement):
-            return self.group.product_so3(self, right)
-        elif isinstance(right, R3LieGroupElement):
-            return self.group.product_R3(self, right)
-        elif isinstance(right, R3LieAlgebraElement):
-            return self.group.prproduct_r3(self, right)
-        if isinstance(right, ca.SX):
+        if isinstance(right, R3LieAlgebraElement):
+            return self.group.product_r3(self, right)
+        if isinstance(right, ca.SX) and right.shape == (3, 1):
             return self.group.product_vector(self, right)
         else:
             raise TypeError("unhandled type in product {:s}".format(type(right)))

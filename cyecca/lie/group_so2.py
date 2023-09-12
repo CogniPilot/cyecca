@@ -6,6 +6,8 @@ from beartype import beartype
 from beartype.typing import List
 
 from cyecca.lie.base import *
+from cyecca.lie.group_rn import *
+from cyecca.lie.group_rn import R2LieAlgebraElement
 
 __all__ = ["so2", "SO2"]
 
@@ -71,8 +73,28 @@ class SO2LieGroup(LieGroup):
     def elem(self, param: PARAM_TYPE) -> SO2LieGroupElement:
         return SO2LieGroupElement(group=self, param=param)
 
-    def product(self, left: SO2LieGroupElement, right: SO2LieGroupElement):
-        return self.elem(param=left.param + right.param)
+    def product(
+        self, left: SO2LieGroupElement, right: SO2LieGroupElement
+    ) -> SO2LieGroupElement:
+        """
+        Default product uses matrix conversion
+        """
+        return self.elem(left.param + right.param)
+
+    def product_r2(
+        self, left: SO2LieGroupElement, right: R2LieAlgebraElement
+    ) -> R2LieAlgebraElement:
+        """
+        Vector rotation for algebra r2, uses to_Matrix
+        """
+        v = left.to_Matrix() @ right.param
+        return R2LieAlgebraElement(algebra=right.algebra, param=v)
+
+    def product_vector(self, left: SO2LieGroupElement, right: ca.SX) -> ca.SX:
+        """
+        Vector product, uses matrix conversion
+        """
+        return left.to_Matrix() @ right
 
     def inverse(self, arg: SO2LieGroupElement) -> SO2LieGroupElement:
         return self.elem(param=-arg.param)
@@ -101,7 +123,7 @@ class SO2LieGroup(LieGroup):
         return M
 
     def from_Matrix(self, arg: ca.SX) -> SO2LieGroupElement:
-        raise NotImplementedError()
+        return self.elem(ca.atan2(arg[0, 0], arg[1, 0]))
 
 
 @beartype
@@ -112,6 +134,17 @@ class SO2LieGroupElement(LieGroupElement):
 
     def __init__(self, group: SO2LieGroup, param: PARAM_TYPE):
         super().__init__(group, param)
+
+    def __matmul__(self, right):
+        """
+        override matrix mul operator to use as actions on 3 vectors
+        """
+        if isinstance(right, R2LieAlgebraElement):
+            return self.group.product_r2(self, right)
+        if isinstance(right, ca.SX) and right.shape == (2, 1):
+            return self.group.product_vector(self, right)
+        else:
+            raise TypeError("unhandled type in product {:s}".format(type(right)))
 
 
 so2 = SO2LieAlgebra()

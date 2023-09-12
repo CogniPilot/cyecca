@@ -158,11 +158,35 @@ class LieGroupElement:
     def inverse(self) -> LieGroupElement:
         return self.group.inverse(arg=self)
 
-    def __add__(self, other: LieAlgebraElement) -> LieGroupElement:
-        return self * other.exp(self.group)
+    def __add__(
+        self, other: Union[LieGroupElement, LieAlgebraElement]
+    ) -> LieGroupElement:
+        if isinstance(other, LieGroupElement):
+            if hasattr(self.group, "addition"):
+                return self.group.addition(self, other)
+            else:
+                raise TypeError(
+                    "{:s} does not support addition".format(
+                        self.group.__class__.__name__
+                    )
+                )
+        elif isinstance(other, LieAlgebraElement):
+            return self * other.exp(self.group)
 
-    def __sub__(self, other: LieAlgebraElement) -> LieGroupElement:
-        return self * (-other).exp(self.group)
+    def __sub__(
+        self, other: Union[LieGroupElement, LieAlgebraElement]
+    ) -> LieGroupElement:
+        if isinstance(other, LieGroupElement):
+            if hasattr(self.group, "subtraction"):
+                return self.group.subtraction(self, other)
+            else:
+                raise TypeError(
+                    "{:s} does not support subtraction".format(
+                        self.group.__class__.__name__
+                    )
+                )
+        elif isinstance(other, LieAlgebraElement):
+            return self * (-other).exp(self.group)
 
     def __eq__(self, other: LieGroupElement) -> ca.SX:
         return ca.logic_all(self.param == other.param)

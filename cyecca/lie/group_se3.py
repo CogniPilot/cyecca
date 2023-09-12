@@ -6,7 +6,13 @@ from beartype import beartype
 from beartype.typing import List
 
 from cyecca.lie.base import *
+
+from cyecca.lie.group_rn import *
+from cyecca.lie.group_rn import R3LieAlgebraElement
+
 from cyecca.lie.group_so3 import *
+from cyecca.lie.group_so3 import SO3LieGroupElement
+
 from cyecca.symbolic import SERIES, taylor_series_near_zero
 
 __all__ = ["se3", "SE3Quat", "SE3Mrp"]
@@ -73,6 +79,14 @@ class SE3LieAlgebraElement(LieAlgebraElement):
     def __init__(self, algebra: SE3LieAlgebra, param: PARAM_TYPE):
         super().__init__(algebra, param)
 
+    @property
+    def v_b(self) -> R3LieAlgebraElement:
+        return r3.elem(self.param[:3])
+
+    @property
+    def Omega(self) -> SO3LieAlgebraElement:
+        return so3.elem(self.param[3:6])
+
 
 se3 = SE3LieAlgebra()
 
@@ -126,26 +140,19 @@ class SE3LieGroup(LieGroup):
         return self.elem(ca.vertcat(p, rotation))
 
     def log(self, arg: SE3LieGroupElement) -> SE3LieAlgebraElement:
-        X = self.SO3.elem(arg.param[3:])
-        t = arg.param[:3]
-
-        omega = X.log()
-        theta = ca.norm_2(omega.param)
-        Omega = omega.to_Matrix()
-
+        Omega = arg.R.log()
+        theta = ca.norm_2(Omega.param)
         A = SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](theta)
-        V_inv = ca.SX.eye(3) - Omega / 2 + A * Omega @ Omega
-        u = V_inv @ t
-        return self.algebra.elem(ca.vertcat(u, omega.param))
+        Omega_mat = Omega.to_Matrix()
+        V_inv = ca.SX.eye(3) - Omega_mat / 2 + A * (Omega_mat @ Omega_mat)
+        u = V_inv @ arg.p.param
+        return self.algebra.elem(ca.vertcat(u, Omega.param))
 
     def to_Matrix(self, arg: SE3LieGroupElement) -> ca.SX:
-        R = self.SO3.elem(arg.param[3:]).to_Matrix()
-        t = arg.param[:3]
-        Z13 = ca.SX(1, 3)
-        I1 = ca.SX.eye(1)
-        horz1 = ca.horzcat(R, t)
-        horz2 = ca.horzcat(Z13, I1)
-        return ca.vertcat(horz1, horz2)
+        return ca.vertcat(
+            ca.horzcat(arg.R.to_Matrix(), arg.p.param),
+            ca.horzcat(ca.SX(1, 3), ca.SX.eye(1)),
+        )
 
     def from_Matrix(self, arg: ca.SX) -> SE3LieGroupElement:
         assert arg.shape == self.matrix_shape
@@ -160,6 +167,14 @@ class SE3LieGroupElement(LieGroupElement):
 
     def __init__(self, group: SE3LieGroup, param: PARAM_TYPE):
         super().__init__(group, param)
+
+    @property
+    def p(self) -> R3LieAlgebraElement:
+        return r3.elem(self.param[:3])
+
+    @property
+    def R(self) -> SO3LieGroupElement:
+        return self.group.SO3.elem(self.param[3:])
 
 
 SE3Mrp = SE3LieGroup(SO3=SO3Mrp)

@@ -76,9 +76,9 @@ class Test_LieGroupSE2(ProfiledTestCase):
         G1 = SE2.elem(self.v1)
         G2 = SE2.elem(self.v2)
         s = 1
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 + G2
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2

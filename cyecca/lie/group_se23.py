@@ -7,8 +7,9 @@ import casadi as ca
 
 from cyecca.lie.base import *
 from cyecca.lie.group_rn import *
+from cyecca.lie.group_rn import R3LieAlgebraElement
 from cyecca.lie.group_so3 import *
-from cyecca.lie.group_so3 import SO3LieGroupElement
+from cyecca.lie.group_so3 import SO3LieGroupElement, SO3LieAlgebraElement
 from cyecca.symbolic import SERIES
 
 
@@ -50,19 +51,24 @@ class SE23LieAlgebra(LieAlgebra):
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: SE23LieAlgebraElement):
-        a = arg.param[3:6]
-        ax = np.array([[0, -p[2], p[1]], [p[2], 0, -p[0]], [-p[1], p[0], 0]])
-        v = arg.param[0:3]
-        vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
-        w = so3.elem(arg.param[6:]).to_Matrix()
-        return np.block([[w, vx], [ca.SX(3, 3), w]])
+        a_b = arg.a_b
+        v_b = arg.v_b
+
+        a_b_x = so3.wedge(a_b.param)
+        v_b_x = so3.wedge(v_b.param)
+
+        Omega = arg.Omega.to_Matrix()
+        # TODO, check this
+        return ca.vertcat(
+            ca.horzcat(Omega, a_b_x, v_b_x),
+            ca.horzcat(ca.SX(3, 3), Omega, ca.SX(3, 3)),
+            ca.horzcat(ca.SX(3, 3), ca.SX(3, 3), Omega),
+        )
 
     def to_Matrix(self, arg: SE23LieAlgebraElement) -> ca.SX:
-        Omega = so3.elem(arg.param[6:]).to_Matrix()
-        p = arg.param[:3].reshape(3, 1)
-        v = arg.param[3:6].reshape(3, 1)
-        Z15 = ca.SX(1, 5)
-        return np.block([[Omega, v, p], [Z15]])
+        return ca.vertcat(
+            ca.horzcat(arg.Omega.to_Matrix(), arg.a_b.param, arg.v_b.param), ca.SX(2, 5)
+        )
 
     def from_Matrix(self, arg: ca.SX) -> SE23LieAlgebraElement:
         raise NotImplementedError("")
@@ -74,8 +80,20 @@ class SE23LieAlgebraElement(LieAlgebraElement):
     This is an SE23 Lie algebra elem
     """
 
-    def __init__(self, algebra: RnLieAlgebra, param: PARAM_TYPE):
+    def __init__(self, algebra: SE23LieAlgebra, param: PARAM_TYPE):
         super().__init__(algebra, param)
+
+    @property
+    def a_b(self) -> R3LieAlgebraElement:
+        return r3.elem(self.param[:3])
+
+    @property
+    def v_b(self) -> R3LieAlgebraElement:
+        return r3.elem(self.param[3:6])
+
+    @property
+    def Omega(self) -> SO3LieAlgebraElement:
+        return so3.elem(self.param[6:])
 
 
 @beartype
@@ -91,13 +109,13 @@ class SE23LieGroup(LieGroup):
         p = left.p + left.R @ right.p
         v = left.v + left.R @ right.v
         R = left.R * right.R
-        return self.elem(param=ca.vertcat(p, v, R.param))
+        return self.elem(param=ca.vertcat(p.param, v.param, R.param))
 
     def inverse(self, arg):
         R_inv = arg.R.inverse()
         p_inv = -(R_inv @ arg.p)
         v_inv = -(R_inv @ arg.v)
-        return self.elem(param=ca.vertcat(p_inv, v_inv, R_inv.param))
+        return self.elem(param=ca.vertcat(p_inv.param, v_inv.param, R_inv.param))
 
     def identity(self) -> SE23LieGroupElement:
         p = R3.identity()
@@ -106,36 +124,19 @@ class SE23LieGroup(LieGroup):
         return self.elem(param=ca.vertcat(p.param, v.param, R.param))
 
     def adjoint(self, arg: SE23LieGroupElement):
-        v = arg.param[:3]
-        vx = so3.elem(param=v).to_Matrix()
-        R = self.SO3.elem(param=arg.param[3:]).to_Matrix()
+        R = arg.R.to_Matrix()
+        vx = so3.wedge(arg.v).to_Matrix()
         return np.block([[R, vx @ R], [ca.SX(3, 3), R]])
 
     def exp(self, arg: SE23LieAlgebraElement) -> SE23LieGroupElement:
-        v = arg.param
-        omega_so3 = self.SO3.algebra.elem(
-            v[3:]
-        )  # grab only rotation terms for so3 uses ##corrected to v_so3 = v[3:6]
-        omega_matrix = omega_so3.to_Matrix()  # matrix for so3
-        omega = np.linalg.norm(
-            v[3:]
-        )  # theta term using norm for sqrt(theta1**2+theta2**2+theta3**2)
-        theta = omega_so3.exp(self.SO3).param
+        Omega = arg.to_Matrix()
+        Omega2 = Omega @ Omega
+        Omega3 = Omega2 @ Omega
 
-        # translational components u
-        u = np.array([v[0], v[1], v[2]])
-
-        C1 = SERIES["sin(x)/x"]
-        C2 = SERIES["(1 - cos(x))/x^2"]
-        C = np.where(
-            np.abs(omega) < 1e-7,
-            1 / 6 - omega**2 / 120 + omega**4 / 5040,
-            (1 - C1) / omega**2,
-        )
-
-        V = np.eye(3) + C2 * omega_matrix + C * omega_matrix @ omega_matrix
-
-        return self.elem(np.block([V @ u, theta]))
+        theta = ca.norm_2(arg.Omega.param)
+        C1 = SERIES["(1 - cos(x))/x^2"](theta)
+        C2 = SERIES["(x - sin(x))/x^3"](theta)
+        return self.from_Matrix(ca.SX.eye(5) + C1 * Omega2 + C2 * Omega3)
 
     def log(self, arg: SE23LieGroupElement) -> SE23LieAlgebraElement:
         X = arg.to_Matrix()
@@ -158,12 +159,15 @@ class SE23LieGroup(LieGroup):
 
     def to_Matrix(self, arg: SE23LieGroupElement) -> ca.SX:
         return ca.vertcat(
-            ca.horzcat(arg.R.to_Matrix(), arg.v, arg.p),
+            ca.horzcat(arg.R.to_Matrix(), arg.v.param, arg.p.param),
             ca.horzcat(ca.SX(2, 3), ca.SX.eye(2)),
         )
 
     def from_Matrix(self, arg: ca.SX) -> SE23LieGroupElement:
-        raise NotImplementedError("")
+        R = SO3Mrp.from_Matrix(arg[:3, :3])
+        v = r3.elem(arg[:3, 3])
+        p = r3.elem(arg[:3, 4])
+        return self.elem(ca.vertcat(R.param, v.param, p.param))
 
 
 @beartype
@@ -176,12 +180,12 @@ class SE23LieGroupElement(LieGroupElement):
         super().__init__(group, param)
 
     @property
-    def p(self) -> ca.SX:
-        return self.param[:3]
+    def p(self) -> R3LieAlgebraElement:
+        return r3.elem(self.param[:3])
 
     @property
-    def v(self) -> ca.SX:
-        return self.param[3:6]
+    def v(self) -> R3LieAlgebraElement:
+        return r3.elem(self.param[3:6])
 
     @property
     def R(self) -> SO3LieGroupElement:

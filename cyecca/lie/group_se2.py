@@ -7,6 +7,9 @@ from beartype.typing import List
 
 from cyecca.lie.base import *
 from cyecca.lie.group_so2 import *
+from cyecca.lie.group_rn import *
+from cyecca.lie.group_rn import R2LieAlgebraElement
+from cyecca.lie.group_so2 import SO2LieGroupElement, SO2LieAlgebraElement
 from cyecca.symbolic import SERIES
 
 __all__ = ["se2", "SE2"]
@@ -49,11 +52,7 @@ class SE2LieAlgebra(LieAlgebra):
         return ad
 
     def to_Matrix(self, arg: SE2LieAlgebraElement) -> ca.SX:
-        Omega = so2.elem(arg.param[2:, 0]).to_Matrix()
-        v = arg.param[:2, 0]
-        Z13 = ca.SX(1, 3)
-        horz = ca.horzcat(Omega, v)
-        return ca.vertcat(horz, Z13)
+        return ca.vertcat(ca.horzcat(arg.Omega.to_Matrix(), arg.v_b.param), ca.SX(1, 3))
 
     def from_Matrix(self, arg: ca.SX) -> SE2LieAlgebraElement:
         raise NotImplementedError("")
@@ -74,6 +73,14 @@ class SE2LieAlgebraElement(LieAlgebraElement):
     def __init__(self, algebra: SE2LieAlgebra, param: PARAM_TYPE):
         super().__init__(algebra, param)
 
+    @property
+    def v_b(self) -> R2LieAlgebraElement:
+        return r2.elem(self.param[:2])
+
+    @property
+    def Omega(self) -> SO2LieAlgebraElement:
+        return so2.elem(self.param[2])
+
 
 @beartype
 class SE2LieGroup(LieGroup):
@@ -84,20 +91,16 @@ class SE2LieGroup(LieGroup):
         return SE2LieGroupElement(group=self, param=param)
 
     def product(self, left: SE2LieGroupElement, right: SE2LieGroupElement):
-        R = SO2.elem(left.param[2:, 0]).to_Matrix()
-        v = R @ right.param[:2, 0] + left.param[:2, 0]
-        x = ca.vertcat(v, left.param[2:, 0] + right.param[2:, 0])
-        return self.elem(param=x)
+        p = left.R @ right.p + left.p
+        R = left.R * right.R
+        return self.elem(ca.vertcat(p.param, R.param))
 
     def inverse(self, arg: SE2LieGroupElement) -> SE2LieGroupElement:
-        v = arg.param[:2, 0]
-        theta = arg.param[2:, 0]
-        R = SO2.elem(param=theta).to_Matrix()
-        p = -R.T @ v
-        return self.elem(param=ca.vertcat(p, -theta))
+        p = -(arg.R.inverse() @ arg.p)
+        return self.elem(param=ca.vertcat(p.param, -arg.R.param))
 
     def identity(self) -> SE2LieGroupElement:
-        return self.elem(param=ca.SX(self.n_param, 1))
+        return self.elem(param=ca.vertcat(R2.identity().param, SO2.identity().param))
 
     def adjoint(self, arg: SE2LieGroupElement):
         v = ca.vertcat(arg.param[1], -arg.param[0])
@@ -107,20 +110,17 @@ class SE2LieGroup(LieGroup):
         return ca.vertcat(horz1, horz2)
 
     def exp(self, arg: SE2LieAlgebraElement) -> SE2LieGroupElement:
-        theta = arg.param[2, 0]
+        theta = arg.Omega.param
         sin_th = ca.sin(theta)
         cos_th = ca.cos(theta)
         a = SERIES["sin(x)/x"](theta)
         b = SERIES["(1 - cos(x))/x"](theta)
-        horz1 = ca.horzcat(a, -b)
-        horz2 = ca.horzcat(b, a)
-        V = ca.vertcat(horz1, horz2)
-        v = V @ arg.param[:2]
-        return self.elem(ca.vertcat(v, theta))
+        V = ca.vertcat(ca.horzcat(a, -b), ca.horzcat(b, a))
+        p = V @ arg.v_b.param
+        return self.elem(ca.vertcat(p, theta))
 
     def log(self, arg: SE2LieGroupElement) -> SE2LieAlgebraElement:
-        v = arg.param[:2, 0]
-        theta = arg.param[2, 0]
+        theta = arg.R.param
         x = ca.SX.sym("x")
         a = SERIES["sin(x)/x"](theta)
         b = SERIES["(1 - cos(x))/x"](theta)
@@ -129,18 +129,15 @@ class SE2LieGroup(LieGroup):
         V_inv[0, 1] = b
         V_inv[1, 0] = -b
         V_inv[1, 1] = a
-        V_inv = V_inv / (a**2 + b**2)
-        p = V_inv @ v
+        V_inv = V_inv / (a**2 + b**2)  # TODO, check being 0 is impossible
+        p = V_inv @ arg.p.param
         return self.algebra.elem(ca.vertcat(p, theta))
 
     def to_Matrix(self, arg: SE2LieGroupElement) -> ca.SX:
-        R = SO2.elem(arg.param[2:, 0]).to_Matrix()
-        t = arg.param[:2, 0]
-        Z12 = ca.SX(1, 2)
-        I1 = ca.SX_eye(1)
-        horz1 = ca.horzcat(R, t)
-        horz2 = ca.horzcat(Z12, I1)
-        return ca.vertcat(horz1, horz2)
+        return ca.vertcat(
+            ca.horzcat(arg.R.to_Matrix(), arg.p.param),
+            ca.horzcat(ca.SX(1, 2), ca.SX.eye(1)),
+        )
 
     def from_Matrix(self, arg: ca.SX) -> SE2LieAlgebraElement:
         return self.LieAlgebraElement(arg[0, 2], arg[1,], arg[1, 0])
@@ -154,6 +151,14 @@ class SE2LieGroupElement(LieGroupElement):
 
     def __init__(self, group: SE2LieGroup, param: PARAM_TYPE):
         super().__init__(group, param)
+
+    @property
+    def p(self) -> R2LieAlgebraElement:
+        return r2.elem(self.param[:2])
+
+    @property
+    def R(self) -> SO2LieGroupElement:
+        return SO2.elem(self.param[2])
 
 
 se2 = SE2LieAlgebra()

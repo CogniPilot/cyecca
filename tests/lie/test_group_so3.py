@@ -86,9 +86,9 @@ class Test_LieGroupSO3Euler(ProfiledTestCase):
         G1 = SO3EulerB321.elem(self.v1)
         G2 = SO3EulerB321.elem(self.v2)
         s = 1
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 + G2
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -157,9 +157,9 @@ class Test_LieGroupSO3Quat(ProfiledTestCase):
         G1 = SO3Quat.elem(self.v1)
         G2 = SO3Quat.elem(self.v2)
         s = 1
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 + G2
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2
@@ -232,9 +232,9 @@ class Test_LieGroupSO3Mrp(ProfiledTestCase):
         G1 = SO3Mrp.elem(self.v1)
         G2 = SO3Mrp.elem(self.v2)
         s = 1
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 + G2
-        with self.assertRaises(BeartypeCallHintParamViolation):
+        with self.assertRaises(TypeError):
             G1 - G2
         with self.assertRaises(TypeError):
             G1 @ G2

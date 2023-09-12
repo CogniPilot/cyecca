@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from enum import Enum
 
 import casadi as ca
 
 from beartype import beartype
-from beartype.typing import List
-from cyecca.lie.base import *
-from abc import ABC, abstractmethod
+from beartype.typing import List, Union
 
+from cyecca.lie.base import *
+from cyecca.lie.group_rn import R3LieGroupElement, R3LieAlgebraElement
 from cyecca.symbolic import SERIES
 
 __all__ = [
@@ -127,7 +128,67 @@ so3 = SO3LieAlgebra()
 
 @beartype
 class SO3LieGroup(LieGroup):
-    pass
+    """
+    An abstract SO3 Lie Group
+    """
+
+    def product(
+        self, left: SO3LieGroupElement, right: SO3LieGroupElement
+    ) -> SO3LieGroupElement:
+        """
+        Default product uses matrix conversion
+        """
+        return self.from_Matrix(left.to_Matrix() @ right.to_Matrix())
+
+    def product_r3(
+        self, left: SO3LieGroupElement, right: R3LieAlgebraElement
+    ) -> R3LieAlgebraElement:
+        """
+        Vector rotation for algebra r3, uses to_Matrix
+        """
+        v = left.to_Matrix() @ right.param
+        return R3LieAlgebraElement(algebra=right.algebra, param=v)
+
+    def product_R3(
+        self, left: SO3LieGroupElement, right: R3LieGroupElement
+    ) -> R3LieGroupElement:
+        """
+        Vector rotation for group R3, uses to_Matrix
+        """
+        v = left.to_Matrix() @ right.param
+        return R3LieGroupElement(group=right.group, param=v)
+
+    def product_so3(
+        self, left: SO3LieGroupElement, right: SO3LieAlgebraElement
+    ) -> SO3LieAlgebraElement:
+        """
+        Default product with lie algebra, uses matrix conversion
+        """
+        v = left.to_Matrix() @ right.param
+        return SO3LieAlgebraElement(algebra=right.algebra, param=v)
+
+
+@beartype
+class SO3LieGroupElement(LieGroupElement):
+    """
+    An abstract SO3Dcm Lie group elem
+    """
+
+    def __init__(self, group: SO3LieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
+
+    def __matmul__(self, right):
+        """
+        override matrix mul operator to use as actions on 3 vectors
+        """
+        if isinstance(right, SO3LieAlgebraElement):
+            return self.group.product_so3(self, right)
+        elif isinstance(right, R3LieGroupElement):
+            return self.group.product_R3(self, right)
+        elif isinstance(right, R3LieAlgebraElement):
+            return self.group.prproduct_r3(self, right)
+        else:
+            raise TypeError("unhandled type in product {:s}".format(type(right)))
 
 
 @beartype
@@ -137,11 +198,6 @@ class SO3DcmLieGroup(SO3LieGroup):
 
     def elem(self, param: PARAM_TYPE) -> SO3DcmLieGroupElement:
         return SO3DcmLieGroupElement(group=self, param=param)
-
-    def product(
-        self, left: SO3DcmLieGroupElement, right: SO3DcmLieGroupElement
-    ) -> SO3DcmLieGroupElement:
-        return self.from_Matrix(left.to_Matrix() @ right.to_Matrix())
 
     def inverse(self, arg: SO3DcmLieGroupElement) -> SO3DcmLieGroupElement:
         return self.from_Matrix(param=arg.to_Matrix().T())
@@ -215,7 +271,7 @@ class SO3DcmLieGroup(SO3LieGroup):
 
 
 @beartype
-class SO3DcmLieGroupElement(LieGroupElement):
+class SO3DcmLieGroupElement(SO3LieGroupElement):
     """
     This is an SO3Dcm Lie group elem
     """
@@ -237,9 +293,6 @@ class SO3EulerLieGroup(SO3LieGroup):
 
     def elem(self, param: PARAM_TYPE) -> SO3EulerLieGroupElement:
         return SO3EulerLieGroupElement(group=self, param=param)
-
-    def product(self, left: SO3EulerLieGroupElement, right: SO3EulerLieGroupElement):
-        return self.from_Matrix(left.to_Matrix() @ right.to_Matrix())
 
     def inverse(self, arg: SO3EulerLieGroupElement) -> SO3EulerLieGroupElement:
         return self.from_Matrix(self.to_Matrix(arg).T)
@@ -308,7 +361,7 @@ class SO3EulerLieGroup(SO3LieGroup):
 
 
 @beartype
-class SO3EulerLieGroupElement(LieGroupElement):
+class SO3EulerLieGroupElement(SO3LieGroupElement):
     """
     This is an SO3Euler Lie group elem
     """
@@ -325,7 +378,12 @@ class SO3QuatLieGroup(SO3LieGroup):
     def elem(self, param: PARAM_TYPE) -> SO3QuatLieGroupElement:
         return SO3QuatLieGroupElement(group=self, param=param)
 
-    def product(self, left: SO3QuatLieGroupElement, right: SO3QuatLieGroupElement):
+    def product(
+        self, left: SO3QuatLieGroupElement, right: SO3QuatLieGroupElement
+    ) -> SO3QuatLieGroupElement:
+        """
+        provide a more efficient product
+        """
         q = left.param
         p = right.param
         return self.elem(
@@ -478,7 +536,7 @@ class SO3QuatLieGroup(SO3LieGroup):
 
 
 @beartype
-class SO3QuatLieGroupElement(LieGroupElement):
+class SO3QuatLieGroupElement(SO3LieGroupElement):
     """
     This is an SO3Quat Lie group elem
     """
@@ -501,6 +559,9 @@ class SO3MrpLieGroup(SO3LieGroup):
     def product(
         self, left: SO3MrpLieGroupElement, right: SO3MrpLieGroupElement
     ) -> SO3MrpLieGroupElement:
+        """
+        Provide a move efficient product
+        """
         a = left.param[:3]
         b = right.param[:3]
         na_sq = ca.dot(a, a)
@@ -579,7 +640,7 @@ SO3EulerB321 = SO3EulerLieGroup(
 
 
 @beartype
-class SO3MrpLieGroupElement(LieGroupElement):
+class SO3MrpLieGroupElement(SO3LieGroupElement):
     """
     This is an SO3Mrp Lie group elem
     """

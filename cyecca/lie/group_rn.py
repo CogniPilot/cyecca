@@ -7,6 +7,7 @@ from numpy import floating
 import casadi as ca
 
 from beartype import beartype
+from beartype.typing import Union
 
 from cyecca.lie.base import *
 
@@ -35,7 +36,7 @@ class RnLieAlgebra(LieAlgebra):
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: RnLieAlgebraElement) -> ca.SX:
-        return ca.SX(self.matrix_shape)
+        return ca.SX(*self.matrix_shape)
 
     def to_Matrix(self, arg: RnLieAlgebraElement) -> ca.SX:
         A = ca.SX(*self.matrix_shape)
@@ -114,8 +115,69 @@ class RnLieGroupElement(LieGroupElement):
         super().__init__(group, param)
 
 
-r2 = RnLieAlgebra(n=2)
-R2 = RnLieGroup(algebra=r2)
+@beartype
+class R3LieAlgebra(RnLieAlgebra):
+    def __init__(self):
+        super().__init__(3)
 
-r3 = RnLieAlgebra(n=3)
-R3 = RnLieGroup(algebra=r3)
+    def elem(self, param: PARAM_TYPE) -> R3LieAlgebraElement:
+        return R3LieAlgebraElement(algebra=self, param=param)
+
+
+@beartype
+class R3LieAlgebraElement(RnLieAlgebraElement):
+    def __init__(self, algebra: R3LieAlgebra, param: PARAM_TYPE):
+        super().__init__(algebra, param)
+
+
+@beartype
+class R3LieGroup(RnLieGroup):
+    def __init__(self, algebra: R3LieAlgebra):
+        super().__init__(algebra)
+
+    def elem(self, param: PARAM_TYPE) -> R3LieGroupElement:
+        return R3LieGroupElement(group=self, param=param)
+
+
+@beartype
+class R3LieGroupElement(RnLieGroupElement):
+    def __init__(self, group: R3LieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
+
+
+r3 = R3LieAlgebra()
+R3 = R3LieGroup(algebra=r3)
+
+
+@beartype
+class R2LieAlgebra(RnLieAlgebra):
+    def __init__(self):
+        super().__init__(2)
+
+    def elem(self, param: PARAM_TYPE) -> R2LieAlgebraElement:
+        return R2LieAlgebraElement(algebra=self, param=param)
+
+
+@beartype
+class R2LieAlgebraElement(RnLieAlgebraElement):
+    def __init__(self, algebra: R2LieAlgebra, param: PARAM_TYPE):
+        super().__init__(algebra, param)
+
+
+@beartype
+class R2LieGroup(RnLieGroup):
+    def __init__(self, algebra: R2LieAlgebra):
+        super().__init__(algebra)
+
+    def elem(self, param: PARAM_TYPE) -> R2LieGroupElement:
+        return R2LieGroupElement(algebra=self, param=param)
+
+
+@beartype
+class R2LieGroupElement(RnLieGroupElement):
+    def __init__(self, group: R2LieGroup, param: PARAM_TYPE):
+        super().__init__(group, param)
+
+
+r2 = R2LieAlgebra()
+R2 = R2LieGroup(algebra=r2)

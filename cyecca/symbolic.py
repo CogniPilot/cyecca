@@ -185,11 +185,11 @@ def casadi_to_sympy(expr, syms=None):
     elif op == ca.OP_NE:
         return binary(expr, lambda a, b: a != b)
     elif op == ca.OP_NOT:
-        return unary(expr, lambda a: not a)
+        return unary(expr, lambda a: sympy.Not(a))
     elif op == ca.OP_AND:
-        return binary(expr, lambda a, b: a and b)
+        return binary(expr, lambda a, b: sympy.And(a, b))
     elif op == ca.OP_OR:
-        return binary(expr, lambda a, b: a or b)
+        return binary(expr, lambda a, b: sympy.Or(a, b))
     elif op == ca.OP_FLOOR:
         return unary(expr, lambda a: sympy.floor(a))
     elif op == ca.OP_CEIL:

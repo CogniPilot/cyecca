@@ -38,7 +38,7 @@ class SE3LieAlgebra(LieAlgebra):
         return self.elem(param=left.param + right.param)
 
     def scalar_multiplication(
-        self, left: (float, int), right: SE3LieAlgebraElement
+        self, left: SCALAR_TYPE, right: SE3LieAlgebraElement
     ) -> SE3LieAlgebraElement:
         return self.elem(param=left * right.param)
 

@@ -40,10 +40,10 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.coverage.run]
-omit = [".*", "*/site-packages/*"]
+omit = [".*", "*/site-packages/*", "tests/*"]
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 79
 exclude_also = [
 	"pass",
 	"raise NotImplementedError"

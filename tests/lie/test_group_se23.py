@@ -6,8 +6,8 @@ from cyecca.lie.group_se23 import *
 class Test_LieGroupSE23Mrp(ProfiledTestCase):
     def setUp(self):
         super().setUp()
-        self.v1 = ca.DM([1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0])
-        self.v2 = ca.DM([1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 0.0, 0.0])
+        self.v1 = ca.DM([0.1, 0.2, 0.3, 0.4, 5.0, 6.0, 0.15, 0.25, 0.35])
+        self.v2 = ca.DM([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.15, 0.25, 0.35])
 
     def test_ctor(self):
         SE23Mrp.elem(param=self.v1)
@@ -48,17 +48,14 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
         g1 = SE23Mrp.algebra.elem(self.v1)
         g1.exp(SE23Mrp)
 
-    @unittest.skip
     def test_log(self):
         G1 = SE23Mrp.elem(self.v1)
         G1.log()
 
-    @unittest.skip
     def test_exp_log(self):
         G1 = SE23Mrp.elem(self.v1)
         G2 = G1.log().exp(SE23Mrp)
-        print(G1, G2)
-        self.assertTrue(G1 == G2)
+        self.assertTrue(SX_close(G1.param, G2.param))
 
     def test_print_group(self):
         print(SE23Mrp)

@@ -343,7 +343,10 @@ class SO3EulerLieGroup(SO3LieGroup):
         return self.from_Matrix(SO3Dcm.to_Matrix(arg))
 
     def from_Quat(self, arg: SO3QuatLieGroupElement) -> SO3EulerLieGroupElement:
-        return self.from_Matrix(SO3Quat.to_Matrix())
+        return self.from_Matrix(arg.to_Matrix())
+
+    def from_Mrp(self, arg: SO3MrpLieGroupElement) -> SO3EulerLieGroupElement:
+        return self.from_Matrix(arg.to_Matrix())
 
 
 @beartype

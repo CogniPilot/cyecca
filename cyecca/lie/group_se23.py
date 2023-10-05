@@ -51,18 +51,14 @@ class SE23LieAlgebra(LieAlgebra):
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: SE23LieAlgebraElement):
-        a_b = arg.a_b
-        v_b = arg.v_b
-
-        a_b_x = so3.wedge(a_b.param)
-        v_b_x = so3.wedge(v_b.param)
-
+        a_b_x = so3.wedge(arg.a_b.param).to_Matrix()
+        v_b_x = so3.wedge(arg.v_b.param).to_Matrix()
         Omega = arg.Omega.to_Matrix()
-        # TODO, check this
+        Z3 = ca.SX(3, 3)
         return ca.vertcat(
-            ca.horzcat(Omega, a_b_x, v_b_x),
-            ca.horzcat(ca.SX(3, 3), Omega, ca.SX(3, 3)),
-            ca.horzcat(ca.SX(3, 3), ca.SX(3, 3), Omega),
+            ca.horzcat(Omega, Z3, a_b_x),
+            ca.horzcat(Z3, Omega, v_b_x),
+            ca.horzcat(Z3, Z3, Omega),
         )
 
     def to_Matrix(self, arg: SE23LieAlgebraElement) -> ca.SX:
@@ -124,9 +120,13 @@ class SE23LieGroup(LieGroup):
         return self.elem(param=ca.vertcat(p.param, v.param, R.param))
 
     def adjoint(self, arg: SE23LieGroupElement):
+        px = so3.wedge(arg.p.param).to_Matrix()
+        vx = so3.wedge(arg.v.param).to_Matrix()
         R = arg.R.to_Matrix()
-        vx = so3.wedge(arg.v).to_Matrix()
-        return np.block([[R, vx @ R], [ca.SX(3, 3), R]])
+        Z3 = ca.SX(3, 3)
+        return ca.vertcat(
+            ca.horzcat(R, Z3, vx @ R), ca.horzcat(Z3, R, px @ R), ca.horzcat(Z3, Z3, R)
+        )
 
     def exp(self, arg: SE23LieAlgebraElement) -> SE23LieGroupElement:
         Omega = arg.to_Matrix()

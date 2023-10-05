@@ -1,6 +1,8 @@
 from ..common import *
 
 from cyecca.lie.group_se23 import *
+import scipy.linalg
+import numpy as np
 
 
 class Test_LieGroupSE23Mrp(ProfiledTestCase):
@@ -56,6 +58,12 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
         G1 = SE23Mrp.elem(self.v1)
         G2 = G1.log().exp(SE23Mrp)
         self.assertTrue(SX_close(G1.param, G2.param))
+
+    def test_ad_Ad_exp(self):
+        x = se23.elem(self.v1)
+        exp_ad_x = scipy.linalg.expm(ca.DM(x.ad()))
+        Ad_exp_x = np.array(ca.DM(x.exp(SE23Mrp).Ad()))
+        self.assertTrue(np.linalg.norm(exp_ad_x - Ad_exp_x) < 1e-12)
 
     def test_print_group(self):
         print(SE23Mrp)

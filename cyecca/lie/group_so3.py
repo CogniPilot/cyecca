@@ -174,7 +174,8 @@ class SO3LieGroupElement(LieGroupElement):
         if isinstance(right, ca.SX) and right.shape == (3, 1):
             return self.group.product_vector(self, right)
         else:
-            raise TypeError("unhandled type in product {:s}".format(type(right)))
+            print(type(right))
+            raise TypeError("unhandled type in product {:s}".format(str(type(right))))
 
 
 @beartype
@@ -495,33 +496,10 @@ class SO3QuatLieGroup(SO3LieGroup):
         return SO3Quat.elem(q)
 
     def from_Dcm(self, arg: SO3DcmLieGroupElement) -> SO3QuatLieGroupElement:
-        return self.from_Matrix(SO3Dcm.to_Matrix(arg))
+        return self.from_Matrix(arg.to_Matrix())
 
     def from_Euler(self, arg: SO3EulerLieGroupElement) -> SO3QuatLieGroupElement:
-        group = arg.group
-        if (
-            group.sequence == [Axis.z, Axis.y, Axis.x]
-            and group.euler_type == EulerType.body_fixed
-        ):
-            q = ca.SX(4, 1)
-            psi = arg.param[0]
-            theta = arg.param[1]
-            phi = arg.param[2]
-            cosPhi_2 = ca.cos(phi / 2)
-            cosTheta_2 = ca.cos(theta / 2)
-            cosPsi_2 = ca.cos(psi / 2)
-            sinPhi_2 = ca.sin(phi / 2)
-            sinTheta_2 = ca.sin(theta / 2)
-            sinPsi_2 = ca.sin(psi / 2)
-            q[0] = cosPhi_2 * cosTheta_2 * cosPsi_2 + sinPhi_2 * sinTheta_2 * sinPsi_2
-            q[1] = sinPhi_2 * cosTheta_2 * cosPsi_2 - cosPhi_2 * sinTheta_2 * sinPsi_2
-            q[2] = cosPhi_2 * sinTheta_2 * cosPsi_2 + sinPhi_2 * cosTheta_2 * sinPsi_2
-            q[3] = cosPhi_2 * cosTheta_2 * sinPsi_2 - sinPhi_2 * sinTheta_2 * cosPsi_2
-        else:
-            raise NotImplementedError(
-                f"not implemented for euler: {group.euler_type} {group.sequence}"
-            )
-        return SO3Quat.elem(q)
+        return self.from_Matrix(arg.to_Matrix())
 
 
 @beartype
@@ -619,8 +597,7 @@ class SO3MrpLieGroup(SO3LieGroup):
         return X
 
     def from_Euler(self, arg: SO3EulerLieGroupElement) -> SO3MrpLieGroupElement:
-        assert arg.shape == (3, 3)
-        return self.from_Quat(SO3Quat.from_Euler(arg))
+        return self.from_Matrix(arg.to_Matrix())
 
 
 SO3EulerB321 = SO3EulerLieGroup(

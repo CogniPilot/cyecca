@@ -66,14 +66,14 @@ def derive_ekf_correct(g, joseph=True):
     S = H @ P_0 @ H.T + R
     S_I = ca.inv(S)
     K = P_0 @ H.T @ S_I
-    
+
     # Non-Joseph Form
-    if joseph:    
+    if joseph:
         e1 = I - K @ H
-        P_1 = e1 @ P_0 @ e1.T + K@R@K.T
+        P_1 = e1 @ P_0 @ e1.T + K @ R @ K.T
     else:
         P_1 = (I - K @ H) @ P_0
-    
+
     y_h = g(x_0, u_0, p)
     x_1 = x_0 + K @ (y - y_h)
     return ca.Function(

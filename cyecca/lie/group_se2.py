@@ -142,9 +142,7 @@ class SE2LieGroup(LieGroup):
     def from_Matrix(self, arg: ca.SX) -> SE2LieAlgebraElement:
         return self.LieAlgebraElement(
             arg[0, 2],
-            arg[
-                1,
-            ],
+            arg[1,],
             arg[1, 0],
         )
 

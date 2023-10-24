@@ -1,7 +1,12 @@
+from beartype import beartype
+from beartype.typing import Tuple, Union, Callable
+
+
 import casadi as ca
 
 
-def rk4(f, t, y, h):
+@beartype
+def rk4(f: Callable, t: Union[ca.SX, float, int, ca.DM], y: ca.SX, h: ca.SX) -> ca.SX:
     """Runge Kuta 4th order integrator"""
     k1 = h * f(t, y)
     k2 = h * f(t + h / 2, y + k1 / 2)
@@ -10,7 +15,8 @@ def rk4(f, t, y, h):
     return ca.simplify(y + (k1 + 2 * k2 + 2 * k3 + k4) / 6)
 
 
-def sqrt_covariance_predict(W, F, Q):
+@beartype
+def sqrt_covariance_predict(W: ca.SX, F: ca.SX, Q: ca.SX) -> ca.SX:
     """
     Finds a sqrt factorization of the continuous time covariance
     propagation equations. Requires solving a linear system of equations
@@ -56,7 +62,8 @@ def sqrt_covariance_predict(W, F, Q):
     return W_dot_sol
 
 
-def sqrt_correct(Rs, H, W):
+@beartype
+def sqrt_correct(Rs: ca.SX, H: ca.SX, W: ca.SX) -> Tuple[ca.SX, ca.SX, ca.SX]:
     """
     source: Fast Stable Kalman Filter Algorithms Utilising the Square Root, Steward 98
     Rs: sqrt(R)
@@ -83,3 +90,49 @@ def sqrt_correct(Rs, H, W):
     P_HT_SsInv = B_R[n_y:, :n_y]
     K = ca.mtimes(P_HT_SsInv, ca.inv(Ss))
     return Wp, K, Sso
+
+
+def ldl_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:
+    """
+    @param P: Symmetric positive definite matrix
+    @return:
+        L: Lower triangular, unit diagonal
+        D: Diagonal
+    """
+    n = P.shape[0]
+    D = ca.SX.zeros(ca.Sparsity_diag(n))
+    L = ca.SX.zeros(ca.Sparsity_lower(n))
+    for j in range(n):
+        D[j, j] = P[j, j]
+        L[j, j] = 1
+        for k in range(0, j):
+            D[j, j] -= L[j, k] ** 2 * D[k, k]
+        for i in range(j + 1, n):
+            T = P[i, j]
+            for k in range(0, j):
+                T -= L[i, k] * L[j, k] * D[k, k]
+            L[i, j] = T / D[j, j]
+    return L, D
+
+
+def udu_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:
+    """
+    @param P: Symmetric positive definite matrix
+    @return:
+        U: Upper triangular, unit diagonal
+        D: Diagonal
+    """
+    n = P.shape[0]
+    P2 = ca.SX(P)
+    D = ca.SX.zeros(ca.Sparsity_diag(n))
+    U = ca.SX.zeros(ca.Sparsity_upper(n))
+    for j in range(n - 1, 0, -1):
+        D[j, j] = P2[j, j]
+        U[j, j] = 1
+        for k in range(j):
+            U[k, j] = P2[k, j] / D[j, j]
+            for i in range(j):
+                P2[i, k] -= P2[k, j] * U[i, j]
+    U[0, 0] = 1
+    D[0, 0] = P2[0, 0]
+    return U, D

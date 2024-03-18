@@ -408,12 +408,14 @@ class SO3QuatLieGroup(SO3LieGroup):
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         q = arg.param
-        theta = 2 * ca.acos(q[0])
-        c = ca.sin(theta / 2)
-        v = ca.vertcat(theta * q[1] / c, theta * q[2] / c, theta * q[3] / c)
-        return self.algebra.elem(
-            param=ca.if_else(ca.fabs(c) > 1e-7, v, ca.SX([0, 0, 0]))
+        q_imag = ca.vertcat(q[1], q[2], q[3])
+        mag = ca.norm_2(q_imag)
+        v = ca.if_else(
+            ca.fabs(mag) > 1e-10,
+            q_imag * 2 * ca.atan2(mag, q[0]) / mag,
+            q_imag * 2 * ca.sign(q[0]),
         )
+        return self.algebra.elem(v)
 
     def to_Matrix(self, arg: SO3QuatLieGroupElement) -> ca.SX:
         q = arg.param

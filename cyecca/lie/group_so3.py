@@ -187,7 +187,7 @@ class SO3DcmLieGroup(SO3LieGroup):
         return SO3DcmLieGroupElement(group=self, param=param)
 
     def inverse(self, arg: SO3DcmLieGroupElement) -> SO3DcmLieGroupElement:
-        return self.from_Matrix(param=arg.to_Matrix().T())
+        return self.from_Matrix(arg=arg.to_Matrix().T)
 
     def identity(self) -> SO3DcmLieGroupElement:
         return self.elem(param=ca.SX(self.n_param, 1))
@@ -407,15 +407,7 @@ class SO3QuatLieGroup(SO3LieGroup):
         )
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
-        q = arg.param
-        q_imag = ca.vertcat(q[1], q[2], q[3])
-        mag = ca.norm_2(q_imag)
-        v = ca.if_else(
-            ca.fabs(mag) > 1e-10,
-            q_imag * 2 * ca.atan2(mag, q[0]) / mag,
-            q_imag * 2 * ca.sign(q[0]),
-        )
-        return self.algebra.elem(v)
+        return SO3Dcm.from_Quat(arg).log()
 
     def to_Matrix(self, arg: SO3QuatLieGroupElement) -> ca.SX:
         q = arg.param

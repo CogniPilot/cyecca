@@ -68,6 +68,57 @@ class SE23LieAlgebra(LieAlgebra):
 
     def from_Matrix(self, arg: ca.SX) -> SE23LieAlgebraElement:
         raise NotImplementedError("")
+        
+    def diff_correction_inv(self, arg: SE23LieAlgebraElement) -> ca.SX:
+        v = arg.v_b
+        a = arg.a_b
+        omega = arg.Omega
+        
+        theta = ca.norm_2(omega.param)
+        A = so3.elem(a.param).ad()
+        V = so3.elem(v.param).ad()
+        Omega = omega.ad()
+        
+        Omega_sq = Omega @ Omega
+        c_theta = ca.cos(theta)
+        s_theta = ca.sin(theta)
+        
+        Coeff = ca.if_else(ca.fabs(theta) > 1e-3,
+            ca.vertcat(
+                (1 - c_theta)/(theta**2), #C0
+                (theta - s_theta)/(theta**3), #C1
+                (theta**2 + 2*c_theta - 2)/(2*theta**4), #C2
+                (theta*c_theta + 2*theta - 3*s_theta)/(2*theta**5), #C3
+                (theta**2 + theta*s_theta + 4*c_theta - 4)/(2*theta**6), #C4
+                (2 - 2*c_theta - theta*s_theta)/(2*theta**4) #C5
+            ),
+            ca.vertcat(
+                1/2 - theta**2/24 + theta**4/720,
+                1/6 - theta**2/120 + theta**4/5040,
+                1/24 - theta**2/720 + theta**4/40320,
+                1/120 - theta**2/2520 + theta**4/120960,
+                1/720 - theta**2/20160 +theta**4/1209600,
+                1/24 - theta**2/360 + theta**4/134400))
+    
+        R = ca.SX.eye(3) + Coeff[0] * Omega + Coeff[1] * Omega_sq
+        
+        M = ca.SX.sym('M',3,3)
+        C = M/2
+        C += Coeff[1] * (Omega@M + M@Omega)
+        C += Coeff[2] * (Omega_sq@M + M@Omega_sq)
+        C += Coeff[3] * (Omega@M@Omega_sq + Omega_sq@M@Omega)
+        C += Coeff[4] * (Omega_sq@M@Omega_sq)
+        C += Coeff[5] * (Omega@M@Omega)
+
+        f_C = ca.Function('f_C', [M], [C])
+        C_A = f_C(A)
+        C_V = f_C(V)
+        Z = ca.SX.zeros(3, 3)
+        Ul_inv = ca.sparsify(ca.vertcat(
+            ca.horzcat(R, Z, C_A),
+            ca.horzcat(Z, R, C_V),
+            ca.horzcat(Z, Z, R)))
+        return Ul_inv
 
 
 @beartype

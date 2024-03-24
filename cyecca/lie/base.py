@@ -40,6 +40,9 @@ class LieAlgebraElement:
     def vee(self) -> ca.SX:
         """maps from Lie algebra to its parameters as a vector"""
         return self.algebra.vee(self)
+    
+    def diff_correction_inv(self) -> ca.SX:
+        return self.algebra.diff_correction_inv(self)
 
     def __neg__(self) -> LieAlgebraElement:
         return -1 * self
@@ -104,6 +107,9 @@ class LieAlgebra(ABC):
     def vee(self, arg: LieAlgebraElement) -> ca.SX:
         """given a LieAlgebraElement, returns a parameter vector"""
         return arg.param
+    
+    def diff_correction_inv(self, arg: LieAlgebraElement) -> ca.SX:
+        ...
 
     def scalar_multiplication(
         self, left: SCALAR_TYPE, right: LieAlgebraElement

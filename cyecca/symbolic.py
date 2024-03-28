@@ -15,14 +15,15 @@ def taylor_series_near_zero(x, f, order=6, eps=1e-7, verbose=False):
     @verbose: show functions
     @return: casadi.Function
     """
-    symbols = {"x": ca.SX.sym("x")}
+    sym_name = str(x)
+    symbols = {sym_name: ca.SX.sym(sym_name)}
     f_series = f.series(x, 0, order).removeO()
     f_series, _ = sympy_to_casadi(f=f_series, symbols=symbols)
     if verbose:
         print("f_series: ", f_series, "\nf:", f)
     f, _ = sympy_to_casadi(f, symbols=symbols)
     f = ca.Function(
-        "f", [symbols["x"]], [ca.if_else(ca.fabs(symbols["x"]) < eps, f_series, f)]
+        "f", [symbols[sym_name]], [ca.if_else(ca.fabs(symbols[sym_name]) < eps, f_series, f)]
     )
     return f
 
@@ -106,6 +107,10 @@ def _sympy_parser(f, f_dict=None, symbols=None, depth=0, cse=False, verbose=Fals
         return ca.sin(prs(f.args[0]))
     elif str(f_type) == "cos":
         return ca.cos(prs(f.args[0]))
+    elif str(f_type) == "cosh":
+        return ca.cosh(prs(f.args[0]))
+    elif str(f_type) == "sinh":
+        return ca.sinh(prs(f.args[0]))
     elif str(f_type) in dict_keys:
         for i in range(len(dict_keys)):
             return f_dict[dict_keys[i]](prs(f.args[0]))

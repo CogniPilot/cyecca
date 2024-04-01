@@ -69,7 +69,7 @@ class SE23LieAlgebra(LieAlgebra):
     def from_Matrix(self, arg: ca.SX) -> SE23LieAlgebraElement:
         raise NotImplementedError("")
         
-    def diff_correction_inv(self, arg: SE23LieAlgebraElement) -> ca.SX:
+    def left_jacobian(self, arg: SE23LieAlgebraElement) -> ca.SX:
         v = arg.v_b
         a = arg.a_b
         omega = arg.Omega
@@ -114,11 +114,11 @@ class SE23LieAlgebra(LieAlgebra):
         C_A = f_C(A)
         C_V = f_C(V)
         Z = ca.SX.zeros(3, 3)
-        Ul_inv = ca.sparsify(ca.vertcat(
+        Jl = ca.sparsify(ca.vertcat(
             ca.horzcat(R, Z, C_A),
             ca.horzcat(Z, R, C_V),
             ca.horzcat(Z, Z, R)))
-        return Ul_inv
+        return Jl
 
 
 @beartype

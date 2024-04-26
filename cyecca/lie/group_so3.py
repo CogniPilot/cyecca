@@ -71,7 +71,98 @@ class SO3LieAlgebra(LieAlgebra):
     def from_Matrix(self, arg: ca.SX) -> SO3LieAlgebraElement:
         assert arg.shape == (3, 3)
         return self.elem(ca.vertcat(arg[2, 1], arg[0, 2], arg[1, 0]))
-
+    
+    def left_jacobian(self, arg: SO3LieAlgebraElement) -> ca.SX:       
+        o = ca.SX.sym("o", 3)
+        O = so3.elem(o).ad()
+        O_sq = O @ O
+        theta = ca.norm_2(o)
+        c_theta = ca.cos(theta)
+        s_theta = ca.sin(theta)
+        
+        Coeff = ca.if_else(ca.fabs(theta) > 1e-3,
+            ca.vertcat(
+                (1 - c_theta)/(theta**2), #C0
+                (theta - s_theta)/(theta**3) #C1
+            ),
+            ca.vertcat(
+                1/2 - theta**2/24 + theta**4/720,
+                1/6 - theta**2/120 + theta**4/5040))
+    
+        R = ca.SX.eye(3) + Coeff[0] * O + Coeff[1] * O_sq
+        f_R = ca.Function('f_R', [o], [R])
+        
+        Jl = f_R(arg.param)
+        return Jl
+    
+    def left_jacobian_inv(self, arg:SO3LieAlgebraElement) -> ca.SX:
+        
+        o = ca.SX.sym("o", 3)
+        O = so3.elem(o).ad()
+        O_sq = O @ O
+        theta = ca.norm_2(o)
+        cot_theta = 1/ca.tan(theta/2)
+        
+        Coeff = ca.if_else(ca.fabs(theta) > 1e-3,
+            ca.vertcat(
+                (2 - theta*cot_theta)/(2*theta**2)
+            ),
+            ca.vertcat(
+                1/12 - theta**2/720 + theta**4/30240))
+    
+        R_inv = ca.SX.eye(3) - 0.5 * O + Coeff[0] * O_sq
+        f_R_inv = ca.Function('f_R_inv', [o], [R_inv])
+        
+        Jl_inv = f_R_inv(arg.param)
+        return Jl_inv
+    
+    def right_jacobian(self, arg:SO3LieAlgebraElement) -> ca.SX:
+        
+        o = ca.SX.sym("o", 3)
+        O = so3.elem(o).ad()
+        O_sq = O @ O
+        theta = ca.norm_2(o)
+        # A = so3.elem(a.param).ad()
+        # V = so3.elem(v.param).ad()
+        c_theta = ca.cos(theta)
+        s_theta = ca.sin(theta)
+        
+        Coeff = ca.if_else(ca.fabs(theta) > 1e-3,
+            ca.vertcat(
+                (1 - c_theta)/(theta**2), #C0
+                (theta - s_theta)/(theta**3) #C1
+            ),
+            ca.vertcat(
+                1/2 - theta**2/24 + theta**4/720,
+                1/6 - theta**2/120 + theta**4/5040))
+    
+        R = ca.SX.eye(3) - Coeff[0] * O + Coeff[1] * O_sq
+        f_R = ca.Function('f_R', [o], [R])
+        
+        Jr = f_R(arg.param)
+        return Jr
+    
+    def right_jacobian_inv(self, arg:SO3LieAlgebraElement) -> ca.SX:
+        
+        o = ca.SX.sym("o", 3)
+        O = so3.elem(o).ad()
+        O_sq = O @ O
+        theta = ca.norm_2(o)
+        cot_theta = 1/ca.tan(theta/2)
+        
+        Coeff = ca.if_else(ca.fabs(theta) > 1e-3,
+            ca.vertcat(
+                (2 - theta*cot_theta)/(2*theta**2)
+            ),
+            ca.vertcat(
+                1/12 - theta**2/720 + theta**4/30240))
+    
+        R_inv = ca.SX.eye(3) + 0.5 * O + Coeff[0] * O_sq
+        f_R_inv = ca.Function('f_R_inv', [o], [R_inv])
+        
+        Jr_inv = f_R_inv(arg.param)
+        return Jr_inv
+        
 
 @beartype
 class SO3LieAlgebraElement(LieAlgebraElement):

@@ -40,22 +40,22 @@ class LieAlgebraElement:
     def vee(self) -> ca.SX:
         """maps from Lie algebra to its parameters as a vector"""
         return self.algebra.vee(self)
-    
+
     def left_jacobian(self) -> ca.SX:
         return self.algebra.left_jacobian(self)
-    
+
     def left_jacobian_inv(self) -> ca.SX:
         return self.algebra.left_jacobian_inv(self)
-    
+
     def left_Q(self, vb: LieAlgebraElement, omega: LieAlgebraElement) -> ca.SX:
         return self.algebra.left_Q(vb, omega)
-    
+
     def right_jacobian(self) -> ca.SX:
         return self.algebra.right_jacobian(self)
-    
+
     def right_jacobian_inv(self) -> ca.SX:
         return self.algebra.right_jacobian_inv(self)
-    
+
     def right_Q(self, vb: LieAlgebraElement, omega: LieAlgebraElement) -> ca.SX:
         return self.algebra.right_Q(vb, omega)
 
@@ -122,22 +122,22 @@ class LieAlgebra(ABC):
     def vee(self, arg: LieAlgebraElement) -> ca.SX:
         """given a LieAlgebraElement, returns a parameter vector"""
         return arg.param
-    
+
     def left_jacobian(self, arg: LieAlgebraElement) -> ca.SX:
         ...
-        
+
     def left_jacobian_inv(self, arg: LieAlgebraElement) -> ca.SX:
         ...
-    
+
     def left_Q(self, vb: LieAlgebraElement, omega: LieAlgebraElement) -> ca.SX:
         ...
-    
+
     def right_jacobian(self, arg: LieAlgebraElement) -> ca.SX:
         ...
-        
+
     def right_jacobian_inv(self, arg: LieAlgebraElement) -> ca.SX:
         ...
-    
+
     def right_Q(self, vb: LieAlgebraElement, omega: LieAlgebraElement) -> ca.SX:
         ...
 

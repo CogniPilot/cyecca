@@ -69,67 +69,75 @@ class SE23LieAlgebra(LieAlgebra):
 
     def from_Matrix(self, arg: ca.SX) -> SE23LieAlgebraElement:
         raise NotImplementedError("")
-        
-    def left_jacobian(self, arg: SE23LieAlgebraElement) -> ca.SX:        
+
+    def left_jacobian(self, arg: SE23LieAlgebraElement) -> ca.SX:
         v = arg.v_b
         a = arg.a_b
         omega = arg.Omega
-        
+
         Ql_v = se3.left_Q(v, omega)
         Ql_a = se3.left_Q(a, omega)
         R = omega.left_jacobian()
         Z = ca.SX.zeros(3, 3)
-        Jl = ca.sparsify(ca.vertcat(
-             ca.horzcat(R, Z, Ql_v),
-             ca.horzcat(Z, R, Ql_a),
-             ca.horzcat(Z, Z, R)))
-        
+        Jl = ca.sparsify(
+            ca.vertcat(
+                ca.horzcat(R, Z, Ql_v), ca.horzcat(Z, R, Ql_a), ca.horzcat(Z, Z, R)
+            )
+        )
+
         return Jl
-    
-    def left_jacobian_inv(self, arg:SE23LieAlgebraElement) -> ca.SX:        
+
+    def left_jacobian_inv(self, arg: SE23LieAlgebraElement) -> ca.SX:
         v = arg.v_b
         a = arg.a_b
         omega = arg.Omega
-        
+
         Ql_v = se3.left_Q(v, omega)
         Ql_a = se3.left_Q(a, omega)
         R_inv = omega.left_jacobian_inv()
         Z = ca.SX.zeros(3, 3)
-        Jl_inv = ca.sparsify(ca.vertcat(
-             ca.horzcat(R_inv, Z, -R_inv@Ql_v@R_inv),
-             ca.horzcat(Z, R_inv, -R_inv@Ql_a@R_inv),
-             ca.horzcat(Z, Z, R_inv)))
-        
+        Jl_inv = ca.sparsify(
+            ca.vertcat(
+                ca.horzcat(R_inv, Z, -R_inv @ Ql_v @ R_inv),
+                ca.horzcat(Z, R_inv, -R_inv @ Ql_a @ R_inv),
+                ca.horzcat(Z, Z, R_inv),
+            )
+        )
+
         return Jl_inv
-    
+
     def right_jacobian(self, arg: SE23LieAlgebraElement) -> ca.SX:
         v = arg.v_b
         a = arg.a_b
         omega = arg.Omega
-        
+
         Qr_v = se3.right_Q(v, omega)
         Qr_a = se3.right_Q(a, omega)
         R = omega.right_jacobian()
         Z = ca.SX.zeros(3, 3)
-        Jr = ca.sparsify(ca.vertcat(
-             ca.horzcat(R, Z, Qr_v),
-             ca.horzcat(Z, R, Qr_a),
-             ca.horzcat(Z, Z, R)))
+        Jr = ca.sparsify(
+            ca.vertcat(
+                ca.horzcat(R, Z, Qr_v), ca.horzcat(Z, R, Qr_a), ca.horzcat(Z, Z, R)
+            )
+        )
         return Jr
-    
+
     def right_jacobian_inv(self, arg: SE23LieAlgebraElement) -> ca.SX:
         v = arg.v_b
         a = arg.a_b
         omega = arg.Omega
-        
+
         Qr_v = se3.right_Q(v, omega)
         Qr_a = se3.right_Q(a, omega)
         R_inv = omega.right_jacobian_inv()
         Z = ca.SX.zeros(3, 3)
-        Jr_inv = ca.sparsify(ca.vertcat(
-             ca.horzcat(R_inv, Z, -R_inv@Qr_v@R_inv),
-             ca.horzcat(Z, R_inv, -R_inv@Qr_a@R_inv),
-             ca.horzcat(Z, Z, R_inv)))
+        Jr_inv = ca.sparsify(
+            ca.vertcat(
+                ca.horzcat(R_inv, Z, -R_inv @ Qr_v @ R_inv),
+                ca.horzcat(Z, R_inv, -R_inv @ Qr_a @ R_inv),
+                ca.horzcat(Z, Z, R_inv),
+            )
+        )
         return Jr_inv
 
 

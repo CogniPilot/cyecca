@@ -71,6 +71,22 @@ class Test_LieAlgebraSO3(ProfiledTestCase):
     def test_repr(self):
         repr(so3)
 
+    def test_leftjacobian(self):
+        g1 = so3.elem(self.v1)
+        g1.left_jacobian()
+
+    def test_rightjacobian(self):
+        g1 = so3.elem(self.v1)
+        g1.right_jacobian()
+
+    def test_leftjacobianinv(self):
+        g1 = so3.elem(self.v1)
+        g1.left_jacobian_inv()
+
+    def test_rightjacobian(self):
+        g1 = so3.elem(self.v1)
+        g1.right_jacobian_inv()
+
 
 class Test_LieGroupSO3Euler(ProfiledTestCase):
     def setUp(self):

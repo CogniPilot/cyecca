@@ -196,7 +196,7 @@ class SE23LieGroup(LieGroup):
         R = arg.R.to_Matrix()
         Z3 = ca.SX(3, 3)
         return ca.vertcat(
-            ca.horzcat(R, Z3, vx @ R), ca.horzcat(Z3, R, px @ R), ca.horzcat(Z3, Z3, R)
+            ca.horzcat(R, Z3, px @ R), ca.horzcat(Z3, R, vx @ R), ca.horzcat(Z3, Z3, R)
         )
 
     def exp(self, arg: SE23LieAlgebraElement) -> SE23LieGroupElement:

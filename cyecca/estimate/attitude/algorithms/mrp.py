@@ -6,9 +6,9 @@ modified rodrigues parameters
 :return: dict of equations
 """
 
-# x, state (7)
+# x, state (6)
 # -----------
-# mrp (4)  (3 parameters and 1 shadow state)
+# mrp (3)
 # b, gyro bias (3)
 G = SO3Mrp * R3
 x = ca.SX.sym("x", G.n_param)
@@ -28,12 +28,12 @@ W = ca.SX.sym("W", ca.Sparsity_lower(n_e))
 
 def get_state(**kwargs):
     return ca.Function(
-        "get_state", [x], [q.param, r.param, b_gyro], ["x"], ["q", "r", "b_gyro"]
+        "get_state", [x], [q.param, r.param, b_gyro.param], ["x"], ["q", "r", "b_gyro"]
     )
 
 
 def constants(**kwargs):
-    x0 = ca.DM.zeros(7)
+    x0 = ca.DM.zeros(6)
     return ca.Function("constants", [], [x0, W0], [], ["x0", "W0"])
 
 
@@ -95,29 +95,33 @@ def initialize(**kwargs):
 
 def predict(**kwargs):
     # state derivative
-    xdot = ca.vertcat(so3.Mrp.kinematics(r, omega_m - b_gyro), std_gyro_rw * w_gyro_rw)
+    xdot = ca.vertcat(
+        SO3Mrp.right_jacobian(r) @ (omega_m - b_gyro.param), std_gyro_rw * w_gyro_rw
+    )
     f_xdot = ca.Function(
         "xdot",
-        [t, x, omega_m, std_gyro, sn_gyro_rw, w_gyro, w_gyro_rw],
+        [t, x, omega_m, std_gyro, sn_gyro_rw, w_gyro, w_gyro_rw, dt],
         [xdot],
-        ["t", "x", "omega_m", "std_gyro", "sn_gyro_rw", "w_gyro", "w_gyro_rw"],
+        ["t", "x", "omega_m", "std_gyro", "sn_gyro_rw", "w_gyro", "w_gyro_rw", "dt"],
         ["xdot"],
     )
 
     # state prop w/o noise
     x1 = util.rk4(
-        lambda t, x: f_xdot(t, x, omega_m, 0, 0, ca.DM.zeros(3), ca.DM.zeros(3)),
+        lambda t, x: f_xdot(t, x, omega_m, 0, 0, ca.DM.zeros(3), ca.DM.zeros(3), dt),
         t,
         x,
         dt,
     )
-    x1[:4] = so3.Mrp.shadow_if_necessary(x1[:4])
+    r1 = SO3Mrp.elem(x1[:3])
+    SO3Mrp.shadow_if_necessary(r1)
+    x1[:3] = r1.param
 
     # error dynamics
     f = ca.Function(
         "f",
         [omega_m, eta, x, w_gyro_rw],
-        [ca.vertcat(-ca.mtimes(SO3EulerB321.from_Mrp(r), eta[3:6]), w_gyro_rw)],
+        [ca.vertcat(r @ (-eta[3:6]), w_gyro_rw)],
     )
 
     # linearized error dynamics
@@ -184,7 +188,7 @@ def correct_mag(**kwargs):
     S_mag = ca.mtimes(Ss_mag, Ss_mag.T)
     r_std_mag = ca.diag(Ss_mag)
     r_mag = -ca.atan2(y_n[1], y_n[0]) + mag_decl
-    x_mag = G.product(G.exp(ca.mtimes(K_mag, r_mag)), x)
+    x_mag = G.product(G.exp(G.algebra.elem(ca.mtimes(K_mag, r_mag))), G.elem(x)).param
     x_mag[3] = x[3]  # keep shadow state the same
     beta_mag = ca.mtimes([r_mag.T, ca.inv(S_mag), r_mag]) / beta_mag_c
 
@@ -212,9 +216,13 @@ def correct_accel(**kwargs):
     H_accel[1, 1] = 1
 
     f_measure_accel = ca.Function(
-        "measure_accel", [x], [g * ca.mtimes(C_nb.T, ca.SX([0, 0, -1]))], ["x"], ["y"]
+        "measure_accel",
+        [x, g],
+        [g * ca.mtimes(C_nb.T, ca.SX([0, 0, -1]))],
+        ["x", "g"],
+        ["y"],
     )
-    yh_accel = f_measure_accel(x)
+    yh_accel = f_measure_accel(x, g)
     y_b = ca.SX.sym("y_b", 3)
     n3 = ca.SX([0, 0, 1])
     y_n = ca.mtimes(C_nb, -y_b)
@@ -234,7 +242,9 @@ def correct_accel(**kwargs):
     r_accel = omega_c_accel_n[0:2]
     r_std_accel = ca.diag(Ss_accel)
     beta_accel = ca.mtimes([r_accel.T, ca.inv(S_accel), r_accel]) / beta_accel_c
-    x_accel = G.product(G.exp(ca.mtimes(K_accel, r_accel)), x)
+    x_accel = G.product(
+        G.exp(G.algebra.elem(ca.mtimes(K_accel, r_accel))), G.elem(x)
+    ).param
     x_accel[3] = x[3]  # keep shadow state the same
     x_accel = ca.sparsify(x_accel)
 

@@ -1,6 +1,6 @@
-from ..common import *
-
-from cyecca.lie.group_rn import *
+import casadi as ca
+from ..common import SX_close, ProfiledTestCase
+from cyecca.lie.group_rn import R3, r3
 
 
 class Test_LieGroupR3(ProfiledTestCase):
@@ -68,7 +68,7 @@ class Test_LieGroupR3(ProfiledTestCase):
     def test_eq(self):
         G1 = R3.elem(self.v1)
         G2 = R3.elem(self.v1)
-        self.assertTrue(G1 == G2)
+        self.assertTrue(ca.eq(G1, G2))
 
     def test_Ad(self):
         G1 = R3.elem(self.v1)

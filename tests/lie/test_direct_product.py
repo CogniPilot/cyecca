@@ -1,8 +1,9 @@
-from ..common import *
+from ..common import ProfiledTestCase, SX_close
+import casadi as ca
 
-from cyecca.lie.direct_product import *
-from cyecca.lie.group_se2 import *
-from cyecca.lie.group_rn import *
+# from cyecca.lie.direct_product import
+from cyecca.lie.group_se2 import SE2
+from cyecca.lie.group_rn import R3
 
 
 class Test_LieGroupDirectProduct(ProfiledTestCase):

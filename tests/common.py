@@ -1,10 +1,8 @@
-import unittest
-
-from beartype.roar import BeartypeCallHintParamViolation
-
+from beartype import beartype
 from pathlib import Path
 import cProfile
 from pstats import Stats
+import unittest
 
 import casadi as ca
 
@@ -13,6 +11,7 @@ EPS = 1e-9
 from cyecca.symbolic import casadi_to_sympy
 
 
+@beartype
 def SX_close(e1: (ca.SX, ca.DM), e2: (ca.SX, ca.DM)):
     close = ca.norm_2(e1 - e2) < EPS
     if not close:
@@ -20,6 +19,7 @@ def SX_close(e1: (ca.SX, ca.DM), e2: (ca.SX, ca.DM)):
     return close
 
 
+@beartype
 class ProfiledTestCase(unittest.TestCase):
     def setUp(self):
         self.pr = cProfile.Profile()

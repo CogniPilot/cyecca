@@ -1,6 +1,8 @@
-from ..common import *
+from tests.common import ProfiledTestCase, SX_close
 
-from cyecca.lie.group_se3 import *
+import casadi as ca
+
+from cyecca.lie.group_se3 import SE3Mrp, SE3Quat, se3
 
 
 class Test_LieAlgebraSE3(ProfiledTestCase):

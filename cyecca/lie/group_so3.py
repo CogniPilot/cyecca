@@ -655,6 +655,13 @@ class SO3MrpLieGroup(SO3LieGroup):
         v = 4 * ca.atan(n) * r[:3] / n
         return self.algebra.elem(param=ca.if_else(n > 1e-7, v, ca.SX([0, 0, 0])))
 
+    def right_jacobian(self, arg: SO3MrpLieGroupElement) -> ca.SX:
+        r = arg.param
+        n_sq = ca.dot(r, r)
+        X = so3.elem(r).to_Matrix()
+        B = 0.25 * ((1 - n_sq) * ca.SX.eye(3) + 2 * X + 2 * r @ r.T)
+        return B
+
     def to_Matrix(self, arg: SO3MrpLieGroupElement) -> ca.SX:
         r = arg.param
         a = r[:3]

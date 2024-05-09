@@ -1,8 +1,12 @@
-from ..common import *
+from tests.common import ProfiledTestCase, SX_close
+from beartype import beartype
 
-from cyecca.lie.group_so3 import *
+import casadi as ca
+
+from cyecca.lie.group_so3 import so3, SO3EulerB321, SO3Quat, SO3Mrp
 
 
+@beartype
 class Test_LieAlgebraSO3(ProfiledTestCase):
     def setUp(self):
         super().setUp()

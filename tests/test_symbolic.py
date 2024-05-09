@@ -1,9 +1,11 @@
 from cyecca.symbolic import sympy_to_casadi, casadi_to_sympy
-
+from beartype import beartype
 import sympy
-from .common import *
+import casadi as ca
+from .common import ProfiledTestCase, SX_close
 
 
+@beartype
 class Test_Symbolic(ProfiledTestCase):
     def setUp(self):
         super().setUp()

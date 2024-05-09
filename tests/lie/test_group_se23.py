@@ -1,10 +1,13 @@
-from ..common import *
+import casadi as ca
+from ..common import SX_close, ProfiledTestCase
 
-from cyecca.lie.group_se23 import *
+from cyecca.lie.group_se23 import SE23Mrp, se23
+from beartype import beartype
 import scipy.linalg
 import numpy as np
 
 
+@beartype
 class Test_LieGroupSE23Mrp(ProfiledTestCase):
     def setUp(self):
         super().setUp()

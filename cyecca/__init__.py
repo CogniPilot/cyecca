@@ -1,1 +1,1 @@
-from .lie import *
+from cyecca.lie import *

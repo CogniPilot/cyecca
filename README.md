@@ -9,6 +9,7 @@ Estimation and Control with Computer Algebra systems
 * Install poetry: https://python-poetry.org/docs/
 
 ```bash
+sudo apt install graphviz
 git clone git@github.com:CogniPilot/cyecca.git
 cd cyecca
 poetry install

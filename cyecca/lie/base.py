@@ -63,7 +63,7 @@ class LieAlgebraElement:
         return -1 * self
 
     def __eq__(self, other: LieAlgebraElement) -> ca.SX:
-        return ca.logic_all(self.param == other.param)
+        return ca.logic_all(ca.eq(self.param, other.param))
 
     def __mul__(
         self, right: Union[LieAlgebraElement, SCALAR_TYPE]
@@ -225,7 +225,7 @@ class LieGroupElement:
             return self * (-other).exp(self.group)
 
     def __eq__(self, other: LieGroupElement) -> ca.SX:
-        return ca.logic_all(self.param == other.param)
+        return ca.logic_all(ca.eq(self.param, other.param))
 
     def __mul__(self, right: LieGroupElement) -> LieGroupElement:
         return self.group.product(left=self, right=right)

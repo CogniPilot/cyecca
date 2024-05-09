@@ -89,7 +89,7 @@ def sqrt_correct(Rs: ca.SX, H: ca.SX, W: ca.SX) -> Tuple[ca.SX, ca.SX, ca.SX]:
     Ss = B_R[:n_y, :n_y]
     P_HT_SsInv = B_R[n_y:, :n_y]
     K = ca.mtimes(P_HT_SsInv, ca.inv(Ss))
-    return Wp, K, Sso
+    return Wp, K, Ss
 
 
 def ldl_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:

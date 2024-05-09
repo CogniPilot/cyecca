@@ -6,6 +6,7 @@ from casadi.tools.graph import graph
 import cyecca.util as util
 from cyecca.lie.group_so3 import *
 from cyecca.lie.group_rn import *
+from cyecca.lie.direct_product import *
 
 # misc variables
 omega_t = ca.SX.sym("omega_t", 3, 1)  # angular velocity in body frame, true

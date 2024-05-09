@@ -68,7 +68,7 @@ class SE3LieAlgebra(LieAlgebra):
 
     def vee(self, arg: SE3LieAlgebraElement) -> ca.SX:
         return arg.param
-    
+
     def left_Q(self, vb: R3LieAlgebraElement, omega: SO3LieAlgebraElement) -> ca.SX:
         v = ca.SX.sym("v", 3)
         o = ca.SX.sym("o", 3)
@@ -78,87 +78,86 @@ class SE3LieAlgebra(LieAlgebra):
         theta = ca.norm_2(o)
         c_theta = ca.cos(theta)
         s_theta = ca.sin(theta)
-        
-        Coeff = ca.if_else(ca.fabs(theta) > 1e-3,
+
+        Coeff = ca.if_else(
+            ca.fabs(theta) > 1e-3,
             ca.vertcat(
-                (1 - c_theta)/(theta**2), #C0
-                (theta - s_theta)/(theta**3), #C1
-                (theta**2 + 2*c_theta - 2)/(2*theta**4), #C2
-                (theta*c_theta + 2*theta - 3*s_theta)/(2*theta**5), #C3
-                (theta**2 + theta*s_theta + 4*c_theta - 4)/(2*theta**6), #C4
-                (2 - 2*c_theta - theta*s_theta)/(2*theta**4) #C5
+                (1 - c_theta) / (theta**2),  # C0
+                (theta - s_theta) / (theta**3),  # C1
+                (theta**2 + 2 * c_theta - 2) / (2 * theta**4),  # C2
+                (theta * c_theta + 2 * theta - 3 * s_theta) / (2 * theta**5),  # C3
+                (theta**2 + theta * s_theta + 4 * c_theta - 4)
+                / (2 * theta**6),  # C4
+                (2 - 2 * c_theta - theta * s_theta) / (2 * theta**4),  # C5
             ),
             ca.vertcat(
-                1/2 - theta**2/24 + theta**4/720,
-                1/6 - theta**2/120 + theta**4/5040,
-                1/24 - theta**2/720 + theta**4/40320,
-                1/120 - theta**2/2520 + theta**4/120960,
-                1/720 - theta**2/20160 +theta**4/1209600,
-                1/24 - theta**2/360 + theta**4/134400))
-        
-        C = V/2
-        C += Coeff[1] * (O@V + V@O)
-        C += Coeff[2] * (O_sq@V+ V@O_sq)
-        C += Coeff[3] * (O@V@O_sq + O_sq@V@O)
-        C += Coeff[4] * (O_sq@V@O_sq)
-        C += Coeff[5] * (O@V@O)
-        
-        f_Q = ca.Function('f_Q', [v, o], [C])
-        
+                1 / 2 - theta**2 / 24 + theta**4 / 720,
+                1 / 6 - theta**2 / 120 + theta**4 / 5040,
+                1 / 24 - theta**2 / 720 + theta**4 / 40320,
+                1 / 120 - theta**2 / 2520 + theta**4 / 120960,
+                1 / 720 - theta**2 / 20160 + theta**4 / 1209600,
+                1 / 24 - theta**2 / 360 + theta**4 / 134400,
+            ),
+        )
+
+        C = V / 2
+        C += Coeff[1] * (O @ V + V @ O)
+        C += Coeff[2] * (O_sq @ V + V @ O_sq)
+        C += Coeff[3] * (O @ V @ O_sq + O_sq @ V @ O)
+        C += Coeff[4] * (O_sq @ V @ O_sq)
+        C += Coeff[5] * (O @ V @ O)
+
+        f_Q = ca.Function("f_Q", [v, o], [C])
+
         Ql = f_Q(vb.param, omega.param)
-        
+
         return Ql
-    
-    def left_jacobian(self, arg: SE3LieAlgebraElement) -> ca.SX:        
+
+    def left_jacobian(self, arg: SE3LieAlgebraElement) -> ca.SX:
         omega = arg.Omega
         vb = arg.v_b
         Ql = arg.left_Q(vb, omega)
         R = omega.left_jacobian()
         Z = ca.SX.zeros(3, 3)
-        Jl = ca.sparsify(ca.vertcat(
-             ca.horzcat(R, Ql),
-             ca.horzcat(Z, R)))
-        
+        Jl = ca.sparsify(ca.vertcat(ca.horzcat(R, Ql), ca.horzcat(Z, R)))
+
         return Jl
-    
-    def left_jacobian_inv(self, arg:SE3LieAlgebraElement) -> ca.SX:        
+
+    def left_jacobian_inv(self, arg: SE3LieAlgebraElement) -> ca.SX:
         omega = arg.Omega
         vb = arg.v_b
         Ql = arg.left_Q(vb, omega)
         R_inv = omega.left_jacobian_inv()
         Z = ca.SX.zeros(3, 3)
-        Jl_inv = ca.sparsify(ca.vertcat(
-             ca.horzcat(R_inv, -R_inv@Ql@R_inv),
-             ca.horzcat(Z, R_inv)))
-        
+        Jl_inv = ca.sparsify(
+            ca.vertcat(ca.horzcat(R_inv, -R_inv @ Ql @ R_inv), ca.horzcat(Z, R_inv))
+        )
+
         return Jl_inv
-    
+
     def right_Q(self, vb: R3LieAlgebraElement, omega: SO3LieAlgebraElement) -> ca.SX:
         Qr = self.left_Q(-vb, -omega)
         return Qr
-    
+
     def right_jacobian(self, arg: SE3LieAlgebraElement) -> ca.SX:
         omega = arg.Omega
         vb = arg.v_b
         Qr = arg.right_Q(vb, omega)
         R = omega.right_jacobian()
         Z = ca.SX.zeros(3, 3)
-        Jr = ca.sparsify(ca.vertcat(
-             ca.horzcat(R, Qr),
-             ca.horzcat(Z, R)))
+        Jr = ca.sparsify(ca.vertcat(ca.horzcat(R, Qr), ca.horzcat(Z, R)))
         return Jr
-    
+
     def right_jacobian_inv(self, arg: SE3LieAlgebraElement) -> ca.SX:
         omega = arg.Omega
         vb = arg.v_b
         Qr = arg.right_Q(vb, omega)
         R_inv = omega.right_jacobian_inv()
         Z = ca.SX.zeros(3, 3)
-        Jr_inv = ca.sparsify(ca.vertcat(
-             ca.horzcat(R_inv, -R_inv@Qr@R_inv),
-             ca.horzcat(Z, R_inv)))
+        Jr_inv = ca.sparsify(
+            ca.vertcat(ca.horzcat(R_inv, -R_inv @ Qr @ R_inv), ca.horzcat(Z, R_inv))
+        )
         return Jr_inv
-    
 
 
 @beartype

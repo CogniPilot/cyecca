@@ -66,6 +66,30 @@ class Test_LieAlgebraSE3(ProfiledTestCase):
     def test_repr(self):
         repr(se3)
 
+    def test_leftjacobian(self):
+        g1 = se3.elem(self.v1)
+        g1.left_jacobian()
+
+    def test_rightjacobian(self):
+        g1 = se3.elem(self.v1)
+        g1.right_jacobian()
+
+    def test_leftjacobianinv(self):
+        g1 = se3.elem(self.v1)
+        g1.left_jacobian_inv()
+
+    def test_rightjacobian(self):
+        g1 = se3.elem(self.v1)
+        g1.right_jacobian_inv()
+
+    def test_leftQ(self):
+        g1 = se3.elem(self.v1)
+        g1.left_Q(g1.v_b, g1.Omega)
+
+    def test_rightQ(self):
+        g1 = se3.elem(self.v1)
+        g1.right_Q(g1.v_b, g1.Omega)
+
 
 class Test_LieGroupSE3Mrp(ProfiledTestCase):
     def setUp(self):

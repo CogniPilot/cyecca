@@ -361,6 +361,7 @@ def derive_series():
         "(x^2/2 + cos(x) - 1)/x^4": taylor_series_near_zero(
             x, (x**2 / 2 + cos(x) - 1) / x**4
         ),
+        "1/x^2": taylor_series_near_zero(x, 1 / x**2),
     }
 
 

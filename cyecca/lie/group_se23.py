@@ -210,7 +210,6 @@ class SE23LieGroup(LieGroup):
         return self.from_Matrix(ca.SX.eye(5) + Omega + C1 * Omega2 + C2 * Omega3)
 
     def log(self, arg: SE23LieGroupElement) -> SE23LieAlgebraElement:
-        X = arg.to_Matrix()
         omega = arg.R.log()
 
         # alternate ways of finding theta
@@ -218,19 +217,13 @@ class SE23LieGroup(LieGroup):
         theta = ca.arccos((ca.trace(arg.R.to_Matrix()) - 1) / 2)
 
         Omega = omega.to_Matrix()
-        C1 = SERIES["sin(x)/x"](theta)
-        C2 = SERIES["(1 - cos(x))/x^2"](theta)
-        V_inv = (
-            ca.SX.eye(3)
-            - Omega / 2
-            + (1 / theta**2) * (1 - C1 / (2 * C2)) * Omega @ Omega
-        )
+        A = SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](theta)
+        B = SERIES["1/x^2"](theta)
+        V_inv = ca.SX.eye(3) - Omega / 2 + 1 * A * (Omega @ Omega)
 
-        a_b = X[0:3, 3]
-        v_b = X[0:3, 4]
-        aInv = V_inv @ a_b
-        vInv = V_inv @ v_b
-        return self.algebra.elem(ca.vertcat(V_inv @ v_b, V_inv @ a_b, omega.param))
+        u = V_inv @ arg.p.param
+        a = V_inv @ arg.v.param
+        return self.algebra.elem(ca.vertcat(u, a, omega.param))
 
     def to_Matrix(self, arg: SE23LieGroupElement) -> ca.SX:
         return ca.vertcat(
@@ -239,7 +232,8 @@ class SE23LieGroup(LieGroup):
         )
 
     def from_Matrix(self, arg: ca.SX) -> SE23LieGroupElement:
-        R = SO3Mrp.from_Matrix(arg[:3, :3])
+        SO3 = self.SO3
+        R = SO3.from_Matrix(arg[:3, :3])
         v = r3.elem(arg[:3, 3])
         p = r3.elem(arg[:3, 4])
         return self.elem(ca.vertcat(p.param, v.param, R.param))

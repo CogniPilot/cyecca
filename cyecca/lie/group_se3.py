@@ -233,6 +233,7 @@ class SE3LieGroup(LieGroup):
         Omega = arg.R.log()
         theta = ca.norm_2(Omega.param)
         A = SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](theta)
+        B = SERIES["1/x^2"](theta)
         Omega_mat = Omega.to_Matrix()
         V_inv = ca.SX.eye(3) - Omega_mat / 2 + A * (Omega_mat @ Omega_mat)
         u = V_inv @ arg.p.param

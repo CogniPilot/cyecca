@@ -16,6 +16,7 @@ pydot = "^1.4.2"
 simpy = "^4.1.1"
 pyulog = "^1.1.0"
 graphviz = "^0.20.3"
+matplotlib = "^3.7.2"
 
 [tool.poetry.group.dev.dependencies]
 black = {extras = ["jupyter"], version = "^23.7.0"}
@@ -29,7 +30,6 @@ jupyter-console = "^6.6.3"
 jupyter-core = "^5.3.1"
 jupyterlab = "^3.6.3"
 lark = "^1.1.6"
-matplotlib = "^3.7.2"
 mypy = "^1.0.0"
 pre-commit = "^3.0.4"
 pylint = "^2.16.1"

@@ -233,6 +233,18 @@ class LieGroupElement:
     def Ad(self) -> ca.SX:
         return self.group.adjoint(arg=self)
 
+    def left_jacobian(self) -> ca.SX:
+        return self.group.left_jacobian(self)
+
+    def left_jacobian_inv(self) -> ca.SX:
+        return self.group.left_jacobian_inv(self)
+
+    def right_jacobian(self) -> ca.SX:
+        return self.group.right_jacobian(self)
+
+    def right_jacobian_inv(self) -> ca.SX:
+        return self.group.right_jacobian_inv(self)
+
     def to_Matrix(self) -> ca.SX:
         return self.group.to_Matrix(arg=self)
 

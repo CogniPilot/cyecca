@@ -501,6 +501,18 @@ class SO3QuatLieGroup(SO3LieGroup):
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         return SO3Dcm.from_Quat(arg).log()
 
+    def left_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
+        w = so3.elem(ca.SX.sym("w", 3))
+        qw = SO3Quat.elem(ca.vertcat(w.param, 0))
+        q_dot_left = (qw * arg).param / 2
+        return ca.jacobian(q_dot_left, w.param)
+
+    def right_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
+        w = so3.elem(ca.SX.sym("w", 3))
+        qw = SO3Quat.elem(ca.vertcat(w.param, 0))
+        q_dot_right = (arg * qw).param / 2
+        return ca.jacobian(q_dot_right, w.param)
+
     def to_Matrix(self, arg: SO3QuatLieGroupElement) -> ca.SX:
         q = arg.param
         R = ca.SX(3, 3)
@@ -655,7 +667,7 @@ class SO3MrpLieGroup(SO3LieGroup):
         v = 4 * ca.atan(n) * r[:3] / n
         return self.algebra.elem(param=ca.if_else(n > 1e-7, v, ca.SX([0, 0, 0])))
 
-    def right_jacobian(self, arg: SO3MrpLieGroupElement) -> ca.SX:
+    def right_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
         r = arg.param
         n_sq = ca.dot(r, r)
         X = so3.elem(r).to_Matrix()

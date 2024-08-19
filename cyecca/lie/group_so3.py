@@ -503,13 +503,13 @@ class SO3QuatLieGroup(SO3LieGroup):
 
     def left_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
         w = so3.elem(ca.SX.sym("w", 3))
-        qw = SO3Quat.elem(ca.vertcat(w.param, 0))
+        qw = SO3Quat.elem(ca.vertcat(0, w.param))
         q_dot_left = (qw * arg).param / 2
         return ca.jacobian(q_dot_left, w.param)
 
     def right_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
         w = so3.elem(ca.SX.sym("w", 3))
-        qw = SO3Quat.elem(ca.vertcat(w.param, 0))
+        qw = SO3Quat.elem(ca.vertcat(0, w.param))
         q_dot_right = (arg * qw).param / 2
         return ca.jacobian(q_dot_right, w.param)
 

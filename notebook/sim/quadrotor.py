@@ -43,10 +43,10 @@ def derive_model():
         "dir_motor_1": 1,
         "dir_motor_2": -1,
         "dir_motor_3": -1,
-        "l_motor_0": 1,
-        "l_motor_1": 1,
-        "l_motor_2": 1,
-        "l_motor_3": 1,
+        "l_motor_0": 0.25,
+        "l_motor_1": 0.25,
+        "l_motor_2": 0.25,
+        "l_motor_3": 0.25,
         "theta_motor_0": np.pi / 4,
         "theta_motor_1": -3 * np.pi / 4,
         "theta_motor_2": -np.pi / 4,
@@ -135,10 +135,20 @@ def derive_model():
     Cn = Cn_r*R  # yawing moment
 
     velocity_w_p_w = q_wb @ velocity_w_p_b
-    
+
+    #position_oa_w = position_op_w + q_bw @ ca.vertcat(0.17, 0.17, -0.1)
+    #position_ob_w = position_op_w + q_bw @ ca.vertcat(0.17, -0.17, -0.1)
+    #position_oc_w = position_op_w + q_bw @ ca.vertcat(-0.17, -0.17, -0.1)
+    #position_od_w = position_op_w + q_bw @ ca.vertcat(-0.17, 0.17, -0.1)
+
+    #Fa_w = ca.if_else(position_oa_w[2] < 0, -1000*position_oa_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
+    #Fb_w = ca.if_else(position_ob_w[2] < 0, -1000*position_ob_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
+    #Fc_w = ca.if_else(position_oc_w[2] < 0, -1000*position_oc_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
+    #Fd_w = ca.if_else(position_od_w[2] < 0, -1000*position_od_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
+
     F_w = (
         -m * g * zAxis # gravity
-        +  ca.if_else(position_op_w[2] < 0, -1000*position_op_w[2] - 100 * velocity_w_p_w[2], 0) * zAxis # ground
+        +  ca.if_else(position_op_w[2] < 0, -1000*position_op_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))  # ground
     )
 
     F_b = (

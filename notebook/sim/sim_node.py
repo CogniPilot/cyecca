@@ -61,7 +61,7 @@ class Simulator(Node):
                 self.p_dict[k] = p[k]
 
         self.x = self.x0_dict.values()
-        print(self.x)
+        # print(self.x)
         self.p = self.p_dict.values()
         self.u = np.array([0, 0, 0, 0])
 
@@ -76,19 +76,21 @@ class Simulator(Node):
         throttle = msg.axes[1]
         aileron = -msg.axes[3]
         elevator = msg.axes[4]
-        print('throttle: ', throttle)
-        print('aileron: ', aileron)
+        # print('throttle: ', throttle)
+        # print('aileron: ', aileron)
 
-        k_ail = 0.1
-        k_elv = 0.1
+        k_ail = 0.3
+        k_elv = 0.3
         k_thr = 0.1
-        k_rdr = 0.1
+        k_rdr = 0.3
         mix_ail = k_ail * aileron
         mix_elv = k_elv * elevator
         mix_rdr = k_rdr * elevator
         mix_thr = k_thr * throttle + 0.57
+        if mix_thr < 0:
+            mix_thr = 0
 
-        print(np.array([mix_ail, mix_elv, mix_thr]))
+        # print(np.array([mix_ail, mix_elv, mix_thr]))
         self.u  = np.array([
             mix_thr + mix_ail - mix_elv,
             mix_thr - mix_ail + mix_elv,
@@ -123,7 +125,8 @@ class Simulator(Node):
         m1 = res["xf"][self.model["x_index"]["normalized_motor_1"], 0]
         m2 = res["xf"][self.model["x_index"]["normalized_motor_2"], 0]
         m3 = res["xf"][self.model["x_index"]["normalized_motor_3"], 0]
-
+        m = np.array([m0, m1, m2, m3])
+        
         # print('m', np.array([m0, m1, m2, m3]))
 
         self.x = res["xf"]
@@ -147,6 +150,21 @@ class Simulator(Node):
         tf.transform.rotation.y = qy
         tf.transform.rotation.z = qz
         self.tf_broadcaster.sendTransform(tf)
+
+        for i, theta in enumerate([-np.pi/4, 3*np.pi/4, np.pi/4, -3*np.pi/4]):
+            tf = TransformStamped()
+            tf.header.frame_id = 'base_link'
+            tf.child_frame_id = 'motor_{:d}'.format(i)
+            tf.header.stamp = msg_clock.clock
+            r = 0.25
+            tf.transform.translation.x = r*np.cos(theta)
+            tf.transform.translation.y = r*np.sin(theta)
+            tf.transform.translation.z = 0.02
+            tf.transform.rotation.w = np.sin(m[i]/2*100*self.t)
+            tf.transform.rotation.x = 0.0
+            tf.transform.rotation.y = 0.0
+            tf.transform.rotation.z = np.cos(m[i]/2*100*self.t)
+            self.tf_broadcaster.sendTransform(tf)
 
         msg_pose = PoseWithCovarianceStamped()
         msg_pose.header.stamp = msg_clock.clock

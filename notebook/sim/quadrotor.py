@@ -84,9 +84,9 @@ def derive_model():
 
     x0_defaults = {
         "normalized_motor_0": 0,
-        "normalized_motor_1": 1,
-        "normalized_motor_2": 2,
-        "normalized_motor_3": 3,
+        "normalized_motor_1": 0,
+        "normalized_motor_2": 0,
+        "normalized_motor_3": 0,
         "omega_wb_b_0": 0,
         "omega_wb_b_1": 0,
         "omega_wb_b_2": 0,
@@ -120,6 +120,7 @@ def derive_model():
     yAxis = ca.vertcat(0, 1, 0)
     zAxis = ca.vertcat(0, 0, 1)
     q_wb = cyecca.lie.SO3Quat.elem(quaternion_wb)
+    q_bw = q_wb.inverse()
     V = ca.norm_2(velocity_w_p_b)
     wX = ca.if_else(ca.fabs(V) > 1e-5, velocity_w_p_b/V, ca.vertcat(1, 0, 0))
     qbar = 0.5*rho*V**2
@@ -132,9 +133,16 @@ def derive_model():
     Cl = Cl_p*P  # rolling moment
     Cm = Cm_q*Q  # pitching moment
     Cn = Cn_r*R  # yawing moment
-        
+
+    velocity_w_p_w = q_wb @ velocity_w_p_b
+    
+    F_w = (
+        -m * g * zAxis # gravity
+        +  ca.if_else(position_op_w[2] < 0, -1000*position_op_w[2] - 100 * velocity_w_p_w[2], 0) * zAxis # ground
+    )
+
     F_b = (
-        q_wb @ (-m * g * zAxis) # gravity
+        q_bw @ F_w
         - CD*qbar*S*wX # drag
     )
     

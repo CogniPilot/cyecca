@@ -11,9 +11,9 @@ from rclpy.parameter import Parameter
 
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, PoseStamped
 from geometry_msgs.msg import TwistWithCovarianceStamped, TwistStamped
-
 from rosgraph_msgs.msg import Clock
 from nav_msgs.msg import Odometry, Path
+from sensor_msgs.msg import Joy
 from tf2_ros import TransformBroadcaster
 
 class Simulator(Node):
@@ -23,20 +23,21 @@ class Simulator(Node):
             Parameter('use_sim_time', Parameter.Type.BOOL, True)
         ]
         super().__init__('simulator', parameter_overrides=param_list)
-        self.pub_pose = self.create_publisher(PoseWithCovarianceStamped, 'pose', 10)
-        self.pub_clock = self.create_publisher(Clock, 'clock', 10)
-        self.pub_odom = self.create_publisher(Odometry, 'odom', 10)
-        self.pub_twist_cov = self.create_publisher(TwistWithCovarianceStamped, 'twist_cov', 10)
-        self.pub_twist = self.create_publisher(TwistStamped, 'twist', 10)
-        self.pub_path = self.create_publisher(Path, 'path', 10)
+        self.pub_pose = self.create_publisher(PoseWithCovarianceStamped, 'pose', 1)
+        self.pub_clock = self.create_publisher(Clock, 'clock', 1)
+        self.pub_odom = self.create_publisher(Odometry, 'odom', 1)
+        self.pub_twist_cov = self.create_publisher(TwistWithCovarianceStamped, 'twist_cov', 1)
+        self.pub_twist = self.create_publisher(TwistStamped, 'twist', 1)
+        self.pub_path = self.create_publisher(Path, 'path', 1)
+        self.sub_joy = self.create_subscription(Joy, '/joy', self.joy_callback, 1)
 
         self.tf_broadcaster = TransformBroadcaster(self)
 
         self.path_len = 30
 
         self.t = 0
-        self.dt = 0.001
-        self.real_time_factor = 2
+        self.dt = 1.0/100
+        self.real_time_factor = 1
         self.system_clock = rclpy.clock.Clock(clock_type=rclpy.clock.ClockType.SYSTEM_TIME)
         self.sim_timer = self.create_timer(timer_period_sec=self.dt/self.real_time_factor, callback=self.timer_callback, clock=self.system_clock)
         self.pose_list = []
@@ -60,6 +61,9 @@ class Simulator(Node):
                 self.p_dict[k] = p[k]
 
         self.x = self.x0_dict.values()
+        print(self.x)
+        self.p = self.p_dict.values()
+        self.u = np.array([0, 0, 0, 0])
 
     def clock_as_msg(self):
         msg = Clock()
@@ -67,36 +71,62 @@ class Simulator(Node):
         msg.clock.nanosec = int(1e9*(self.t - msg.clock.sec))
         return msg
 
+    def joy_callback(self, msg: Joy):
+        rudder = msg.axes[0]
+        throttle = msg.axes[1]
+        aileron = -msg.axes[3]
+        elevator = msg.axes[4]
+        print('throttle: ', throttle)
+        print('aileron: ', aileron)
+
+        k_ail = 0.1
+        k_elv = 0.1
+        k_thr = 0.1
+        k_rdr = 0.1
+        mix_ail = k_ail * aileron
+        mix_elv = k_elv * elevator
+        mix_rdr = k_rdr * elevator
+        mix_thr = k_thr * throttle + 0.57
+
+        print(np.array([mix_ail, mix_elv, mix_thr]))
+        self.u  = np.array([
+            mix_thr + mix_ail - mix_elv,
+            mix_thr - mix_ail + mix_elv,
+            mix_thr - mix_ail - mix_elv,
+            mix_thr + mix_ail + mix_elv,
+        ])
+
     def timer_callback(self):
-
-        T_trim = 0.582324
-        u = np.array([T_trim, T_trim, T_trim, T_trim])
-
+        T_trim = 0.7
         t = [self.t, self.t + self.dt]
-        print(u)
-        print(self.x)
-        f_int = ca.integrator("test", "idas", self.model['dae'], t[0], t)
-        res = f_int(x0=self.x, z0=0, p=self.p_dict.values(), u=u)
-        res["p"] = self.p_dict
-        res["yf"] = self.model["g"](res["xf"], u, self.p_dict.values())
+        f_int = ca.integrator("test", "idas", self.model['dae'], self.t, self.t + self.dt)
+        res = f_int(x0=self.x, z0=0, p=self.p, u=self.u)
+        res["yf"] = self.model["g"](res["xf"], self.u, self.p)
         for k in ["xf", "yf", "zf"]:
             res[k] = np.array(res[k])
 
-        x = res["xf"][self.model["x_index"]["position_op_w_0"], 1]
-        y = res["xf"][self.model["x_index"]["position_op_w_1"], 1]
-        z = res["xf"][self.model["x_index"]["position_op_w_2"], 1]
-        wx = res["xf"][self.model["x_index"]["omega_wb_b_0"], 1]
-        wy = res["xf"][self.model["x_index"]["omega_wb_b_1"], 1]
-        wz = res["xf"][self.model["x_index"]["omega_wb_b_2"], 1]
-        vx = res["xf"][self.model["x_index"]["velocity_w_p_b_0"], 1]
-        vy = res["xf"][self.model["x_index"]["velocity_w_p_b_1"], 1]
-        vz = res["xf"][self.model["x_index"]["velocity_w_p_b_2"], 1]
-        qw = res["xf"][self.model["x_index"]["quaternion_wb_0"], 1]
-        qx = res["xf"][self.model["x_index"]["quaternion_wb_1"], 1]
-        qy = res["xf"][self.model["x_index"]["quaternion_wb_2"], 1]
-        qz = res["xf"][self.model["x_index"]["quaternion_wb_3"], 1]
-        print(qw, qx, qy, qz)
-        self.x = res["xf"][:, 1]
+        x = res["xf"][self.model["x_index"]["position_op_w_0"], 0]
+        y = res["xf"][self.model["x_index"]["position_op_w_1"], 0]
+        z = res["xf"][self.model["x_index"]["position_op_w_2"], 0]
+        wx = res["xf"][self.model["x_index"]["omega_wb_b_0"], 0]
+        wy = res["xf"][self.model["x_index"]["omega_wb_b_1"], 0]
+        wz = res["xf"][self.model["x_index"]["omega_wb_b_2"], 0]
+        vx = res["xf"][self.model["x_index"]["velocity_w_p_b_0"], 0]
+        vy = res["xf"][self.model["x_index"]["velocity_w_p_b_1"], 0]
+        vz = res["xf"][self.model["x_index"]["velocity_w_p_b_2"], 0]
+        qw = res["xf"][self.model["x_index"]["quaternion_wb_0"], 0]
+        qx = res["xf"][self.model["x_index"]["quaternion_wb_1"], 0]
+        qy = res["xf"][self.model["x_index"]["quaternion_wb_2"], 0]
+        qz = res["xf"][self.model["x_index"]["quaternion_wb_3"], 0]
+
+        m0 = res["xf"][self.model["x_index"]["normalized_motor_0"], 0]
+        m1 = res["xf"][self.model["x_index"]["normalized_motor_1"], 0]
+        m2 = res["xf"][self.model["x_index"]["normalized_motor_2"], 0]
+        m3 = res["xf"][self.model["x_index"]["normalized_motor_3"], 0]
+
+        # print('m', np.array([m0, m1, m2, m3]))
+
+        self.x = res["xf"]
 
         # publish clock
         self.t += self.dt

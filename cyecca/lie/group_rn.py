@@ -82,7 +82,7 @@ class RnLieGroup(LieGroup):
         return self.elem(param=ca.SX(self.n_param, 1))
 
     def adjoint(self, arg: RnLieGroupElement) -> ca.SX:
-        return ca.SX_eye(self.n_param + 1)
+        return ca.SX.eye(self.n_param + 1)
 
     def exp(self, arg: RnLieAlgebraElement) -> RnLieGroupElement:
         """It is the identity map"""
@@ -93,7 +93,7 @@ class RnLieGroup(LieGroup):
         return arg.group.algebra.elem(arg.param)
 
     def to_Matrix(self, arg: RnLieGroupElement) -> ca.SX:
-        A = ca.SX_eye(self.n_param + 1)
+        A = ca.SX.eye(self.n_param + 1)
         for i in range(self.n_param):
             A[i, self.n_param] = arg.param[i]
         return ca.sparsify(A)

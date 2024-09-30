@@ -103,7 +103,7 @@ class SO2LieGroup(LieGroup):
         return self.elem(param=ca.SX(self.n_param, 1))
 
     def adjoint(self, arg: SO2LieGroupElement):
-        return ca.SX_eye(1)
+        return ca.SX.eye(1)
 
     def exp(self, arg: SO2LieAlgebraElement) -> SO2LieGroupElement:
         return self.elem(param=arg.param)

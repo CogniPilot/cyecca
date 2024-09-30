@@ -191,21 +191,21 @@ class EulerType(Enum):
 @beartype
 def rotation_matrix(axis: Axis, angle: SCALAR_TYPE):
     if axis == Axis.x:
-        R = ca.SX_eye(3)
+        R = ca.SX.eye(3)
         R[1, 1] = ca.cos(angle)
         R[1, 2] = -ca.sin(angle)
         R[2, 1] = ca.sin(angle)
         R[2, 2] = ca.cos(angle)
         return R
     elif axis == Axis.y:
-        R = ca.SX_eye(3)
+        R = ca.SX.eye(3)
         R[0, 0] = ca.cos(angle)
         R[2, 0] = -ca.sin(angle)
         R[0, 2] = ca.sin(angle)
         R[2, 2] = ca.cos(angle)
         return R
     elif axis == Axis.z:
-        R = ca.SX_eye(3)
+        R = ca.SX.eye(3)
         R[0, 0] = ca.cos(angle)
         R[0, 1] = -ca.sin(angle)
         R[1, 0] = ca.sin(angle)
@@ -389,7 +389,7 @@ class SO3EulerLieGroup(SO3LieGroup):
         return SO3Dcm.log(SO3Dcm.from_Euler(arg))
 
     def to_Matrix(self, arg: SO3EulerLieGroupElement) -> ca.SX:
-        m = ca.SX_eye(3)
+        m = ca.SX.eye(3)
         for axis, angle in zip(self.sequence, ca.vertsplit(arg.param)):
             if self.euler_type == EulerType.body_fixed:
                 m = m @ rotation_matrix(axis=axis, angle=angle)
@@ -680,7 +680,7 @@ class SO3MrpLieGroup(SO3LieGroup):
         X = so3.elem(param=a).to_Matrix()
         n_sq = ca.dot(a, a)
         X_sq = X @ X
-        R = ca.SX_eye(3) + (8 * X_sq - 4 * (1 - n_sq) * X) / (1 + n_sq) ** 2
+        R = ca.SX.eye(3) + (8 * X_sq - 4 * (1 - n_sq) * X) / (1 + n_sq) ** 2
         # return transpose, due to convention difference in book
         return R.T
 

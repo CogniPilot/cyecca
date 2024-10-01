@@ -66,11 +66,14 @@ class Simulator(Node):
                 self.p_dict[k] = p[k]
 
         self.x = np.array(list(self.x0_dict.values()), dtype=float)
+
+        self.est_x = np.array([0, 0, 0, 0, 0, 0, 1, 0, 0, 0], dtype=float)
+
         # print(self.x)
         self.p = np.array(list(self.p_dict.values()), dtype=float)
         self.u = np.array([0, 0, 0, 0], dtype=float)
 
-        #----------------------------------------------
+        #------------------------------est_x----------------
         # casadi control/ estimation algorithms
         #----------------------------------------------
         self.eqs = {}
@@ -130,30 +133,38 @@ class Simulator(Node):
         mode = 'acro'
 
         #------------------------------------
-        # get current state
+        # integration for simulation
         #------------------------------------
-        q = ca.vertcat(
-            self.x[self.model["x_index"]["quaternion_wb_0"]],
-            self.x[self.model["x_index"]["quaternion_wb_1"]],
-            self.x[self.model["x_index"]["quaternion_wb_2"]],
-            self.x[self.model["x_index"]["quaternion_wb_3"]])
-        omega = ca.vertcat(
-            self.x[self.model["x_index"]["omega_wb_b_0"]],
-            self.x[self.model["x_index"]["omega_wb_b_1"]],
-            self.x[self.model["x_index"]["omega_wb_b_2"]])
+        f_int = ca.integrator("test", "idas", self.model['dae'], self.t, self.t + self.dt)
+        res = f_int(x0=self.x, z0=0, p=self.p, u=self.u)
+
+        res["yf_gyro"] = self.model["g_gyro"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        res["yf_accel"] = self.model["g_accel"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        res["yf_mag"] = self.model["g_mag"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        res["yf_gps_pos"] = self.model["g_gps_pos"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+
+        #------------------------------------
+        # store states and measurements
+        #------------------------------------
+        self.x = np.array(res["xf"]).reshape(-1)
+        self.y_gyro = np.array(res["yf_gyro"]).reshape(-1)
+        self.y_mag = np.array(res["yf_mag"]).reshape(-1)
+        self.y_accel = np.array(res["yf_accel"]).reshape(-1)
+        self.y_gps_pos = np.array(res["yf_gps_pos"]).reshape(-1)
+        self.publish_state()
 
         #------------------------------------
         # estimator
         #------------------------------------
-        q = ca.vertcat(
-            self.x[self.model["x_index"]["quaternion_wb_0"]],
-            self.x[self.model["x_index"]["quaternion_wb_1"]],
-            self.x[self.model["x_index"]["quaternion_wb_2"]],
-            self.x[self.model["x_index"]["quaternion_wb_3"]])
-        omega = ca.vertcat(
-            self.x[self.model["x_index"]["omega_wb_b_0"]],
-            self.x[self.model["x_index"]["omega_wb_b_1"]],
-            self.x[self.model["x_index"]["omega_wb_b_2"]])
+        #["x0", "a_b", "omega_b", "g", "dt"],
+        res = self.eqs["strapdown_ins_propagate"](self.est_x, self.y_accel, self.y_gyro, self.get_param_by_name("g"), self.dt)
+        self.est_x = np.array(res, dtype=float).reshape(-1)
+
+        #------------------------------------
+        # control state
+        #------------------------------------
+        q = ca.vertcat(self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9])
+        omega = self.y_gyro
         
         #------------------------------------
         # joy input handling
@@ -174,6 +185,7 @@ class Simulator(Node):
         #------------------------------------
         # attitude rate control
         #------------------------------------
+        omega = self.y_gyro
         M, i1, e1, de1, alpha = self.eqs['attitude_rate_control'](
             kp, ki, kd, f_cut, i_max, omega, omega_r, self.i0, self.e0, self.de0, self.dt)
         self.i0 = i1
@@ -196,26 +208,11 @@ class Simulator(Node):
         #self.get_logger().info('M: %s' % M)
         #self.get_logger().info('u: %s' % self.u)
 
-        #------------------------------------
-        # integration for simulation
-        #------------------------------------
-        f_int = ca.integrator("test", "idas", self.model['dae'], self.t, self.t + self.dt)
-        res = f_int(x0=self.x, z0=0, p=self.p, u=self.u)
-        res["yf"] = self.model["g"](res["xf"], self.u, self.p)
-        for k in ["xf", "yf", "zf"]:
-            res[k] = np.array(res[k])
-        self.x = res["xf"]
-        self.y = res["yf"]
-        self.publish_state()
-
     def get_state_by_name(self, name):
-        return self.x[self.model["x_index"][name], 0]
+        return self.x[self.model["x_index"][name]]
     
     def get_param_by_name(self, name):
         return self.p[self.model["p_index"][name]]
-    
-    def get_output_by_name(self, name):
-        return self.y[self.model["y_index"][name], 0]
     
     def publish_state(self):
         #------------------------------------
@@ -243,10 +240,6 @@ class Simulator(Node):
         m2 = self.get_state_by_name("omega_motor_2")
         m3 = self.get_state_by_name("omega_motor_3")
         m = np.array([m0, m1, m2, m3])
-        
-        ax = self.get_output_by_name("a_b_0")
-        ay = self.get_output_by_name("a_b_1")
-        az = self.get_output_by_name("a_b_2")
 
         #------------------------------------
         # publish simulation clock
@@ -292,19 +285,32 @@ class Simulator(Node):
             tf.transform.rotation.z = dir*np.sin(self.motor_pose[i]/2)
             self.tf_broadcaster.sendTransform(tf)
 
+        tf = TransformStamped()
+        tf.header.frame_id = 'map'
+        tf.child_frame_id = 'base_link_est'
+        tf.header.stamp = msg_clock.clock
+        tf.transform.translation.x = self.est_x[0]
+        tf.transform.translation.y = self.est_x[1]
+        tf.transform.translation.z = self.est_x[2]
+        tf.transform.rotation.w = self.est_x[6]
+        tf.transform.rotation.x = self.est_x[7]
+        tf.transform.rotation.y = self.est_x[8]
+        tf.transform.rotation.z = self.est_x[9]
+        self.tf_broadcaster.sendTransform(tf)
+        
         #------------------------------------
         # publish imu
         #------------------------------------
         msg_imu = Imu()
         msg_imu.header.frame_id = 'base_link'
         msg_imu.header.stamp = msg_clock.clock
-        msg_imu.angular_velocity.x = wx
-        msg_imu.angular_velocity.y = wy
-        msg_imu.angular_velocity.z = wz
+        msg_imu.angular_velocity.x = self.y_gyro[0]
+        msg_imu.angular_velocity.y = self.y_gyro[1]
+        msg_imu.angular_velocity.z = self.y_gyro[2]
         msg_imu.angular_velocity_covariance = np.eye(3).reshape(-1)
-        msg_imu.linear_acceleration.x = ax
-        msg_imu.linear_acceleration.y = ay
-        msg_imu.linear_acceleration.z = az
+        msg_imu.linear_acceleration.x = self.y_accel[0]
+        msg_imu.linear_acceleration.y = self.y_accel[1]
+        msg_imu.linear_acceleration.z = self.y_accel[2]
         msg_imu.linear_acceleration_covariance = np.eye(3).reshape(-1)
         self.pub_imu.publish(msg_imu)
 
@@ -314,7 +320,7 @@ class Simulator(Node):
         msg_pose = PoseWithCovarianceStamped()
         msg_pose.header.stamp = msg_clock.clock
         msg_pose.header.frame_id = 'map';
-        msg_pose.pose.covariance = np.eye(6).reshape(-1)
+        msg_pose.pose.covariance = 0.1*np.eye(6).reshape(-1)
         msg_pose.pose.pose.position.x = x
         msg_pose.pose.pose.position.y = y
         msg_pose.pose.pose.position.z = z
@@ -331,25 +337,26 @@ class Simulator(Node):
         msg_odom.header.stamp = msg_clock.clock
         msg_odom.header.frame_id = 'map'
         msg_odom.child_frame_id = 'base_link'
-        msg_odom.pose.covariance = np.eye(6).reshape(-1)
-        msg_odom.pose.pose.position.x = x
-        msg_odom.pose.pose.position.y = y
-        msg_odom.pose.pose.position.z = z
-        msg_odom.pose.pose.orientation.w = qw
-        msg_odom.pose.pose.orientation.x = qx
-        msg_odom.pose.pose.orientation.y = qy
-        msg_odom.pose.pose.orientation.z = qz
+        msg_odom.pose.covariance = 0.1*np.eye(6).reshape(-1)
+        msg_odom.pose.pose.position.x = self.est_x[0]
+        msg_odom.pose.pose.position.y = self.est_x[1]
+        msg_odom.pose.pose.position.z = self.est_x[2]
+        msg_odom.twist.twist.linear.x = self.est_x[3]
+        msg_odom.twist.twist.linear.y = self.est_x[4]
+        msg_odom.twist.twist.linear.z = self.est_x[5]
+        msg_odom.pose.pose.orientation.w = self.est_x[6]
+        msg_odom.pose.pose.orientation.x = self.est_x[7]
+        msg_odom.pose.pose.orientation.y = self.est_x[8]
+        msg_odom.pose.pose.orientation.z = self.est_x[9]
         msg_odom.twist.covariance = np.eye(6).reshape(-1)
-        msg_odom.twist.twist.angular.x = wx
-        msg_odom.twist.twist.angular.y = wy
-        msg_odom.twist.twist.angular.z = wz
-        msg_odom.twist.twist.linear.x = vx
-        msg_odom.twist.twist.linear.y = vy
-        msg_odom.twist.twist.linear.z = vz
+        msg_odom.twist.twist.angular.x = self.y_gyro[0]
+        msg_odom.twist.twist.angular.y = self.y_gyro[1]
+        msg_odom.twist.twist.angular.z = self.y_gyro[2]
+
         self.pub_odom.publish(msg_odom)
 
         #------------------------------------
-        # publish twist with covarianc stamped
+        # publish twist with covariance stamped
         #------------------------------------
         msg_twist_cov = TwistWithCovarianceStamped()
         msg_twist_cov.header.stamp = msg_clock.clock

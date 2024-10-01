@@ -146,8 +146,7 @@ def derive_model():
     #Fd_w = ca.if_else(position_od_w[2] < 0, -1000*position_od_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
 
     F_w = (
-        -m * g * zAxis # gravity
-        +  ca.if_else( # ground
+        ca.if_else( # ground
             position_op_w[2] < 0,
             -1000*position_op_w[2] * zAxis - 1000 * velocity_w_p_w,
             ca.vertcat(0, 0, 0))
@@ -171,6 +170,10 @@ def derive_model():
         )
         F_b += Fi_b
         M_b += Mi_b
+    
+    a_b = F_b / m
+
+    F_b += q_bw @ (-m * g * zAxis) # gravity
 
     # kinematics
     derivative_omega_wb_b = ca.inv(J) @ (
@@ -200,13 +203,11 @@ def derive_model():
     
     # output  (these happen at end of the simulation)
     q_norm = ca.norm_2(quaternion_wb)
-    output_M_b = ca.SX.sym("M_b", 3)
-    output_F_b = ca.SX.sym("F_b", 3)
+    output_a_b = ca.SX.sym("a_b", 3)
     output_q_norm = ca.SX.sym("q_norm")
     output_euler = ca.SX.sym("euler", 3)
     y = ca.vertcat(
-        output_M_b,
-        output_F_b,
+        output_a_b,
         output_q_norm,
         output_euler
     )

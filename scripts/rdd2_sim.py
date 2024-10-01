@@ -15,7 +15,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, PoseS
 from geometry_msgs.msg import TwistWithCovarianceStamped, TwistStamped
 from rosgraph_msgs.msg import Clock
 from nav_msgs.msg import Odometry, Path
-from sensor_msgs.msg import Joy
+from sensor_msgs.msg import Joy, Imu
 from tf2_ros import TransformBroadcaster
 
 class Simulator(Node):
@@ -38,6 +38,7 @@ class Simulator(Node):
         self.pub_twist_cov = self.create_publisher(TwistWithCovarianceStamped, 'twist_cov', 1)
         self.pub_twist = self.create_publisher(TwistStamped, 'twist', 1)
         self.pub_path = self.create_publisher(Path, 'path', 1)
+        self.pub_imu = self.create_publisher(Imu, 'imu', 1)
         self.tf_broadcaster = TransformBroadcaster(self)
 
         #----------------------------------------------
@@ -86,7 +87,7 @@ class Simulator(Node):
         #----------------------------------------------
         self.path_len = 30
         self.t = 0
-        self.dt = 1.0/100
+        self.dt = 1.0/250
         self.real_time_factor = 1
         self.system_clock = rclpy.clock.Clock(clock_type=rclpy.clock.ClockType.SYSTEM_TIME)
         self.sim_timer = self.create_timer(timer_period_sec=self.dt/self.real_time_factor, callback=self.timer_callback, clock=self.system_clock)
@@ -142,6 +143,19 @@ class Simulator(Node):
             self.x[self.model["x_index"]["omega_wb_b_2"]])
 
         #------------------------------------
+        # estimator
+        #------------------------------------
+        q = ca.vertcat(
+            self.x[self.model["x_index"]["quaternion_wb_0"]],
+            self.x[self.model["x_index"]["quaternion_wb_1"]],
+            self.x[self.model["x_index"]["quaternion_wb_2"]],
+            self.x[self.model["x_index"]["quaternion_wb_3"]])
+        omega = ca.vertcat(
+            self.x[self.model["x_index"]["omega_wb_b_0"]],
+            self.x[self.model["x_index"]["omega_wb_b_1"]],
+            self.x[self.model["x_index"]["omega_wb_b_2"]])
+        
+        #------------------------------------
         # joy input handling
         #------------------------------------
         if mode == 'acro':
@@ -149,7 +163,7 @@ class Simulator(Node):
                 thrust_trim, thrust_delta,
                 self.input_roll, self.input_pitch, self.input_yaw, self.input_thrust)
             
-            self.get_logger().info('omega_r %s thrust %s' % (omega_r, thrust))
+            #('omega_r %s thrust %s' % (omega_r, thrust))
         elif mode == 'auto_level':
             [q_r, thrust] = self.eqs['joy_auto_level'](
                 thrust_trim, thrust_delta,
@@ -163,9 +177,9 @@ class Simulator(Node):
         M, i1, e1, de1, alpha = self.eqs['attitude_rate_control'](
             kp, ki, kd, f_cut, i_max, omega, omega_r, self.i0, self.e0, self.de0, self.dt)
         self.i0 = i1
-        self.get_logger().info('i0: %s' % self.i0)
-        self.get_logger().info('e0: %s' % self.e0)
-        self.get_logger().info('de0: %s' % self.de0)
+        #self.get_logger().info('i0: %s' % self.i0)
+        #self.get_logger().info('e0: %s' % self.e0)
+        #self.get_logger().info('de0: %s' % self.de0)
         self.e0 = e1
         self.de0 = de1
 
@@ -179,8 +193,8 @@ class Simulator(Node):
         # control allocation
         #------------------------------------
         self.u = self.eqs['f_alloc'](F_max, l, CM, CT, thrust, M)
-        self.get_logger().info('M: %s' % M)
-        self.get_logger().info('u: %s' % self.u)
+        #self.get_logger().info('M: %s' % M)
+        #self.get_logger().info('u: %s' % self.u)
 
         #------------------------------------
         # integration for simulation
@@ -191,13 +205,17 @@ class Simulator(Node):
         for k in ["xf", "yf", "zf"]:
             res[k] = np.array(res[k])
         self.x = res["xf"]
+        self.y = res["yf"]
         self.publish_state()
-    
+
     def get_state_by_name(self, name):
         return self.x[self.model["x_index"][name], 0]
     
     def get_param_by_name(self, name):
         return self.p[self.model["p_index"][name]]
+    
+    def get_output_by_name(self, name):
+        return self.y[self.model["y_index"][name], 0]
     
     def publish_state(self):
         #------------------------------------
@@ -226,6 +244,10 @@ class Simulator(Node):
         m3 = self.get_state_by_name("omega_motor_3")
         m = np.array([m0, m1, m2, m3])
         
+        ax = self.get_output_by_name("a_b_0")
+        ay = self.get_output_by_name("a_b_1")
+        az = self.get_output_by_name("a_b_2")
+
         #------------------------------------
         # publish simulation clock
         #------------------------------------
@@ -256,7 +278,6 @@ class Simulator(Node):
             theta = self.get_param_by_name("theta_motor_" + str(i))
             r = self.get_param_by_name("l_motor_" + str(i))
             dir = self.get_param_by_name("dir_motor_" + str(i))
-            print(i, theta, r, dir)
             tf = TransformStamped()
             tf.header.frame_id = 'base_link'
             tf.child_frame_id = 'motor_{:d}'.format(i)
@@ -270,6 +291,22 @@ class Simulator(Node):
             tf.transform.rotation.y = 0.0
             tf.transform.rotation.z = dir*np.sin(self.motor_pose[i]/2)
             self.tf_broadcaster.sendTransform(tf)
+
+        #------------------------------------
+        # publish imu
+        #------------------------------------
+        msg_imu = Imu()
+        msg_imu.header.frame_id = 'base_link'
+        msg_imu.header.stamp = msg_clock.clock
+        msg_imu.angular_velocity.x = wx
+        msg_imu.angular_velocity.y = wy
+        msg_imu.angular_velocity.z = wz
+        msg_imu.angular_velocity_covariance = np.eye(3).reshape(-1)
+        msg_imu.linear_acceleration.x = ax
+        msg_imu.linear_acceleration.y = ay
+        msg_imu.linear_acceleration.z = az
+        msg_imu.linear_acceleration_covariance = np.eye(3).reshape(-1)
+        self.pub_imu.publish(msg_imu)
 
         #------------------------------------
         # publish pose with covariance stamped

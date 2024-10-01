@@ -1,4 +1,3 @@
-#!/usr/bin/env cyecca_python
 import argparse
 import os
 import sys
@@ -11,8 +10,6 @@ import cyecca.lie as lie
 from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321
 from cyecca.lie.group_se23 import SE23Quat, se23, SE23LieGroupElement, SE23LieAlgebraElement
 from cyecca.symbolic import SERIES
-
-print('python: ', sys.executable)
 
 # parameters
 g = 9.8 # grav accel m/s^2

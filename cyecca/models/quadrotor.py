@@ -7,7 +7,8 @@ from pathlib import Path
 
 def derive_model():
     n_motor = 4
-
+    g0 = 9.8
+    
     # p, parameters
     tau_up = ca.SX.sym("tau_up")
     tau_down = ca.SX.sym("tau_down")
@@ -23,15 +24,23 @@ def derive_model():
     S = ca.SX.sym("S")
     rho = ca.SX.sym("rho")
     g = ca.SX.sym("g")
-    J_x = ca.SX.sym("J_x")
-    J_y = ca.SX.sym("J_y")
-    J_z = ca.SX.sym("J_z")
     m = ca.SX.sym("m")
-    J = ca.diag(ca.vertcat(J_x, J_y, J_z))  ## assuming symmetrical
+    Jx = ca.SX.sym("Jx")
+    Jy = ca.SX.sym("Jy")
+    Jz = ca.SX.sym("Jz")
+    J = ca.diag(ca.vertcat(Jx, Jy, Jz))
+    noise_power_sqrt_a_b = ca.SX.sym("noise_power_sqrt_a_b", 3)
+    noise_power_sqrt_omega_wb_b = ca.SX.sym("noise_power_sqrt_omega_wb_b", 3)
+    noise_power_sqrt_mag_b = ca.SX.sym("noise_power_sqrt_mag_b", 3)
+    noise_power_sqrt_gps_pos = ca.SX.sym("noise_power_sqrt_gps_pos", 3)
     p = ca.vertcat(
         tau_up, tau_down, dir_motor, l_motor, theta_motor,
         CT, CM, Cl_p, Cm_q, Cn_r, CD0, S, rho, g, m,
-        J_x, J_y, J_z,
+        Jx, Jy, Jz,
+        noise_power_sqrt_a_b,
+        noise_power_sqrt_omega_wb_b,
+        noise_power_sqrt_mag_b,
+        noise_power_sqrt_gps_pos,
     )
     p_defaults = {
         "tau_up": 0.1, # time to spin up motors
@@ -61,6 +70,18 @@ def derive_model():
         "J_x": 0.1,
         "J_y": 0.1,
         "J_z": 0.1,
+        "noise_power_sqrt_a_b_0": 70e-6*g0,  # micro-g/sqrt(hz)
+        "noise_power_sqrt_a_b_1": 70e-6*g0,
+        "noise_power_sqrt_a_b_2": 70e-6*g0,
+        "noise_power_sqrt_omega_wb_b_0": np.deg2rad(2.8e-3),  # 2.8 milli-dpgs/sqrt(hz)
+        "noise_power_sqrt_omega_wb_b_1": np.deg2rad(2.8e-3),
+        "noise_power_sqrt_omega_wb_b_2": np.deg2rad(2.8e-3),
+        "noise_power_sqrt_mag_b_0": 0,
+        "noise_power_sqrt_mag_b_1": 0,
+        "noise_power_sqrt_mag_b_2": 0,
+        "noise_power_sqrt_gps_pos_0": 0,
+        "noise_power_sqrt_gps_pos_1": 0,
+        "noise_power_sqrt_gps_pos_2": 0,
     }
 
     # x, state
@@ -100,7 +121,9 @@ def derive_model():
 
     # u, input
     omega_motors_cmd = ca.SX.sym("omega_motors_cmd", n_motor)
-    u = ca.vertcat(omega_motors_cmd)
+    u = ca.vertcat(
+        omega_motors_cmd,
+    )
 
     # motor first order model
     tau_inv = ca.SX.zeros(4, 1)
@@ -171,6 +194,7 @@ def derive_model():
         F_b += Fi_b
         M_b += Mi_b
     
+    # accelerometer zero in freefall (doesn't measure gravity)
     a_b = F_b / m
 
     F_b += q_bw @ (-m * g * zAxis) # gravity
@@ -200,26 +224,35 @@ def derive_model():
     # algebraic (these algebraic expressions are used during the simulation)
     z = ca.vertcat()
     alg = z
-    
-    # output  (these happen at end of the simulation)
-    q_norm = ca.norm_2(quaternion_wb)
-    output_a_b = ca.SX.sym("a_b", 3)
-    output_q_norm = ca.SX.sym("q_norm")
-    output_euler = ca.SX.sym("euler", 3)
-    y = ca.vertcat(
-        output_a_b,
-        output_q_norm,
-        output_euler
-    )
-    y_expressions = ca.vertcat(M_b, F_b, q_norm, cyecca.lie.SO3EulerB321.from_Quat(q_wb).param)
-    g = ca.Function("g", [x, u, p], [y_expressions], ["x", "u", "p"], ["y"])
+
+    #-----------------------------------------
+    # measurements
+    #-----------------------------------------
+
+    # measurement noise
+    dt = ca.SX.sym("dt")  # sample time
+    w3 = ca.SX.sym("w", 3)  # 3 dim noise (std dev = 1, mean = 0), scaling via noise power occurs in function from params
+
+    #cyecca.lie.SO3EulerB321.from_Quat(q_wb).param
+    g_accel = ca.Function("g_accel", [x, u, p, w3, dt], [
+        a_b + w3*noise_power_sqrt_a_b*np.sqrt(dt)
+        ], ["x", "u", "p", "w", "dt"], ["y"])
+    g_gyro = ca.Function("g_gyro", [x, u, p, w3, dt], [
+        omega_wb_b + w3*noise_power_sqrt_omega_wb_b*np.sqrt(dt)
+        ], ["x", "u", "p", "w", "dt"], ["y"])
+    g_mag = ca.Function("g_mag", [x, u, p, w3, dt], [
+        a_b + w3*noise_power_sqrt_mag_b*np.sqrt(dt)
+        ], ["x", "u", "p", "w", "dt"], ["y"])
+    g_gps_pos = ca.Function("g_gps_pos", [x, u, p, w3, dt], [
+        position_op_w + w3*np.sqrt(noise_power_sqrt_gps_pos/dt)
+        ], ["x", "u", "p", "w", "dt"], ["y"])
 
     # setup integrator
     dae = {"x": x, "ode": f(x, u, p), "p": p, "u": u, "z": z, "alg": alg}
 
     p_index = {p[i].name(): i for i in range(p.shape[0])}
     x_index = {x[i].name(): i for i in range(x.shape[0])}
-    y_index = {y[i].name(): i for i in range(y.shape[0])}
+    u_index = {u[i].name(): i for i in range(u.shape[0])}
     z_index = {z[i].name(): i for i in range(z.shape[0])}
 
     return locals()

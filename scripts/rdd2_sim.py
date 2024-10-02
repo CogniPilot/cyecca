@@ -84,6 +84,7 @@ class Simulator(Node):
         self.eqs.update(rdd2.derive_joy_auto_level())
         self.eqs.update(rdd2.derive_strapdown_ins_propagation())
         self.eqs.update(rdd2.derive_control_allocation())
+        self.eqs.update(rdd2.derive_covariance_propagation())
 
         #----------------------------------------------
         # sim state data
@@ -105,6 +106,9 @@ class Simulator(Node):
         self.i0 = 0  # integrators for attitude rate loop
         self.e0 = ca.vertcat(0, 0, 0)  # error for attitude rate loop
         self.de0 = ca.vertcat(0, 0, 0)  # derivative for attitude rate loop (for low pass)
+
+        self.P = 0.0001*np.eye(3)
+        self.Q = 1e-4*np.eye(3)
 
     def clock_as_msg(self):
         msg = Clock()
@@ -159,6 +163,10 @@ class Simulator(Node):
         #["x0", "a_b", "omega_b", "g", "dt"],
         res = self.eqs["strapdown_ins_propagate"](self.est_x, self.y_accel, self.y_gyro, self.get_param_by_name("g"), self.dt)
         self.est_x = np.array(res, dtype=float).reshape(-1)
+
+        # 'P0', 'dt', 'wb', 'Q']
+        
+        self.P = np.array(self.eqs["covariance_propagation"](self.P, self.dt, self.y_gyro, self.Q))
 
         #------------------------------------
         # control state
@@ -337,7 +345,10 @@ class Simulator(Node):
         msg_odom.header.stamp = msg_clock.clock
         msg_odom.header.frame_id = 'map'
         msg_odom.child_frame_id = 'base_link'
-        msg_odom.pose.covariance = 0.1*np.eye(6).reshape(-1)
+        msg_odom.pose.covariance = np.block([
+            [np.eye(3), np.zeros((3, 3))],
+            [np.zeros((3, 3)), self.P]
+        ]).reshape(-1)
         msg_odom.pose.pose.position.x = self.est_x[0]
         msg_odom.pose.pose.position.y = self.est_x[1]
         msg_odom.pose.pose.position.z = self.est_x[2]

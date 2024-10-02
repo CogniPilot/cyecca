@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import casadi as ca
 import cyecca.lie as lie
-from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321
+from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321, so3
 from cyecca.lie.group_se23 import SE23Quat, se23, SE23LieGroupElement, SE23LieAlgebraElement
 from cyecca.symbolic import SERIES
 
@@ -187,6 +187,24 @@ def derive_joy_auto_level():
 
     return {
         "joy_auto_level": f_joy_auto_level
+    }
+
+def derive_covariance_propagation():
+    chi = so3.elem(ca.SX.sym('chi', 3))
+    wb = so3.elem(ca.SX.sym('wb', 3))
+    A = -wb.ad()
+    #B = chi.right_jacobian_inv()
+
+    P0 = ca.SX.sym('P0', 3, 3)
+    Q = ca.SX.sym('Q', 3, 3)
+    dt = ca.SX.sym('dt')
+
+    # prediction
+    P1 = P0 + A @ P0 + P0 @ A.T + Q
+
+    f_cov_prop = ca.Function('covariance_propagation', [P0, dt, wb.param, Q], [P1], ['P0', 'dt', 'wb', 'Q'], ['P1'])
+    return {
+        "covariance_propagation": f_cov_prop
     }
 
 

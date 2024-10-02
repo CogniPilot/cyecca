@@ -2,6 +2,7 @@
 multiplicative kalman filter with quaternions
 :return: dict of equations
 """
+
 from .common import *
 from . import quat
 

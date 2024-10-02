@@ -296,9 +296,12 @@ class SO3DcmLieGroup(SO3LieGroup):
 
     def log(self, arg: SO3DcmLieGroupElement) -> SO3LieAlgebraElement:
         R = self.to_Matrix(arg)
-        theta = ca.arccos((ca.trace(R) - 1) / 2)
-        A = SERIES["sin(x)/x"]
-        return self.algebra.from_Matrix((R - R.T) / (A(theta) * 2))
+        r = ca.if_else((ca.fabs(ca.trace(R) - 1) / 2)>1, 1, (ca.trace(R) - 1) / 2)
+        theta = ca.arccos(r)
+        # A = SERIES["s/in(x)/x"]
+        # A = ca.if_else(ca.fabs(theta) < 1, 1 - theta**2/6 + theta**4/120, ca.sin(theta)/theta)
+        A = 1 - theta**2/6 #+ theta**4/120
+        return self.algebra.from_Matrix((R - R.T) / (A))
 
     def to_Matrix(self, arg: SO3DcmLieGroupElement) -> ca.SX:
         return arg.param.reshape((3, 3))

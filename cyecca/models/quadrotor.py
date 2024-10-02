@@ -43,8 +43,8 @@ def derive_model():
         noise_power_sqrt_gps_pos,
     )
     p_defaults = {
-        "tau_up": 0.1, # time to spin up motors
-        "tau_down": 0.5, # time to spin down motors
+        "tau_up": 0.0125, # time to spin up motors
+        "tau_down": 0.025, # time to spin down motors
         "dir_motor_0": 1,  # diretion of motor 0 (1 CCW, -1 CW)
         "dir_motor_1": 1,
         "dir_motor_2": -1,
@@ -57,19 +57,19 @@ def derive_model():
         "theta_motor_1": 3 * np.pi / 4,
         "theta_motor_2": np.pi / 4,
         "theta_motor_3": -3 * np.pi / 4,
-        "CT": 1e-5,  # thrust coefficient
-        "CM": 1e-8,  # moment coefficient
-        "Cl_p": -1e-2,
-        "Cm_q": -1e-2,
-        "Cn_r": -1e-2,
-        "CD0" : 1e-1,
+        "CT": 8.54858e-06,  # thrust coefficient
+        "CM": 0.016,  # moment coefficient
+        "Cl_p": 0,
+        "Cm_q": 0,
+        "Cn_r": 0,
+        "CD0" : 0,
         "S": 1e-1,  # aerodynamic reference area
         "rho": 1.225, # air density
         "g": 9.8,
         "m": 2.0,
-        "J_x": 0.1,
-        "J_y": 0.1,
-        "J_z": 0.1,
+        "J_x": 0.02166666666666667,
+        "J_y": 0.02166666666666667,
+        "J_z": 0.04000000000000001,
         "noise_power_sqrt_a_b_0": 70e-6*g0,  # micro-g/sqrt(hz)
         "noise_power_sqrt_a_b_1": 70e-6*g0,
         "noise_power_sqrt_a_b_2": 70e-6*g0,
@@ -92,37 +92,37 @@ def derive_model():
     position_op_w = ca.SX.sym("position_op_w", 3)
 
     x = ca.vertcat(
-        omega_motor,
-        omega_wb_b,
-        quaternion_wb,
-        velocity_w_p_b,
         position_op_w,
+        velocity_w_p_b,
+        quaternion_wb,
+        omega_wb_b,
+        omega_motor,
     )
 
     x0_defaults = {
-        "omega_motor_0": 0,
-        "omega_motor_1": 0,
-        "omega_motor_2": 0,
-        "omega_motor_3": 0,
-        "omega_wb_b_0": 0,
-        "omega_wb_b_1": 0,
-        "omega_wb_b_2": 0,
+        "position_op_w_0": 0,
+        "position_op_w_1": 0,
+        "position_op_w_2": 0,
+        "velocity_w_p_b_0": 0,
+        "velocity_w_p_b_1": 0,
+        "velocity_w_p_b_2": 0,
         "quaternion_wb_0": 1,
         "quaternion_wb_1": 0,
         "quaternion_wb_2": 0,
         "quaternion_wb_3": 0,
-        "velocity_w_p_b_0": 0,
-        "velocity_w_p_b_1": 0,
-        "velocity_w_p_b_2": 0,
-        "position_op_w_0": 0,
-        "position_op_w_1": 0,
-        "position_op_w_2": 0,
+        "omega_wb_b_0": 0,
+        "omega_wb_b_1": 0,
+        "omega_wb_b_2": 0,
+        "omega_motor_0": 0,
+        "omega_motor_1": 0,
+        "omega_motor_2": 0,
+        "omega_motor_3": 0,
     }
 
     # u, input
-    omega_motors_cmd = ca.SX.sym("omega_motors_cmd", n_motor)
+    omega_motor_cmd = ca.SX.sym("omega_motor_cmd", n_motor)
     u = ca.vertcat(
-        omega_motors_cmd,
+        omega_motor_cmd,
     )
 
     # motor first order model
@@ -130,10 +130,10 @@ def derive_model():
     
     for i in range(n_motor):
         tau_inv[i] = ca.if_else(
-            omega_motors_cmd[i] - omega_motor[i] > 0, 1.0/tau_up, 1.0/tau_down
+            omega_motor_cmd[i] - omega_motor[i] > 0, 1.0/tau_up, 1.0/tau_down
         )
-    derivative_omega_motors = (
-        tau_inv * (omega_motors_cmd - omega_motor)
+    derivative_omega_motor = (
+        tau_inv * (omega_motor_cmd - omega_motor)
     )
 
     # sum of forces and moments
@@ -182,13 +182,14 @@ def derive_model():
     
     M_b = ca.vertcat(0, 0, 0)
     for i in range(n_motor):
-        Fi_b = CT * omega_motor[i] ** 2 * zAxis
+        thrust = CT * omega_motor[i] ** 2
+        Fi_b = thrust * zAxis
         ri_b = l_motor[i] * ca.vertcat(
             ca.cos(theta_motor[i]), ca.sin(theta_motor[i]), 0
         )
         Mi_b = (
             ca.cross(ri_b, Fi_b) # moment due to thrust
-            + CM * dir_motor[i] * omega_motor[i] ** 2 * zAxis  # moment due prop torque
+            - CM * dir_motor[i] * thrust * zAxis  # moment due prop torque
             + ca.vertcat(Cl, Cm, Cn)*S*l_motor[i] # aerodynamic moment
         )
         F_b += Fi_b
@@ -213,11 +214,11 @@ def derive_model():
 
     # state derivative vector
     x_dot = ca.vertcat(
-        derivative_omega_motors,
-        derivative_omega_wb_b,
-        derivative_quaternion_wb,
-        derivative_velocity_w_p_b,
         derivative_position_op_w,
+        derivative_velocity_w_p_b,
+        derivative_quaternion_wb,
+        derivative_omega_wb_b,
+        derivative_omega_motor,
     )
     f = ca.Function("f", [x, u, p], [x_dot], ["x", "u", "p"], ["x_dot"])
     

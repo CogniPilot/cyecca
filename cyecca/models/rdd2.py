@@ -60,25 +60,37 @@ def derive_control_allocation(
     F_thrust = A@ca.vertcat(T_sat, 0, 0, 0)  # motor force for thrust
     F_sum = F_moment + F_thrust
 
-    C1  = F_max - ca.mmax(F_sum) # how much could increase thrust before sat
-    C2  = ca.mmin(F_sum) - F_min # how much could decrease thrust before sat
+    saturation_logic = True
 
-    Fp_thrust = ca.if_else(C1 > 0,
-        ca.if_else(C2 > 0,  F_thrust, F_thrust - C2),
-        ca.if_else(C2 > 0,  F_thrust + C1, F_max/2*ca.SX.ones(4, 1)))
+    if saturation_logic:
+        C1  = F_max - ca.mmax(F_sum) # how much could increase thrust before sat
+        C2  = ca.mmin(F_sum) - F_min # how much could decrease thrust before sat
 
-    Fp_moment = ca.if_else(ca.logic_and(C1 < 0, C2 < 0),
-        F_moment*(F_max/2)/ca.mmax(ca.fabs(F_moment)),
-        F_moment)
+        Fp_thrust = ca.if_else(C1 > 0,
+            ca.if_else(C2 > 0,  F_thrust, F_thrust - C2),
+            ca.if_else(C2 > 0,  F_thrust + C1, F_max/2*ca.SX.ones(4, 1)))
 
-    Fp_sum = saturatem(Fp_moment + Fp_thrust, ca.SX.zeros(n_motors), F_max*ca.SX.ones(n_motors))
+        largest_moment = ca.mmax(ca.fabs(F_moment))
+
+        # if one motor is at full throttle, and another motor is off, and a moment is commanded
+        # that is not zeros, then rescale the moment thrust components to max thrust / 2
+        Fp_moment = ca.if_else(
+            ca.logic_and(ca.logic_and(C1 < 0, C2 < 0), largest_moment > 1e-5),
+            (F_max/2)*F_moment/largest_moment,
+            F_moment)
+
+
+        Fp_sum = saturatem(Fp_moment + Fp_thrust, ca.SX.zeros(n_motors), F_max*ca.SX.ones(n_motors))
+    else:
+        Fp_sum = F_sum
+
     omega = ca.sqrt(Fp_sum/Ct)
 
     f_alloc = ca.Function("control_allocation",
             [F_max, l, Cm, Ct, T, M],
-            [omega],
+            [omega, Fp_sum, F_moment, F_thrust, M_sat],
             ['F_max', 'l', 'Cm', 'Ct', 'T', 'M'],
-            ['omega']
+            ['omega', 'Fp_sum', 'F_moment', 'F_thrust', 'M_sat']
             )
     return {
         "f_alloc": f_alloc
@@ -137,6 +149,50 @@ def derive_joy_acro():
 
     return {
         "joy_acro": f_joy_acro
+    }
+
+def derive_joy_velocity():
+    # INPUT VARIABLES
+    # -------------------------------
+    dt = ca.SX.sym('dt')
+    yaw_sp0 = ca.SX.sym('yaw_sp0')
+    pw_sp0 = ca.SX.sym('pw_sp0', 3)
+    pw = ca.SX.sym('pw', 3)
+    joy_roll = ca.SX.sym('joy_roll')
+    joy_pitch = ca.SX.sym('joy_pitch')
+    joy_yaw = ca.SX.sym('joy_yaw')
+    joy_thrust = ca.SX.sym('joy_thrust')
+    reset_position = ca.SX.sym('reset_position')
+
+    yaw_rate = 60 * deg2rad * joy_yaw
+    yaw_sp1 = yaw_sp0 + yaw_rate *dt
+
+    cos_yaw = ca.cos(yaw_sp1)
+    sin_yaw = ca.sin(yaw_sp1)
+
+    vb = ca.vertcat(2*joy_pitch, -2*joy_roll, joy_thrust)
+    vw_sp = ca.vertcat(
+        vb[0] * cos_yaw - vb[1] * sin_yaw,
+        vb[0] * sin_yaw + vb[1] * cos_yaw,
+        vb[2])
+
+    pw_sp1 = ca.if_else(reset_position, pw, pw_sp0 + vw_sp * dt)
+
+    e = pw_sp1 - pw
+    e_max = 2
+    e_norm = ca.norm_2(e)
+    e = ca.if_else(e_norm > e_max, 2* e / e_norm, e)
+
+    q_sp = SO3Quat.from_Euler(SO3EulerB321.elem(ca.vertcat(yaw_sp1, 0, 0))).param
+
+    pw_sp1 = pw + e
+
+    aw_sp = ca.vertcat(0, 0, 0)
+    f_joy_velocity = ca.Function("joy_velocity",
+        [dt, yaw_sp0, pw_sp0, pw, joy_roll, joy_pitch, joy_yaw, joy_thrust, reset_position],
+        [yaw_sp1, pw_sp1, vw_sp, aw_sp, q_sp])
+    return{
+        "joy_velocity": f_joy_velocity
     }
 
 
@@ -323,17 +379,12 @@ def derive_position_control():
 
     qc_wb = SO3Quat.elem(ca.SX.sym('qc_wb', 4)) # camera orientation
     p_w = ca.SX.sym('p_w', 3) # position in world frame
-    v_b = ca.SX.sym('v_b', 3) # velocity in body frame
-    q_wb = SO3Quat.elem(ca.SX.sym('q_wb', 4))
+    v_w = ca.SX.sym('v_w', 3) # velocity in world frame
     z_i = ca.SX.sym('z_i') # z velocity error integral
     dt = ca.SX.sym('dt') # time step
 
     # CALC
-    # -------------------------------
-    R_wb = q_wb.to_Matrix()
-    
-    v_w = R_wb @ v_b
-
+    # -------------------------------    
     e_p = p_w - pt_w
     e_v = v_w - vt_w
 
@@ -391,14 +442,32 @@ def derive_position_control():
     # -------------------------------
     f_get_u = ca.Function(
         "position_control",
-        [thrust_trim, pt_w, vt_w, at_w, qc_wb.param, p_w, v_b, q_wb.param, z_i, dt], [nT, qr_wb.param, z_i_2], 
-        ['thrust_trim', 'pt_w', 'vt_w', 'at_w', 'qc_wb', 'p_w', 'v_b', 'q_wb', 'z_i', 'dt'], 
+        [thrust_trim, pt_w, vt_w, at_w, qc_wb.param, p_w, v_w, z_i, dt], [nT, qr_wb.param, z_i_2], 
+        ['thrust_trim', 'pt_w', 'vt_w', 'at_w', 'qc_wb', 'p_w', 'v_w', 'z_i', 'dt'], 
         ['nT', 'qr_wb', 'z_i_2'])
     
     return {
         "position_control" : f_get_u
     }
 
+def derive_common():
+    q = SO3Quat.elem(ca.SX.sym("q", 4))
+    vw0 = ca.SX.sym("vw0",3)
+    vb1 = ca.SX.sym("vb1",3)
+    vb0 = q @ vw0
+    vw1 = q.inverse() @ vb1
+    f_rotate_vector_w_to_b = ca.Function("rotate_vector_w_to_b",
+            [q.param, vw0],[vb0],
+            ["q", "vw0"],
+            ["vb0"])
+    f_rotate_vector_b_to_w = ca.Function("rotate_vector_b_to_w",
+            [q.param, vb1],[vw1],
+            ["q", "vb1"],
+            ["vw1"])
+    return {
+        'rotate_vector_w_to_b': f_rotate_vector_w_to_b,
+        'rotate_vector_b_to_w': f_rotate_vector_b_to_w
+    }
 
 def calculate_N(v: SE23LieAlgebraElement, B: ca.SX):
     """
@@ -513,8 +582,10 @@ if __name__ == "__main__":
     eqs.update(derive_position_control())
     eqs.update(derive_joy_acro())
     eqs.update(derive_joy_auto_level())
+    eqs.update(derive_joy_velocity())
     eqs.update(derive_strapdown_ins_propagation())
     eqs.update(derive_control_allocation())
+    eqs.update(derive_common())
 
     for name, eq in eqs.items():
         print('eq: ', name)

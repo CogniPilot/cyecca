@@ -82,9 +82,11 @@ class Simulator(Node):
         self.eqs.update(rdd2.derive_position_control())
         self.eqs.update(rdd2.derive_joy_acro())
         self.eqs.update(rdd2.derive_joy_auto_level())
+        self.eqs.update(rdd2.derive_joy_velocity())
         self.eqs.update(rdd2.derive_strapdown_ins_propagation())
         self.eqs.update(rdd2.derive_control_allocation())
         self.eqs.update(rdd2.derive_covariance_propagation())
+        self.eqs.update(rdd2.derive_common())
 
         #----------------------------------------------
         # sim state data
@@ -102,13 +104,23 @@ class Simulator(Node):
         self.input_pitch = 0
         self.input_thrust = 0
         self.input_yaw = 0
-        self.input_mode = 'unknown'
+        self.input_mode = 'velocity'
         self.i0 = 0  # integrators for attitude rate loop
         self.e0 = ca.vertcat(0, 0, 0)  # error for attitude rate loop
         self.de0 = ca.vertcat(0, 0, 0)  # derivative for attitude rate loop (for low pass)
 
+        # estimator data
         self.P = 0.0001*np.eye(3)
         self.Q = 1e-4*np.eye(3)
+
+        # velocity control data
+        self.yawc_sp = 0
+        self.pw_sp = np.zeros(3)
+        self.vw_sp = np.zeros(3)
+        self.aw_sp = np.zeros(3)
+        self.q_sp = np.array([1, 0, 0, 0])
+        self.qc_sp = np.array([1, 0, 0, 0])
+        self.z_i = 0
 
     def clock_as_msg(self):
         msg = Clock()
@@ -121,6 +133,12 @@ class Simulator(Node):
         self.input_thrust = msg.axes[1]
         self.input_roll = -msg.axes[3]
         self.input_pitch = msg.axes[4]
+        if msg.buttons[0] == 1:
+            self.input_mode = 'auto_level'
+        elif msg.buttons[1] == 1:
+            self.input_mode = 'velocity'
+        elif msg.buttons[2] == 1:
+            self.input_mode = 'bezier'
 
     def timer_callback(self):
         #------------------------------------
@@ -129,9 +147,13 @@ class Simulator(Node):
         weight = 2*9.8
         thrust_delta = 0.5*weight
         thrust_trim = weight
-        kp = ca.vertcat(1, 1, 0)
+    
+        k_p_att = ca.vertcat(5, 5, 2)
+
+        # attitude rate
+        kp = ca.vertcat(0.3, 0.3, 0.05)
         ki = ca.vertcat(0, 0, 0)
-        kd = ca.vertcat(0, 0, 0)
+        kd = ca.vertcat(0.1, 0.1, 0)
         f_cut = 10.0
         i_max = ca.vertcat(0, 0, 0)
         mode = 'acro'
@@ -139,23 +161,42 @@ class Simulator(Node):
         #------------------------------------
         # integration for simulation
         #------------------------------------
-        f_int = ca.integrator("test", "idas", self.model['dae'], self.t, self.t + self.dt)
-        res = f_int(x0=self.x, z0=0, p=self.p, u=self.u)
-
-        res["yf_gyro"] = self.model["g_gyro"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
-        res["yf_accel"] = self.model["g_accel"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
-        res["yf_mag"] = self.model["g_mag"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
-        res["yf_gps_pos"] = self.model["g_gps_pos"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        # print(self.x, self.u)
+        try:
+            # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
+            f_int = ca.integrator("test", "cvodes", self.model['dae'], self.t, self.t + self.dt)
+            res = f_int(x0=self.x, z0=0, p=self.p, u=self.u)
+        except RuntimeError as e:
+            print(e)
+            xdot = self.model['f'](x=self.x, u=self.u, p=self.p)
+            print(xdot, self.x, self.u, self.p)
+            raise e
+        
+        x1 = np.array(res["xf"]).reshape(-1)
+        if not np.all(np.isfinite(x1)):
+            print("integration not finite")
+            raise RuntimeError("nan in integration")
 
         #------------------------------------
         # store states and measurements
         #------------------------------------
         self.x = np.array(res["xf"]).reshape(-1)
+        q = ca.vertcat(self.get_state_by_name("quaternion_wb_0"), self.get_state_by_name("quaternion_wb_1"), self.get_state_by_name("quaternion_wb_2"), self.get_state_by_name("quaternion_wb_3"))
+        # q = q/ca.norm_2(q)
+        self.x[6:10] = np.array(q).reshape(-1)
+        res["yf_gyro"] = self.model["g_gyro"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        res["yf_accel"] = self.model["g_accel"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        res["yf_mag"] = self.model["g_mag"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        res["yf_gps_pos"] = self.model["g_gps_pos"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+
         self.y_gyro = np.array(res["yf_gyro"]).reshape(-1)
         self.y_mag = np.array(res["yf_mag"]).reshape(-1)
         self.y_accel = np.array(res["yf_accel"]).reshape(-1)
         self.y_gps_pos = np.array(res["yf_gps_pos"]).reshape(-1)
         self.publish_state()
+
+
+        
 
         #------------------------------------
         # estimator
@@ -171,31 +212,61 @@ class Simulator(Node):
         #------------------------------------
         # control state
         #------------------------------------
-        q = ca.vertcat(self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9])
-        omega = self.y_gyro
-        
+        use_estimator = True
+        if use_estimator:
+            q = ca.vertcat(self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9])
+            omega = self.y_gyro
+            pw = ca.vertcat(self.est_x[0], self.est_x[1], self.est_x[2])
+            vw = ca.vertcat(self.est_x[3], self.est_x[4], self.est_x[5])
+            vb = self.eqs['rotate_vector_w_to_b'](q, vw)
+        else:
+            omega = ca.vertcat(self.get_state_by_name("omega_wb_b_0"), self.get_state_by_name("omega_wb_b_1"), self.get_state_by_name("omega_wb_b_2"))
+            pw = ca.vertcat(self.get_state_by_name("position_op_w_0"), self.get_state_by_name("position_op_w_1"), self.get_state_by_name("position_op_w_2"))
+            vb = ca.vertcat(self.get_state_by_name("velocity_w_p_b_0"), self.get_state_by_name("velocity_w_p_b_1"), self.get_state_by_name("velocity_w_p_b_2"))
+            vw = self.eqs['rotate_vector_b_to_w'](q, vb)
+            
         #------------------------------------
         # joy input handling
         #------------------------------------
-        if mode == 'acro':
-            [omega_r, thrust] = self.eqs['joy_acro'](
+        if self.input_mode == 'acro':
+            [omega_sp, thrust] = self.eqs['joy_acro'](
                 thrust_trim, thrust_delta,
                 self.input_roll, self.input_pitch, self.input_yaw, self.input_thrust)
             
-            #('omega_r %s thrust %s' % (omega_r, thrust))
-        elif mode == 'auto_level':
-            [q_r, thrust] = self.eqs['joy_auto_level'](
+        elif self.input_mode == 'auto_level':
+            [self.q_sp, thrust] = self.eqs['joy_auto_level'](
                 thrust_trim, thrust_delta,
                 self.input_roll, self.input_pitch, self.input_yaw, self.input_thrust, q)
-                # TODO enable attitude control
-                #omega = self.eqs['attitude_control'](k_p, q, q_r)
+            omega_sp = self.eqs['attitude_control'](k_p_att, q, self.q_sp)
         
+        elif self.input_mode == 'velocity':
+            #['thrust_trim', 'pt_w', 'vt_w', 'at_w', 'qc_wb', 'p_w', 'v_b', 'q_wb', 'z_i', 'dt'], 
+            #['nT', 'qr_wb', 'z_i_2'])
+            reset_position = False
+            pw = ca.vertcat(self.est_x[0], self.est_x[1], self.est_x[2])
+
+
+        #         f_get_u = ca.Function(
+        # "position_control",
+        # [thrust_trim, pt_w, vt_w, at_w, qc_wb.param, p_w, v_b, q_wb.param, z_i, dt], [nT, qr_wb.param, z_i_2], 
+        # ['thrust_trim', 'pt_w', 'vt_w', 'at_w', 'qc_wb', 'p_w', 'v_b', 'q_wb', 'z_i', 'dt'], 
+        # ['nT', 'qr_wb', 'z_i_2'])
+
+            [self.yawc_sp, self.pw_sp, self.vw_sp, self.aw_sp, self.qc_sp] = self.eqs['joy_velocity'](
+                self.dt, self.yawc_sp, self.pw_sp, pw,
+                self.input_roll, self.input_pitch, self.input_yaw, self.input_thrust, reset_position)
+            
+            [thrust, self.q_sp, self.z_i] = self.eqs['position_control'](
+                thrust_trim, self.pw_sp, self.vw_sp, self.aw_sp, self.qc_sp, pw, vw, self.z_i, self.dt)
+            omega_sp = self.eqs['attitude_control'](k_p_att, q, self.q_sp)
+
         #------------------------------------
         # attitude rate control
         #------------------------------------
         omega = self.y_gyro
+        # print(omega_sp, self.i0, self.e0, self.de0)
         M, i1, e1, de1, alpha = self.eqs['attitude_rate_control'](
-            kp, ki, kd, f_cut, i_max, omega, omega_r, self.i0, self.e0, self.de0, self.dt)
+            kp, ki, kd, f_cut, i_max, omega, omega_sp, self.i0, self.e0, self.de0, self.dt)
         self.i0 = i1
         #self.get_logger().info('i0: %s' % self.i0)
         #self.get_logger().info('e0: %s' % self.e0)
@@ -209,10 +280,15 @@ class Simulator(Node):
         CM = self.get_param_by_name("CM")
         CT = self.get_param_by_name("CT")
 
+        assert CT != 0
+
+        # print("CT",CT)
+
         #------------------------------------
         # control allocation
         #------------------------------------
-        self.u = self.eqs['f_alloc'](F_max, l, CM, CT, thrust, M)
+        self.u, Fp, Fm, Ft, Msat = self.eqs['f_alloc'](F_max, l, CM, CT, thrust, M)
+        # print("M, Msat", M, Msat)
         #self.get_logger().info('M: %s' % M)
         #self.get_logger().info('u: %s' % self.u)
 

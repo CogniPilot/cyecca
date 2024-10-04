@@ -167,7 +167,8 @@ class Simulator(Node):
             new_control_mode = "mellinger"
         if new_control_mode != self.control_mode:
             self.get_logger().info(
-                "control mode changed from: %s to %s" % (self.control_mode, new_control_mode)
+                "control mode changed from: %s to %s"
+                % (self.control_mode, new_control_mode)
             )
             self.control_mode = new_control_mode
 

@@ -117,14 +117,13 @@ class Simulator(Node):
         self.input_mode = "velocity"
         self.control_mode = "mellinger"
         self.i0 = 0  # integrators for attitude rate loop
-        self.e0 = ca.vertcat(0, 0, 0)  # error for attitude rate loop
-        self.de0 = ca.vertcat(
-            0, 0, 0
-        )  # derivative for attitude rate loop (for low pass)
+        self.e0 = np.zeros(3, dtype=float)  # error for attitude rate loop
+        self.de0 = np.zeros(3, dtype=float)  # derivative for attitude rate loop (for low pass)
 
         # estimator data
         self.P = 0.0001 * np.eye(3)
         self.Q = 1e-4 * np.eye(3)
+        self.vb = np.zeros(3, dtype=float)
 
         # velocity control data
         self.yawc_sp = 0
@@ -166,14 +165,14 @@ class Simulator(Node):
         thrust_delta = 0.5 * weight
         thrust_trim = weight
 
-        k_p_att = ca.vertcat(5, 5, 2)
+        k_p_att = np.array([5, 5, 2])
 
         # attitude rate
-        kp = ca.vertcat(0.3, 0.3, 0.05)
-        ki = ca.vertcat(0, 0, 0)
-        kd = ca.vertcat(0.1, 0.1, 0)
+        kp = np.array([0.3, 0.3, 0.05])
+        ki = np.array([0, 0, 0])
+        kd = np.array([0.1, 0.1, 0])
         f_cut = 10.0
-        i_max = ca.vertcat(0, 0, 0)
+        i_max = np.array([0, 0, 0])
 
         # ------------------------------------
         # integration for simulation
@@ -200,12 +199,12 @@ class Simulator(Node):
         # store states and measurements
         # ------------------------------------
         self.x = np.array(res["xf"]).reshape(-1)
-        q = ca.vertcat(
+        q = np.array([
             self.get_state_by_name("quaternion_wb_0"),
             self.get_state_by_name("quaternion_wb_1"),
             self.get_state_by_name("quaternion_wb_2"),
             self.get_state_by_name("quaternion_wb_3"),
-        )
+        ])
         # q = q/ca.norm_2(q)
         self.x[6:10] = np.array(q).reshape(-1)
         res["yf_gyro"] = self.model["g_gyro"](
@@ -247,27 +246,27 @@ class Simulator(Node):
         # ------------------------------------
         use_estimator = True
         if use_estimator:
-            q = ca.vertcat(self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9])
+            q = np.array([self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]])
             omega = self.y_gyro
-            pw = ca.vertcat(self.est_x[0], self.est_x[1], self.est_x[2])
-            vw = ca.vertcat(self.est_x[3], self.est_x[4], self.est_x[5])
-            vb = self.eqs["rotate_vector_w_to_b"](q, vw)
+            pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]])
+            vw = np.array([self.est_x[3], self.est_x[4], self.est_x[5]])
+            self.vb = np.array([self.eqs["rotate_vector_w_to_b"](q, vw)]).reshape(-1)
         else:
-            omega = ca.vertcat(
+            omega = np.array([
                 self.get_state_by_name("omega_wb_b_0"),
                 self.get_state_by_name("omega_wb_b_1"),
                 self.get_state_by_name("omega_wb_b_2"),
-            )
-            pw = ca.vertcat(
+            ])
+            pw = np.array([
                 self.get_state_by_name("position_op_w_0"),
                 self.get_state_by_name("position_op_w_1"),
                 self.get_state_by_name("position_op_w_2"),
-            )
-            vb = ca.vertcat(
+            ])
+            self.vb = np.array([
                 self.get_state_by_name("velocity_w_p_b_0"),
                 self.get_state_by_name("velocity_w_p_b_1"),
                 self.get_state_by_name("velocity_w_p_b_2"),
-            )
+            ])
             vw = self.eqs["rotate_vector_b_to_w"](q, vb)
 
         # ------------------------------------
@@ -299,7 +298,7 @@ class Simulator(Node):
             # ['thrust_trim', 'pt_w', 'vt_w', 'at_w', 'qc_wb', 'p_w', 'v_b', 'q_wb', 'z_i', 'dt'],
             # ['nT', 'qr_wb', 'z_i_2'])
             reset_position = False
-            pw = ca.vertcat(self.est_x[0], self.est_x[1], self.est_x[2])
+            pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]])
 
             [self.yawc_sp, self.pw_sp, self.vw_sp, self.aw_sp, self.qc_sp] = self.eqs[
                 "joy_velocity"
@@ -526,9 +525,9 @@ class Simulator(Node):
         msg_odom.pose.pose.position.x = self.est_x[0]
         msg_odom.pose.pose.position.y = self.est_x[1]
         msg_odom.pose.pose.position.z = self.est_x[2]
-        msg_odom.twist.twist.linear.x = self.est_x[3]
-        msg_odom.twist.twist.linear.y = self.est_x[4]
-        msg_odom.twist.twist.linear.z = self.est_x[5]
+        msg_odom.twist.twist.linear.x = self.vb[0]
+        msg_odom.twist.twist.linear.y = self.vb[1]
+        msg_odom.twist.twist.linear.z = self.vb[2]
         msg_odom.pose.pose.orientation.w = self.est_x[6]
         msg_odom.pose.pose.orientation.x = self.est_x[7]
         msg_odom.pose.pose.orientation.y = self.est_x[8]

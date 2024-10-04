@@ -509,11 +509,11 @@ def derive_position_control():
 
 
 def derive_common():
-    q = SO3Quat.elem(ca.SX.sym("q", 4))
+    q = SO3Quat.elem(ca.SX.sym("q", 4)) # body to world
     vw0 = ca.SX.sym("vw0", 3)
     vb1 = ca.SX.sym("vb1", 3)
-    vb0 = q @ vw0
-    vw1 = q.inverse() @ vb1
+    vb0 = q.inverse() @ vw0
+    vw1 = q @ vb1
     f_rotate_vector_w_to_b = ca.Function(
         "rotate_vector_w_to_b", [q.param, vw0], [vb0], ["q", "vw0"], ["vb0"]
     )

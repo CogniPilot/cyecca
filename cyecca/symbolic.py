@@ -349,6 +349,7 @@ def derive_series():
     sin = sympy.sin
     return {
         "sin(x)/x": taylor_series_near_zero(x, sin(x) / x),
+        "x/sin(x)": taylor_series_near_zero(x, x / sin(x)),
         "(1 - cos(x))/x": taylor_series_near_zero(x, (1 - cos(x)) / x),
         "(1 - cos(x))/x^2": taylor_series_near_zero(x, (1 - cos(x)) / x**2),
         "(x - sin(x))/x^3": taylor_series_near_zero(x, (x - sin(x)) / x**3),

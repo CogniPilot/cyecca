@@ -296,12 +296,10 @@ class SO3DcmLieGroup(SO3LieGroup):
 
     def log(self, arg: SO3DcmLieGroupElement) -> SO3LieAlgebraElement:
         R = self.to_Matrix(arg)
-        r = ca.if_else((ca.fabs(ca.trace(R) - 1) / 2) > 1, 1, (ca.trace(R) - 1) / 2)
-        theta = ca.arccos(r)
-        # A = SERIES["s/in(x)/x"]
-        # A = ca.if_else(ca.fabs(theta) < 1, 1 - theta**2/6 + theta**4/120, ca.sin(theta)/theta)
-        A = 1 - theta**2 / 6  # + theta**4/120
-        return self.algebra.from_Matrix((R - R.T) / (A))
+        e1 = (ca.trace(R) - 1) / 2
+        theta = ca.if_else(e1 > 1, 0, ca.if_else(e1 < -1, ca.pi, ca.arccos(e1)))
+        A = SERIES["x/sin(x)"](theta)
+        return self.algebra.from_Matrix((R - R.T) * A / 2)
 
     def to_Matrix(self, arg: SO3DcmLieGroupElement) -> ca.SX:
         return arg.param.reshape((3, 3))
@@ -502,7 +500,11 @@ class SO3QuatLieGroup(SO3LieGroup):
         )
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
-        return SO3Dcm.from_Quat(arg).log()
+        q = arg.param
+        theta = 2 * ca.arccos(q[0])
+        A = SERIES["x/sin(x)"](theta / 2)
+        omega = ca.vertcat(q[1], q[2], q[2]) * A / 2
+        return self.algebra.elem(omega)
 
     def left_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
         w = so3.elem(ca.SX.sym("w", 3))

@@ -211,11 +211,7 @@ class SE23LieGroup(LieGroup):
 
     def log(self, arg: SE23LieGroupElement) -> SE23LieAlgebraElement:
         omega = arg.R.log()
-
-        # alternate ways of finding theta
-        # theta = ca.norm_2(omega.param)
-        theta = ca.arccos((ca.trace(arg.R.to_Matrix()) - 1) / 2)
-
+        theta = ca.norm_2(omega.param)
         Omega = omega.to_Matrix()
         A = SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](theta)
         B = SERIES["1/x^2"](theta)

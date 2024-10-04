@@ -2,6 +2,7 @@
 
 from cyecca.models import quadrotor
 from cyecca.models import rdd2
+from cyecca.models import rdd2_loglinear
 
 import casadi as ca
 import numpy as np
@@ -87,6 +88,9 @@ class Simulator(Node):
         self.eqs.update(rdd2.derive_control_allocation())
         self.eqs.update(rdd2.derive_covariance_propagation())
         self.eqs.update(rdd2.derive_common())
+        self.eqs.update(rdd2_loglinear.derive_se23_error())
+        self.eqs.update(rdd2_loglinear.derive_outerloop_control())
+        self.eqs.update(rdd2_loglinear.derive_so3_attitude_control())
 
         # ----------------------------------------------
         # sim state data
@@ -111,6 +115,7 @@ class Simulator(Node):
         self.input_thrust = 0
         self.input_yaw = 0
         self.input_mode = "velocity"
+        self.control_mode = "mellinger"
         self.i0 = 0  # integrators for attitude rate loop
         self.e0 = ca.vertcat(0, 0, 0)  # error for attitude rate loop
         self.de0 = ca.vertcat(
@@ -147,6 +152,11 @@ class Simulator(Node):
             self.input_mode = "velocity"
         elif msg.buttons[2] == 1:
             self.input_mode = "bezier"
+        if msg.buttons[4] == 1:
+            self.control_mode = "loglinear"
+        if msg.buttons[5] == 1:
+            self.control_mode = "mellinger"
+
 
     def timer_callback(self):
         # ------------------------------------
@@ -164,7 +174,6 @@ class Simulator(Node):
         kd = ca.vertcat(0.1, 0.1, 0)
         f_cut = 10.0
         i_max = ca.vertcat(0, 0, 0)
-        mode = "acro"
 
         # ------------------------------------
         # integration for simulation
@@ -292,12 +301,6 @@ class Simulator(Node):
             reset_position = False
             pw = ca.vertcat(self.est_x[0], self.est_x[1], self.est_x[2])
 
-            #         f_get_u = ca.Function(
-            # "position_control",
-            # [thrust_trim, pt_w, vt_w, at_w, qc_wb.param, p_w, v_b, q_wb.param, z_i, dt], [nT, qr_wb.param, z_i_2],
-            # ['thrust_trim', 'pt_w', 'vt_w', 'at_w', 'qc_wb', 'p_w', 'v_b', 'q_wb', 'z_i', 'dt'],
-            # ['nT', 'qr_wb', 'z_i_2'])
-
             [self.yawc_sp, self.pw_sp, self.vw_sp, self.aw_sp, self.qc_sp] = self.eqs[
                 "joy_velocity"
             ](
@@ -311,19 +314,41 @@ class Simulator(Node):
                 self.input_thrust,
                 reset_position,
             )
-
-            [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
-                thrust_trim,
-                self.pw_sp,
-                self.vw_sp,
-                self.aw_sp,
-                self.qc_sp,
-                pw,
-                vw,
-                self.z_i,
-                self.dt,
-            )
-            omega_sp = self.eqs["attitude_control"](k_p_att, q, self.q_sp)
+            if self.control_mode=="loglinear":
+                zeta = self.eqs["se23_error"](
+                    self.pw_sp,
+                    self.vw_sp,
+                    self.qc_sp,
+                    pw,
+                    vw,
+                    q
+                )
+                # position control: world frame
+                [thrust, self.q_sp, self.z_i] = self.eqs["se23_position_control"](
+                    thrust_trim,
+                    k_p_att,
+                    zeta,
+                    self.aw_sp,
+                    self.qc_sp,
+                    q,
+                    self.z_i,
+                    self.dt,
+                )
+                # attitude control: q_br
+                omega_sp = self.eqs["so3_attitude_control"](k_p_att, q, self.q_sp)
+            elif self.control_mode=="mellinger":
+                [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
+                    thrust_trim,
+                    self.pw_sp,
+                    self.vw_sp,
+                    self.aw_sp,
+                    self.qc_sp,
+                    pw,
+                    vw,
+                    self.z_i,
+                    self.dt,
+                )
+                omega_sp = self.eqs["attitude_control"](k_p_att, q, self.q_sp)
 
         # ------------------------------------
         # attitude rate control
@@ -357,8 +382,6 @@ class Simulator(Node):
         CT = self.get_param_by_name("CT")
 
         assert CT != 0
-
-        # print("CT",CT)
 
         # ------------------------------------
         # control allocation

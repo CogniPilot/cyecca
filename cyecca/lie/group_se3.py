@@ -86,7 +86,8 @@ class SE3LieAlgebra(LieAlgebra):
                 (theta - s_theta) / (theta**3),  # C1
                 (theta**2 + 2 * c_theta - 2) / (2 * theta**4),  # C2
                 (theta * c_theta + 2 * theta - 3 * s_theta) / (2 * theta**5),  # C3
-                (theta**2 + theta * s_theta + 4 * c_theta - 4) / (2 * theta**6),  # C4
+                (theta**2 + theta * s_theta + 4 * c_theta - 4)
+                / (2 * theta**6),  # C4
                 (2 - 2 * c_theta - theta * s_theta) / (2 * theta**4),  # C5
             ),
             ca.vertcat(

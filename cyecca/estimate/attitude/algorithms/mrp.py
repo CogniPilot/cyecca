@@ -23,7 +23,7 @@ C_nb = r.to_Matrix()
 # eb, R(3) lie algebra rotation error
 n_e = 6
 eta = ca.SX.sym("eta", G.algebra.n_param)  # (right inv error)
-W = ca.SX.sym("W", ca.Sparsity_lower(n_e))
+W = ca.SX.sym("W", ca.Sparsity.lower(n_e))
 
 
 def get_state(**kwargs):

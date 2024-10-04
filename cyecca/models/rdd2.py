@@ -306,7 +306,8 @@ def derive_attitude_estimator():
         return ca.vertcat(
             ca.horzcat(v[0], v[1], v[2]),
             ca.horzcat(v[1], v[3], v[4]),
-            ca.horzcat(v[2], v[4], v[5]))
+            ca.horzcat(v[2], v[4], v[5]),
+        )
 
     P0 = ca.triu2symm(ca.SX.sym("P0", ca.Sparsity.upper(3)))
     Q = ca.triu2symm(ca.SX.sym("Q", ca.Sparsity.upper(3)))
@@ -316,18 +317,22 @@ def derive_attitude_estimator():
     P1 = P0 + A @ P0 + P0 @ A.T + Q
 
     # mag correction
-    #X = SO3Quat("X", ca.SX.param("X", 4))
-    #Xr = SO3Quat("X", ca.SX.param("X", 4))
+    # X = SO3Quat("X", ca.SX.param("X", 4))
+    # Xr = SO3Quat("X", ca.SX.param("X", 4))
 
-    #H = np.eye(3)
-    #R_mag
-    #S = H @ P @ H.T + R
+    # H = np.eye(3)
+    # R_mag
+    # S = H @ P @ H.T + R
 
-    #K = P0.T @ C @ S.inv
+    # K = P0.T @ C @ S.inv
 
-    f_cov_prop = ca.Function('attitude_covariance_propagation',
+    f_cov_prop = ca.Function(
+        "attitude_covariance_propagation",
         [sym33_to_vector6(P0), sym33_to_vector6(Q), wb.param, dt],
-        [sym33_to_vector6(ca.triu(P1))], ['P0', 'Q0', 'wb', 'dt'], ['P1'])
+        [sym33_to_vector6(ca.triu(P1))],
+        ["P0", "Q0", "wb", "dt"],
+        ["P1"],
+    )
 
     return {"attitude_covariance_propagation": f_cov_prop}
 

@@ -338,13 +338,14 @@ class Simulator(Node):
                 omega_sp = self.eqs["attitude_control"](k_p_att, q, self.q_sp)
             elif self.control_mode == "loglinear":
                 zeta = self.eqs["se23_error"](
-                    pw,
-                    vw,
-                    q,
                     self.pw_sp,
                     self.vw_sp,
                     self.qc_sp,
+                    pw,
+                    vw,
+                    q
                 )
+                # position control: world frame
                 [thrust, self.q_sp, self.z_i] = self.eqs["se23_position_control"](
                     thrust_trim,
                     k_p_att,
@@ -352,13 +353,13 @@ class Simulator(Node):
                     self.aw_sp,
                     self.qc_sp,
                     self.z_i,
-                    self.dt
+                    self.dt,
                 )
-
+                # attitude control: q_br
                 omega_sp = self.eqs["so3_attitude_control"](k_p_att, q, self.q_sp)
         else:
             self.get_logger().info('unhandled mode: %s' % self.input_mode)
-            omega_sp = np.zeros(3, type=float)
+            omega_sp = np.zeros(3, dtype=float)
             thrust = 0
 
         # ------------------------------------

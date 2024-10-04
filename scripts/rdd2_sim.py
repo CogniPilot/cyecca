@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from cyecca.models import quadrotor
-from cyecca.models import rdd2
+from cyecca.models import rdd2, rdd2_loglinear
 
 import casadi as ca
 import numpy as np
@@ -87,6 +87,9 @@ class Simulator(Node):
         self.eqs.update(rdd2.derive_control_allocation())
         self.eqs.update(rdd2.derive_attitude_estimator())
         self.eqs.update(rdd2.derive_common())
+        self.eqs.update(rdd2_loglinear.derive_se23_error())
+        self.eqs.update(rdd2_loglinear.derive_so3_attitude_control())
+        self.eqs.update(rdd2_loglinear.derive_outerloop_control())
 
         # ----------------------------------------------
         # sim state data
@@ -111,6 +114,7 @@ class Simulator(Node):
         self.input_thrust = 0
         self.input_yaw = 0
         self.input_mode = "velocity"
+        self.control_mode = "mellinger"
         self.i0 = 0  # integrators for attitude rate loop
         self.e0 = np.array([0, 0, 0], dtype=float)  # error for attitude rate loop
         self.de0 = np.array([0, 0, 0], dtype=float)  # derivative for attitude rate loop (for low pass)
@@ -152,6 +156,10 @@ class Simulator(Node):
             self.get_logger().info('mode changed from: %s to %s' %
                                    (self.input_mode, new_mode))
             self.input_mode = new_mode
+        if msg.buttons[4] == 1:
+            self.control_mode = "loglinear"
+        elif msg.buttons[5] ==1:
+            self.control_mode = "mellinger"
 
     def timer_callback(self):
         # ------------------------------------
@@ -315,19 +323,39 @@ class Simulator(Node):
                 self.input_thrust,
                 reset_position,
             )
+            if self.control_mode == "mellinger":
+                [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
+                    thrust_trim,
+                    self.pw_sp,
+                    self.vw_sp,
+                    self.aw_sp,
+                    self.qc_sp,
+                    pw,
+                    vw,
+                    self.z_i,
+                    self.dt,
+                )
+                omega_sp = self.eqs["attitude_control"](k_p_att, q, self.q_sp)
+            elif self.control_mode == "loglinear":
+                zeta = self.eqs["se23_error"](
+                    pw,
+                    vw,
+                    q,
+                    self.pw_sp,
+                    self.vw_sp,
+                    self.qc_sp,
+                )
+                [thrust, self.q_sp, self.z_i] = self.eqs["se23_position_control"](
+                    thrust_trim,
+                    k_p_att,
+                    zeta,
+                    self.aw_sp,
+                    self.qc_sp,
+                    self.z_i,
+                    self.dt
+                )
 
-            [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
-                thrust_trim,
-                self.pw_sp,
-                self.vw_sp,
-                self.aw_sp,
-                self.qc_sp,
-                pw,
-                vw,
-                self.z_i,
-                self.dt,
-            )
-            omega_sp = self.eqs["attitude_control"](k_p_att, q, self.q_sp)
+                omega_sp = self.eqs["so3_attitude_control"](k_p_att, q, self.q_sp)
         else:
             self.get_logger().info('unhandled mode: %s' % self.input_mode)
             omega_sp = np.zeros(3, type=float)

@@ -113,7 +113,7 @@ class Simulator(Node):
         self.input_thrust = 0
         self.input_yaw = 0
         self.input_mode = "velocity"
-        self.control_mode = "loglinear"
+        self.control_mode = "mellinger"
         self.i0 = 0  # integrators for attitude rate loop
         self.e0 = np.array([0, 0, 0], dtype=float)  # error for attitude rate loop
         self.de0 = np.array(
@@ -146,6 +146,7 @@ class Simulator(Node):
         self.input_roll = -msg.axes[3]
         self.input_pitch = msg.axes[4]
         new_mode = self.input_mode
+        new_control_mode = self.control_mode
         if msg.buttons[0] == 1:
             new_mode = "auto_level"
         elif msg.buttons[1] == 1:
@@ -161,9 +162,14 @@ class Simulator(Node):
             )
             self.input_mode = new_mode
         if msg.buttons[4] == 1:
-            self.control_mode = "loglinear"
+            new_control_mode = "loglinear"
         elif msg.buttons[5] == 1:
-            self.control_mode = "mellinger"
+            new_control_mode = "mellinger"
+        if new_control_mode != self.control_mode:
+            self.get_logger().info(
+                "control mode changed from: %s to %s" % (self.control_mode, new_control_mode)
+            )
+            self.control_mode = new_control_mode
 
     def timer_callback(self):
         # ------------------------------------
@@ -361,7 +367,6 @@ class Simulator(Node):
                 )
                 omega_sp = self.eqs["attitude_control"](k_p_att, q, self.q_sp)
             elif self.control_mode == "loglinear":
-                # print(self.vw_sp, vw)
                 zeta = self.eqs["se23_error"](
                     pw,
                     vw,
@@ -371,7 +376,7 @@ class Simulator(Node):
                     self.qc_sp,
                 )
                 # position control: world frame
-                [thrust, self.q_sp, self.z_i, p] = self.eqs["se23_position_control"](
+                [thrust, self.q_sp, self.z_i] = self.eqs["se23_position_control"](
                     thrust_trim,
                     k_p_att,
                     zeta,
@@ -381,9 +386,7 @@ class Simulator(Node):
                     self.dt,
                 )
                 # attitude control: q_br
-                omega_sp = np.zeros(
-                    3, dtype=float
-                )  # self.eqs["so3_attitude_control"](k_p_att, q, self.q_sp)
+                omega_sp = self.eqs["so3_attitude_control"](k_p_att, q, self.q_sp)
         else:
             self.get_logger().info("unhandled mode: %s" % self.input_mode)
             omega_sp = np.zeros(3, dtype=float)

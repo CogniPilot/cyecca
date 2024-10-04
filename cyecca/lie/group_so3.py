@@ -501,10 +501,12 @@ class SO3QuatLieGroup(SO3LieGroup):
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         q = arg.param
+        q = q/ca.norm_2(q)
         theta = 2 * ca.arccos(q[0])
         A = SERIES["x/sin(x)"](theta / 2)
-        omega = ca.vertcat(q[1], q[2], q[2]) * A / 2
+        omega = ca.vertcat(q[1], q[2], q[3]) * A * 2
         return self.algebra.elem(omega)
+        # return SO3Dcm.from_Quat(arg).log()
 
     def left_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
         w = so3.elem(ca.SX.sym("w", 3))

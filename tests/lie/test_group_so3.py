@@ -137,7 +137,6 @@ class Test_LieGroupSO3Euler(ProfiledTestCase):
     def test_exp_log(self):
         G1 = SO3EulerB321.elem(self.v1)
         G2 = G1.log().exp(SO3EulerB321)
-        print(G1, G2)
         self.assertTrue(SX_close(G1.param, G2.param))
 
     def test_print_group(self):

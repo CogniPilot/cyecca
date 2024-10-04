@@ -20,7 +20,6 @@ from tf2_ros import TransformBroadcaster
 
 
 class Simulator(Node):
-
     def __init__(self, x0=None, p=None):
         # ----------------------------------------------
         # ROS2 node setup
@@ -96,7 +95,7 @@ class Simulator(Node):
         # ----------------------------------------------
         self.path_len = 30
         self.t = 0
-        self.dt = 1.0 / 250
+        self.dt = 1.0 / 100
         self.real_time_factor = 1
         self.system_clock = rclpy.clock.Clock(
             clock_type=rclpy.clock.ClockType.SYSTEM_TIME
@@ -114,10 +113,12 @@ class Simulator(Node):
         self.input_thrust = 0
         self.input_yaw = 0
         self.input_mode = "velocity"
-        self.control_mode = "mellinger"
+        self.control_mode = "loglinear"
         self.i0 = 0  # integrators for attitude rate loop
         self.e0 = np.array([0, 0, 0], dtype=float)  # error for attitude rate loop
-        self.de0 = np.array([0, 0, 0], dtype=float)  # derivative for attitude rate loop (for low pass)
+        self.de0 = np.array(
+            [0, 0, 0], dtype=float
+        )  # derivative for attitude rate loop (for low pass)
 
         # estimator data
         self.P = 0.0001 * np.array([1, 0, 0, 1, 0, 1], dtype=float)
@@ -150,15 +151,18 @@ class Simulator(Node):
         elif msg.buttons[1] == 1:
             new_mode = "velocity"
         elif msg.buttons[2] == 1:
-            self.get_logger().info('bezier mode not yet supported, reverted to %s' % self.input_mode)
-            #new_mode = "bezier"
+            self.get_logger().info(
+                "bezier mode not yet supported, reverted to %s" % self.input_mode
+            )
+            # new_mode = "bezier"
         if new_mode != self.input_mode:
-            self.get_logger().info('mode changed from: %s to %s' %
-                                   (self.input_mode, new_mode))
+            self.get_logger().info(
+                "mode changed from: %s to %s" % (self.input_mode, new_mode)
+            )
             self.input_mode = new_mode
         if msg.buttons[4] == 1:
             self.control_mode = "loglinear"
-        elif msg.buttons[5] ==1:
+        elif msg.buttons[5] == 1:
             self.control_mode = "mellinger"
 
     def timer_callback(self):
@@ -186,7 +190,7 @@ class Simulator(Node):
         try:
             # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
             f_int = ca.integrator(
-                "test", "cvodes", self.model["dae"], self.t, self.t + self.dt
+                "test", "idas", self.model["dae"], self.t, self.t + self.dt
             )
             res = f_int(x0=self.x, z0=0, p=self.p, u=self.u)
         except RuntimeError as e:
@@ -204,11 +208,15 @@ class Simulator(Node):
         # store states and measurements
         # ------------------------------------
         self.x = np.array(res["xf"]).reshape(-1)
-        q = np.array([self.get_state_by_name("quaternion_wb_0"),
-            self.get_state_by_name("quaternion_wb_1"),
-            self.get_state_by_name("quaternion_wb_2"),
-            self.get_state_by_name("quaternion_wb_3"),
-        ], dtype=float)
+        q = np.array(
+            [
+                self.get_state_by_name("quaternion_wb_0"),
+                self.get_state_by_name("quaternion_wb_1"),
+                self.get_state_by_name("quaternion_wb_2"),
+                self.get_state_by_name("quaternion_wb_3"),
+            ],
+            dtype=float,
+        )
         # q = q/ca.norm_2(q)
         self.x[6:10] = np.array(q).reshape(-1)
         res["yf_gyro"] = self.model["g_gyro"](
@@ -242,7 +250,9 @@ class Simulator(Node):
         # 'P0', 'dt', 'wb', 'Q']
 
         self.P = np.array(
-            self.eqs["attitude_covariance_propagation"](self.P, self.Q, self.y_gyro, self.dt)
+            self.eqs["attitude_covariance_propagation"](
+                self.P, self.Q, self.y_gyro, self.dt
+            )
         ).reshape(-1)
 
         # ------------------------------------
@@ -250,27 +260,41 @@ class Simulator(Node):
         # ------------------------------------
         use_estimator = False
         if use_estimator:
-            q = np.array([self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]], dtype=float)
+            q = np.array(
+                [self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]],
+                dtype=float,
+            )
             omega = self.y_gyro
             pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]], dtype=float)
             vw = np.array([self.est_x[3], self.est_x[4], self.est_x[5]], dtype=float)
-            self.vb = np.array(self.eqs["rotate_vector_w_to_b"](q, vw), dtype=float).reshape(-1)
+            self.vb = np.array(
+                self.eqs["rotate_vector_w_to_b"](q, vw), dtype=float
+            ).reshape(-1)
         else:
-            omega = np.array([
-                self.get_state_by_name("omega_wb_b_0"),
-                self.get_state_by_name("omega_wb_b_1"),
-                self.get_state_by_name("omega_wb_b_2"),
-            ], dtype=float)
-            pw = np.array([
-                self.get_state_by_name("position_op_w_0"),
-                self.get_state_by_name("position_op_w_1"),
-                self.get_state_by_name("position_op_w_2"),
-            ], dtype=float)
-            self.vb = np.array([
-                self.get_state_by_name("velocity_w_p_b_0"),
-                self.get_state_by_name("velocity_w_p_b_1"),
-                self.get_state_by_name("velocity_w_p_b_2"),
-            ], dtype=float)
+            omega = np.array(
+                [
+                    self.get_state_by_name("omega_wb_b_0"),
+                    self.get_state_by_name("omega_wb_b_1"),
+                    self.get_state_by_name("omega_wb_b_2"),
+                ],
+                dtype=float,
+            )
+            pw = np.array(
+                [
+                    self.get_state_by_name("position_op_w_0"),
+                    self.get_state_by_name("position_op_w_1"),
+                    self.get_state_by_name("position_op_w_2"),
+                ],
+                dtype=float,
+            )
+            self.vb = np.array(
+                [
+                    self.get_state_by_name("velocity_w_p_b_0"),
+                    self.get_state_by_name("velocity_w_p_b_1"),
+                    self.get_state_by_name("velocity_w_p_b_2"),
+                ],
+                dtype=float,
+            )
             vw = self.eqs["rotate_vector_b_to_w"](q, self.vb)
 
         # ------------------------------------
@@ -337,16 +361,17 @@ class Simulator(Node):
                 )
                 omega_sp = self.eqs["attitude_control"](k_p_att, q, self.q_sp)
             elif self.control_mode == "loglinear":
+                # print(self.vw_sp, vw)
                 zeta = self.eqs["se23_error"](
+                    pw,
+                    vw,
+                    q,
                     self.pw_sp,
                     self.vw_sp,
                     self.qc_sp,
-                    pw,
-                    vw,
-                    q
                 )
                 # position control: world frame
-                [thrust, self.q_sp, self.z_i] = self.eqs["se23_position_control"](
+                [thrust, self.q_sp, self.z_i, p] = self.eqs["se23_position_control"](
                     thrust_trim,
                     k_p_att,
                     zeta,
@@ -356,9 +381,11 @@ class Simulator(Node):
                     self.dt,
                 )
                 # attitude control: q_br
-                omega_sp = self.eqs["so3_attitude_control"](k_p_att, q, self.q_sp)
+                omega_sp = np.zeros(
+                    3, dtype=float
+                )  # self.eqs["so3_attitude_control"](k_p_att, q, self.q_sp)
         else:
-            self.get_logger().info('unhandled mode: %s' % self.input_mode)
+            self.get_logger().info("unhandled mode: %s" % self.input_mode)
             omega_sp = np.zeros(3, dtype=float)
             thrust = 0
 
@@ -534,15 +561,16 @@ class Simulator(Node):
         msg_odom.header.stamp = msg_clock.clock
         msg_odom.header.frame_id = "map"
         msg_odom.child_frame_id = "base_link"
-        P_full = np.array([
-            [self.P[0], self.P[1], self.P[2]],
-            [self.P[1], self.P[3], self.P[4]],
-            [self.P[2], self.P[4], self.P[5]]
-        ])
-        msg_odom.pose.covariance = np.block([
-            [np.eye(3), np.zeros((3, 3))],
-            [np.zeros((3, 3)), P_full]
-        ]).reshape(-1)
+        P_full = np.array(
+            [
+                [self.P[0], self.P[1], self.P[2]],
+                [self.P[1], self.P[3], self.P[4]],
+                [self.P[2], self.P[4], self.P[5]],
+            ]
+        )
+        msg_odom.pose.covariance = np.block(
+            [[np.eye(3), np.zeros((3, 3))], [np.zeros((3, 3)), P_full]]
+        ).reshape(-1)
         msg_odom.pose.pose.position.x = self.est_x[0]
         msg_odom.pose.pose.position.y = self.est_x[1]
         msg_odom.pose.pose.position.z = self.est_x[2]

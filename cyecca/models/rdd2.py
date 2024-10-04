@@ -293,27 +293,43 @@ def derive_joy_auto_level():
     return {"joy_auto_level": f_joy_auto_level}
 
 
-def derive_covariance_propagation():
+def derive_attitude_estimator():
     chi = so3.elem(ca.SX.sym("chi", 3))
     wb = so3.elem(ca.SX.sym("wb", 3))
     A = -wb.ad()
     # B = chi.right_jacobian_inv()
 
-    P0 = ca.SX.sym("P0", 3, 3)
-    Q = ca.SX.sym("Q", 3, 3)
+    def sym33_to_vector6(m):
+        return ca.vertcat(m[0, 0], m[0, 1], m[0, 2], m[1, 1], m[1, 2], m[2, 2])
+
+    def vector6_to_sym33(v):
+        return ca.vertcat(
+            ca.horzcat(v[0], v[1], v[2]),
+            ca.horzcat(v[1], v[3], v[4]),
+            ca.horzcat(v[2], v[4], v[5]))
+
+    P0 = ca.triu2symm(ca.SX.sym("P0", ca.Sparsity.upper(3)))
+    Q = ca.triu2symm(ca.SX.sym("Q", ca.Sparsity.upper(3)))
     dt = ca.SX.sym("dt")
 
     # prediction
     P1 = P0 + A @ P0 + P0 @ A.T + Q
 
-    f_cov_prop = ca.Function(
-        "covariance_propagation",
-        [P0, dt, wb.param, Q],
-        [P1],
-        ["P0", "dt", "wb", "Q"],
-        ["P1"],
-    )
-    return {"covariance_propagation": f_cov_prop}
+    # mag correction
+    #X = SO3Quat("X", ca.SX.param("X", 4))
+    #Xr = SO3Quat("X", ca.SX.param("X", 4))
+
+    #H = np.eye(3)
+    #R_mag
+    #S = H @ P @ H.T + R
+
+    #K = P0.T @ C @ S.inv
+
+    f_cov_prop = ca.Function('attitude_covariance_propagation',
+        [sym33_to_vector6(P0), sym33_to_vector6(Q), wb.param, dt],
+        [sym33_to_vector6(ca.triu(P1))], ['P0', 'Q0', 'wb', 'dt'], ['P1'])
+
+    return {"attitude_covariance_propagation": f_cov_prop}
 
 
 def derive_attitude_control():
@@ -512,13 +528,13 @@ def derive_common():
     q = SO3Quat.elem(ca.SX.sym("q", 4))
     vw0 = ca.SX.sym("vw0", 3)
     vb1 = ca.SX.sym("vb1", 3)
-    vb0 = q @ vw0
-    vw1 = q.inverse() @ vb1
+    vb0 = q.inverse() @ vw0
+    vw1 = q @ vb1
     f_rotate_vector_w_to_b = ca.Function(
         "rotate_vector_w_to_b", [q.param, vw0], [vb0], ["q", "vw0"], ["vb0"]
     )
     f_rotate_vector_b_to_w = ca.Function(
-        "rotate_vector_b_to_w", [q.param, vb1], [vw1], ["q", "vb1"], ["vw1"]
+        "rotate_vector_wbto_w", [q.param, vb1], [vw1], ["q", "vb1"], ["vw1"]
     )
     return {
         "rotate_vector_w_to_b": f_rotate_vector_w_to_b,

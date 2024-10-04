@@ -164,11 +164,11 @@ class Simulator(Node):
         k_p_att = np.array([5, 5, 2], dtype=float)
 
         # attitude rate
-        kp = ca.vertcat(0.3, 0.3, 0.05)
-        ki = ca.vertcat(0, 0, 0)
-        kd = ca.vertcat(0.1, 0.1, 0)
+        kp = np.array([0.3, 0.3, 0.05], dtype=float)
+        ki = np.array([0, 0, 0], dtype=float)
+        kd = np.array([0.1, 0.1, 0], dtype=float)
         f_cut = 10.0
-        i_max = ca.vertcat(0, 0, 0)
+        i_max = np.array([0, 0, 0], dtype=float)
         mode = "acro"
 
         # ------------------------------------

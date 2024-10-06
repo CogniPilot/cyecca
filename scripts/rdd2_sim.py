@@ -16,7 +16,7 @@ from geometry_msgs.msg import TwistWithCovarianceStamped, TwistStamped
 from rosgraph_msgs.msg import Clock
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import Joy, Imu
-from tf2_ros import TransformBroadcaster
+from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 
 
 class Simulator(Node):
@@ -31,6 +31,7 @@ class Simulator(Node):
         # publications
         # ----------------------------------------------
         self.pub_pose = self.create_publisher(PoseWithCovarianceStamped, "pose", 1)
+        self.pub_pose_sp = self.create_publisher(PoseStamped, "pose_sp", 1)
         self.pub_clock = self.create_publisher(Clock, "clock", 1)
         self.pub_odom = self.create_publisher(Odometry, "odom", 1)
         self.pub_twist_cov = self.create_publisher(
@@ -40,6 +41,7 @@ class Simulator(Node):
         self.pub_path = self.create_publisher(Path, "path", 1)
         self.pub_imu = self.create_publisher(Imu, "imu", 1)
         self.tf_broadcaster = TransformBroadcaster(self)
+        self.tf_static_broadcaster = StaticTransformBroadcaster(self)
 
         # ----------------------------------------------
         # subscriptions
@@ -133,6 +135,60 @@ class Simulator(Node):
         self.q_sp = np.array([1, 0, 0, 0], dtype=float)
         self.qc_sp = np.array([1, 0, 0, 0], dtype=float)
         self.z_i = 0
+
+        msg_clock = self.clock_as_msg()
+
+        tf = TransformStamped()
+        tf.header.frame_id = "base_link"
+        tf.child_frame_id = "base_footprint"
+        tf.header.stamp = msg_clock.clock
+        tf.transform.translation.x = 0.0
+        tf.transform.translation.y = 0.0
+        tf.transform.translation.z = -0.22
+        tf.transform.rotation.w = 1.0
+        tf.transform.rotation.x = 0.0
+        tf.transform.rotation.y = 0.0
+        tf.transform.rotation.z = 0.0
+        self.tf_static_broadcaster.sendTransform(tf)
+
+        tf = TransformStamped()
+        tf.header.frame_id = "base_link"
+        tf.child_frame_id = "camera_link"
+        tf.header.stamp = msg_clock.clock
+        tf.transform.translation.x = 0.0
+        tf.transform.translation.y = 0.0
+        tf.transform.translation.z = 0.0
+        tf.transform.rotation.w = 1.0
+        tf.transform.rotation.x = 0.0
+        tf.transform.rotation.y = 0.0
+        tf.transform.rotation.z = 0.0
+        self.tf_static_broadcaster.sendTransform(tf)
+
+        tf = TransformStamped()
+        tf.header.frame_id = "camera_link"
+        tf.child_frame_id = "camera_link_optical"
+        tf.header.stamp = msg_clock.clock
+        tf.transform.translation.x = 0.0
+        tf.transform.translation.y = 0.0
+        tf.transform.translation.z = 0.0
+        tf.transform.rotation.w = 1.0
+        tf.transform.rotation.x = 0.0
+        tf.transform.rotation.y = 0.0
+        tf.transform.rotation.z = 0.0
+        self.tf_static_broadcaster.sendTransform(tf)
+
+        tf = TransformStamped()
+        tf.header.frame_id = "base_link"
+        tf.child_frame_id = "lidar_link"
+        tf.header.stamp = msg_clock.clock
+        tf.transform.translation.x = 0.0
+        tf.transform.translation.y = 0.0
+        tf.transform.translation.z = 0.0
+        tf.transform.rotation.w = 1.0
+        tf.transform.rotation.x = 0.0
+        tf.transform.rotation.y = 0.0
+        tf.transform.rotation.z = 0.0
+        self.tf_static_broadcaster.sendTransform(tf)
 
     def clock_as_msg(self):
         msg = Clock()
@@ -333,7 +389,6 @@ class Simulator(Node):
             # ['thrust_trim', 'pt_w', 'vt_w', 'at_w', 'qc_wb', 'p_w', 'v_b', 'q_wb', 'z_i', 'dt'],
             # ['nT', 'qr_wb', 'z_i_2'])
             reset_position = False
-            pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]], dtype=float)
 
             #         f_get_u = ca.Function(
             # "position_control",
@@ -557,6 +612,21 @@ class Simulator(Node):
         msg_pose.pose.pose.orientation.y = qy
         msg_pose.pose.pose.orientation.z = qz
         self.pub_pose.publish(msg_pose)
+
+        # ------------------------------------
+        # publish pose sp
+        # ------------------------------------
+        msg_pose_sp = PoseStamped()
+        msg_pose_sp.header.stamp = msg_clock.clock
+        msg_pose_sp.header.frame_id = "map"
+        msg_pose_sp.pose.position.x = float(self.pw_sp[0])
+        msg_pose_sp.pose.position.y = float(self.pw_sp[1])
+        msg_pose_sp.pose.position.z = float(self.pw_sp[2])
+        msg_pose_sp.pose.orientation.w = float(self.qc_sp[0])
+        msg_pose_sp.pose.orientation.x = float(self.qc_sp[1])
+        msg_pose_sp.pose.orientation.y = float(self.qc_sp[2])
+        msg_pose_sp.pose.orientation.z = float(self.qc_sp[3])
+        self.pub_pose_sp.publish(msg_pose_sp)
 
         # ------------------------------------
         # publish odometry

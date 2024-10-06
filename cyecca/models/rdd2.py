@@ -194,6 +194,7 @@ def derive_joy_velocity():
 
     yaw_rate = 60 * deg2rad * joy_yaw
     yaw_sp1 = yaw_sp0 + yaw_rate * dt
+    yaw_sp1 = ca.remainder(yaw_sp1, 2 * ca.pi)
 
     cos_yaw = ca.cos(yaw_sp1)
     sin_yaw = ca.sin(yaw_sp1)

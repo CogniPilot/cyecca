@@ -26,6 +26,11 @@ __all__ = [
 
 
 @beartype
+def angle_wrap(theta: ca.SX):
+    return ca.remainder(theta, 2 * ca.pi)
+
+
+@beartype
 class SO3LieAlgebra(LieAlgebra):
     def __init__(self):
         super().__init__(n_param=3, matrix_shape=(3, 3))
@@ -76,7 +81,8 @@ class SO3LieAlgebra(LieAlgebra):
         o = ca.SX.sym("o", 3)
         O = so3.elem(o).ad()
         O_sq = O @ O
-        theta = ca.norm_2(o)
+        theta = angle_wrap(ca.norm_2(o))
+
         c_theta = ca.cos(theta)
         s_theta = ca.sin(theta)
 
@@ -102,7 +108,7 @@ class SO3LieAlgebra(LieAlgebra):
         o = ca.SX.sym("o", 3)
         O = so3.elem(o).ad()
         O_sq = O @ O
-        theta = ca.norm_2(o)
+        theta = angle_wrap(ca.norm_2(o))
         cot_theta = 1 / ca.tan(theta / 2)
 
         Coeff = ca.if_else(
@@ -121,7 +127,8 @@ class SO3LieAlgebra(LieAlgebra):
         o = ca.SX.sym("o", 3)
         O = so3.elem(o).ad()
         O_sq = O @ O
-        theta = ca.norm_2(o)
+        theta = angle_wrap(ca.norm_2(o))
+
         # A = so3.elem(a.param).ad()
         # V = so3.elem(v.param).ad()
         c_theta = ca.cos(theta)
@@ -149,7 +156,7 @@ class SO3LieAlgebra(LieAlgebra):
         o = ca.SX.sym("o", 3)
         O = so3.elem(o).ad()
         O_sq = O @ O
-        theta = ca.norm_2(o)
+        theta = angle_wrap(ca.norm_2(o))
         cot_theta = 1 / ca.tan(theta / 2)
 
         Coeff = ca.if_else(
@@ -288,7 +295,7 @@ class SO3DcmLieGroup(SO3LieGroup):
         return self.to_Matrix()
 
     def exp(self, arg: SO3LieAlgebraElement) -> SO3DcmLieGroupElement:
-        theta = ca.norm_2(arg.param)
+        theta = angle_wrap(ca.norm_2(arg.param))
         X = arg.to_Matrix()
         A = SERIES["sin(x)/x"]
         B = SERIES["(1 - cos(x))/x^2"]
@@ -490,7 +497,7 @@ class SO3QuatLieGroup(SO3LieGroup):
 
     def exp(self, arg: SO3LieAlgebraElement) -> SO3QuatLieGroupElement:
         v = arg.param
-        theta = ca.norm_2(v)
+        theta = angle_wrap(ca.norm_2(v))
         c = ca.sin(theta / 2)
         q = ca.vertcat(
             ca.cos(theta / 2), c * v[0] / theta, c * v[1] / theta, c * v[2] / theta
@@ -501,10 +508,11 @@ class SO3QuatLieGroup(SO3LieGroup):
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         q = arg.param
-        q = q / ca.norm_2(q)
-        theta = 2 * ca.arccos(q[0])
-        A = SERIES["x/sin(x)"](theta / 2)
-        omega = ca.vertcat(q[1], q[2], q[3]) * A * 2
+        theta = angle_wrap(2 * ca.atan2(ca.norm_2(q[1:4]), q[0]))
+        A = SERIES["x/sin(x)"](
+            theta / 2
+        )  # x / sin(x) removed negative sign since sin odd
+        omega = ca.sign(theta) * q[1:4] * A * 2
         return self.algebra.elem(omega)
         # return SO3Dcm.from_Quat(arg).log()
 
@@ -661,7 +669,7 @@ class SO3MrpLieGroup(SO3LieGroup):
 
     def exp(self, arg: SO3LieAlgebraElement) -> SO3MrpLieGroupElement:
         v = arg.param
-        angle = ca.norm_2(v)
+        angle = angle_wrap(ca.norm_2(v))
         res = ca.tan(angle / 4) * v / angle
         p = ca.if_else(angle > 1e-7, res, ca.SX([0, 0, 0]))
         V = self.elem(param=p)
@@ -670,7 +678,7 @@ class SO3MrpLieGroup(SO3LieGroup):
 
     def log(self, arg: SO3MrpLieGroupElement) -> SO3LieAlgebraElement:
         r = arg.param
-        n = ca.norm_2(r[:3])
+        n = angle_wrap(ca.norm_2(r[:3]))
         v = 4 * ca.atan(n) * r[:3] / n
         return self.algebra.elem(param=ca.if_else(n > 1e-7, v, ca.SX([0, 0, 0])))
 

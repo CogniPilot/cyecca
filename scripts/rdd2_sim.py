@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from cyecca.models import quadrotor
-from cyecca.models import rdd2, rdd2_loglinear
+from cyecca.models import rdd2, rdd2_loglinear, mr_ref_traj
 
 import casadi as ca
 import numpy as np
@@ -66,24 +66,22 @@ class Simulator(Node):
                     raise KeyError(k)
                 self.p_dict[k] = p[k]
 
+        # init state (x), param(p), and input(u)
         self.x = np.array(list(self.x0_dict.values()), dtype=float)
-
         self.est_x = np.array([0, 0, 0, 0, 0, 0, 1, 0, 0, 0], dtype=float)
-
-        # print(self.x)
         self.p = np.array(list(self.p_dict.values()), dtype=float)
         self.u = np.zeros(4, dtype=float)
 
-        # ------------------------------est_x----------------
+        # ----------------------------------------------
         # casadi control/ estimation algorithms
         # ----------------------------------------------
         self.eqs = {}
         self.eqs.update(rdd2.derive_attitude_rate_control())
         self.eqs.update(rdd2.derive_attitude_control())
         self.eqs.update(rdd2.derive_position_control())
-        self.eqs.update(rdd2.derive_joy_acro())
-        self.eqs.update(rdd2.derive_joy_auto_level())
-        self.eqs.update(rdd2.derive_joy_velocity())
+        self.eqs.update(rdd2.derive_input_acro())
+        self.eqs.update(rdd2.derive_input_auto_level())
+        self.eqs.update(rdd2.derive_input_velocity())
         self.eqs.update(rdd2.derive_strapdown_ins_propagation())
         self.eqs.update(rdd2.derive_control_allocation())
         self.eqs.update(rdd2.derive_attitude_estimator())
@@ -91,14 +89,56 @@ class Simulator(Node):
         self.eqs.update(rdd2_loglinear.derive_se23_error())
         self.eqs.update(rdd2_loglinear.derive_so3_attitude_control())
         self.eqs.update(rdd2_loglinear.derive_outerloop_control())
+        self.eqs.update(mr_ref_traj.derive_mr_ref_traj())
 
         # ----------------------------------------------
         # sim state data
         # ----------------------------------------------
         self.path_len = 30
-        self.t = 0
+        self.t = 0.0
         self.dt = 1.0 / 100
-        self.real_time_factor = 1
+        self.real_time_factor = 1.0
+
+        self.pose_list = []
+        self.motor_pose = np.zeros(4, dtype=float)
+        self.msg_path = Path()
+        self.input_aetr = np.zeros(4, dtype=float)
+        self.input_mode = "velocity"
+        self.control_mode = "mellinger"
+        self.i0 = 0.0  # integrators for attitude rate loop
+        self.e0 = np.zeros(3, dtype=float)  # error for attitude rate loop
+        self.de0 = np.zeros(3, dtype=float)  # deriv of att error (for lowpass)
+
+        # estimator data
+        self.use_estimator = False  # if false, will use sim state instead for control
+        self.P = 1e-2 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # state covariance
+        self.Q = 1e-9 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # process noise
+
+        # velocity control data
+        self.psi_sp = 0.0  # world yaw orientation set point
+        self.psi_vel_sp = 0.0  # " velocity
+        self.psi_acc_sp = 0.0  # " accel
+
+        # control state (from estimator if use_estimator = True, else from sim)
+        self.vb = np.zeros(3, dtype=float)  # velocity in body frame
+        self.vw = np.zeros(3, dtype=float)  # velocity in world frame
+        self.q = np.array([1, 0, 0, 0], dtype=float)  # quaternion
+
+        # diff flat trajectory points
+        self.pw_sp = np.zeros(3, dtype=float)  # pos in world sp
+        self.vw_sp = np.zeros(3, dtype=float)  # vel "
+        self.aw_sp = np.zeros(3, dtype=float)  # accel "
+        self.jw_sp = np.zeros(3, dtype=float)  # jerk "
+        self.sw_sp = np.zeros(3, dtype=float)  # snap "
+
+        # setpoints
+        self.q_sp = np.array([1, 0, 0, 0], dtype=float)  # quaternion setpoint
+        self.qc_sp = np.array(
+            [1, 0, 0, 0], dtype=float
+        )  # quaternion camera setpoint (based on psi)
+        self.z_i = 0  # z error integrator
+
+        # start main loop on timer
         self.system_clock = rclpy.clock.Clock(
             clock_type=rclpy.clock.ClockType.SYSTEM_TIME
         )
@@ -107,35 +147,215 @@ class Simulator(Node):
             callback=self.timer_callback,
             clock=self.system_clock,
         )
-        self.pose_list = []
-        self.motor_pose = np.zeros(4, dtype=float)
-        self.msg_path = Path()
-        self.input_roll = 0
-        self.input_pitch = 0
-        self.input_thrust = 0
-        self.input_yaw = 0
-        self.input_mode = "velocity"
-        self.control_mode = "mellinger"
-        self.i0 = 0  # integrators for attitude rate loop
-        self.e0 = np.array([0, 0, 0], dtype=float)  # error for attitude rate loop
-        self.de0 = np.array(
-            [0, 0, 0], dtype=float
-        )  # derivative for attitude rate loop (for low pass)
 
-        # estimator data
-        self.P = 0.0001 * np.array([1, 0, 0, 1, 0, 1], dtype=float)
-        self.Q = 1e-4 * np.array([1, 0, 0, 1, 0, 1], dtype=float)
+    def update_estimator(self):
+        """
+        Update the estimator
+        """
+        res = self.eqs["strapdown_ins_propagate"](
+            self.est_x, self.y_accel, self.y_gyro, self.get_param_by_name("g"), self.dt
+        )
+        self.est_x = np.array(res, dtype=float).reshape(-1)
+        self.P = np.array(
+            self.eqs["attitude_covariance_propagation"](
+                self.P, self.Q, self.y_gyro, self.dt
+            )
+        ).reshape(-1)
 
-        # velocity control data
-        self.yawc_sp = 0.0
-        self.vb = np.zeros(3, dtype=float)
-        self.pw_sp = np.zeros(3, dtype=float)
-        self.vw_sp = np.zeros(3, dtype=float)
-        self.aw_sp = np.zeros(3, dtype=float)
-        self.q_sp = np.array([1, 0, 0, 0], dtype=float)
-        self.qc_sp = np.array([1, 0, 0, 0], dtype=float)
-        self.z_i = 0
+        self.q = np.array(
+            [self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]],
+            dtype=float,
+        )
+        self.omega = self.y_gyro
+        self.pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]], dtype=float)
+        self.vw = np.array([self.est_x[3], self.est_x[4], self.est_x[5]], dtype=float)
+        self.vb = np.array(
+            self.eqs["rotate_vector_w_to_b"](self.q, self.vw), dtype=float
+        ).reshape(-1)
 
+    def update_controller(self):
+        # ------------------------------------
+        # control constants
+        # ------------------------------------
+        m = self.get_param_by_name("m")
+        g = self.get_param_by_name("g")
+        thrust_delta = 0.5 * m * g
+        thrust_trim = m * g
+        # TODO move to constant section
+        F_max = 20
+        l = self.get_param_by_name("l_motor_0")  # assuming all the same
+        CM = self.get_param_by_name("CM")
+        CT = self.get_param_by_name("CT")
+
+        k_p_att = np.array([5, 5, 2], dtype=float)
+
+        # attitude rate
+        kp = np.array([0.3, 0.3, 0.05], dtype=float)
+        ki = np.array([0, 0, 0], dtype=float)
+        kd = np.array([0.1, 0.1, 0], dtype=float)
+        f_cut = 10.0
+        i_max = np.array([0, 0, 0], dtype=float)
+
+        # ---------------------------------------------------------------------
+        # differential flatness (reference trajectory -> reference signals)
+        # ---------------------------------------------------------------------
+        # [psi, psi_dot, psi_ddot, v_e, a_e, j_e, s_e, m, g, J_xx, J_yy, J_zz, J_xz],
+        # [v_b, C_be, omega_eb_b, omega_dot_eb_b, M_b, T],
+        self.eqs["mr_ref_traj"](
+            self.psi_sp,
+            self.psi_vel_sp,
+            self.psi_acc_sp,
+            self.vw_sp,
+            self.aw_sp,
+            self.jw_sp,
+            self.sw_sp,
+            m,
+            g,
+            self.get_param_by_name("Jx"),
+            self.get_param_by_name("Jy"),
+            self.get_param_by_name("Jz"),
+            0,
+        )
+
+        # ---------------------------------------------------------------------
+        # mode handling
+        # ---------------------------------------------------------------------
+        if self.input_mode == "acro":
+            [omega_sp, thrust] = self.eqs["input_acro"](
+                thrust_trim, thrust_delta, self.input_aetr
+            )
+
+        elif self.input_mode == "auto_level":
+            [self.q_sp, thrust] = self.eqs["input_auto_level"](
+                thrust_trim,
+                thrust_delta,
+                self.input_aetr,
+                self.q,
+            )
+            omega_sp = self.eqs["attitude_control"](k_p_att, self.q, self.q_sp)
+
+        elif self.input_mode == "velocity":
+            reset_position = False
+            [
+                self.psi_sp,
+                self.psi_vel_sp,
+                self.pw_sp,
+                self.vw_sp,
+                self.aw_sp,
+                self.qc_sp,
+            ] = self.eqs["input_velocity"](
+                self.dt,
+                self.psi_sp,
+                self.pw_sp,
+                self.pw,
+                self.input_aetr,
+                reset_position,
+            )
+            if self.control_mode == "mellinger":
+                [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
+                    thrust_trim,
+                    self.pw_sp,
+                    self.vw_sp,
+                    self.aw_sp,
+                    self.qc_sp,
+                    self.pw,
+                    self.vw,
+                    self.z_i,
+                    self.dt,
+                )
+                omega_sp = self.eqs["attitude_control"](k_p_att, self.q, self.q_sp)
+            elif self.control_mode == "loglinear":
+                zeta = self.eqs["se23_error"](
+                    self.pw,
+                    self.vw,
+                    self.q,
+                    self.pw_sp,
+                    self.vw_sp,
+                    self.qc_sp,
+                )
+                # position control: world frame
+                [thrust, self.q_sp, self.z_i] = self.eqs["se23_position_control"](
+                    thrust_trim,
+                    k_p_att,
+                    zeta,
+                    self.aw_sp,
+                    self.qc_sp,
+                    self.z_i,
+                    self.dt,
+                )
+                # attitude control: q_br
+                omega_sp = self.eqs["so3_attitude_control"](k_p_att, self.q, self.q_sp)
+        else:
+            self.get_logger().info("unhandled mode: %s" % self.input_mode)
+            omega_sp = np.zeros(3, dtype=float)
+            thrust = 0
+
+        # ---------------------------------------------------------------------
+        # attitude rate control
+        # ---------------------------------------------------------------------
+        # print(omega_sp, self.i0, self.e0, self.de0)
+        M, i1, e1, de1, alpha = self.eqs["attitude_rate_control"](
+            kp,
+            ki,
+            kd,
+            f_cut,
+            i_max,
+            self.omega,
+            omega_sp,
+            self.i0,
+            self.e0,
+            self.de0,
+            self.dt,
+        )
+        self.i0 = i1
+        # self.get_logger().info('i0: %s' % self.i0)
+        # self.get_logger().info('e0: %s' % self.e0)
+        # self.get_logger().info('de0: %s' % self.de0)
+        self.e0 = e1
+        self.de0 = de1
+
+        # ---------------------------------------------------------------------
+        # control allocation
+        # ---------------------------------------------------------------------
+        self.u, Fp, Fm, Ft, Msat = self.eqs["f_alloc"](F_max, l, CM, CT, thrust, M)
+        # self.get_logger().info('M: %s' % M)
+        # self.get_logger().info('u: %s' % self.u)
+
+    def joy_callback(self, msg: Joy):
+        self.input_aetr = ca.vertcat(
+            -msg.axes[3],  # aileron
+            msg.axes[4],  # elevator
+            msg.axes[1],  # thrust
+            msg.axes[0],  # rudder
+        )
+        new_mode = self.input_mode
+        new_control_mode = self.control_mode
+        if msg.buttons[0] == 1:
+            new_mode = "auto_level"
+        elif msg.buttons[1] == 1:
+            new_mode = "velocity"
+        elif msg.buttons[2] == 1:
+            self.get_logger().info(
+                "bezier mode not yet supported, reverted to %s" % self.input_mode
+            )
+            # new_mode = "bezier"
+        if new_mode != self.input_mode:
+            self.get_logger().info(
+                "mode changed from: %s to %s" % (self.input_mode, new_mode)
+            )
+            self.input_mode = new_mode
+        if msg.buttons[4] == 1:
+            new_control_mode = "loglinear"
+        elif msg.buttons[5] == 1:
+            new_control_mode = "mellinger"
+        if new_control_mode != self.control_mode:
+            self.get_logger().info(
+                "control mode changed from: %s to %s"
+                % (self.control_mode, new_control_mode)
+            )
+            self.control_mode = new_control_mode
+
+    def publish_static_transforms(self):
         msg_clock = self.clock_as_msg()
 
         tf = TransformStamped()
@@ -196,60 +416,10 @@ class Simulator(Node):
         msg.clock.nanosec = int(1e9 * (self.t - msg.clock.sec))
         return msg
 
-    def joy_callback(self, msg: Joy):
-        self.input_yaw = msg.axes[0]
-        self.input_thrust = msg.axes[1]
-        self.input_roll = -msg.axes[3]
-        self.input_pitch = msg.axes[4]
-        new_mode = self.input_mode
-        new_control_mode = self.control_mode
-        if msg.buttons[0] == 1:
-            new_mode = "auto_level"
-        elif msg.buttons[1] == 1:
-            new_mode = "velocity"
-        elif msg.buttons[2] == 1:
-            self.get_logger().info(
-                "bezier mode not yet supported, reverted to %s" % self.input_mode
-            )
-            # new_mode = "bezier"
-        if new_mode != self.input_mode:
-            self.get_logger().info(
-                "mode changed from: %s to %s" % (self.input_mode, new_mode)
-            )
-            self.input_mode = new_mode
-        if msg.buttons[4] == 1:
-            new_control_mode = "loglinear"
-        elif msg.buttons[5] == 1:
-            new_control_mode = "mellinger"
-        if new_control_mode != self.control_mode:
-            self.get_logger().info(
-                "control mode changed from: %s to %s"
-                % (self.control_mode, new_control_mode)
-            )
-            self.control_mode = new_control_mode
-
-    def timer_callback(self):
-        # ------------------------------------
-        # control constants
-        # ------------------------------------
-        weight = 2 * 9.8
-        thrust_delta = 0.5 * weight
-        thrust_trim = weight
-
-        k_p_att = np.array([5, 5, 2], dtype=float)
-
-        # attitude rate
-        kp = np.array([0.3, 0.3, 0.05], dtype=float)
-        ki = np.array([0, 0, 0], dtype=float)
-        kd = np.array([0.1, 0.1, 0], dtype=float)
-        f_cut = 10.0
-        i_max = np.array([0, 0, 0], dtype=float)
-        mode = "acro"
-
-        # ------------------------------------
-        # integration for simulation
-        # ------------------------------------
-        # print(self.x, self.u)
+    def integrate_simulation(self):
+        """
+        Integrate the simulation one step and calculate measurements
+        """
         try:
             # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
             f_int = ca.integrator(
@@ -267,21 +437,10 @@ class Simulator(Node):
             print("integration not finite")
             raise RuntimeError("nan in integration")
 
-        # ------------------------------------
+        # ---------------------------------------------------------------------
         # store states and measurements
-        # ------------------------------------
+        # ---------------------------------------------------------------------
         self.x = np.array(res["xf"]).reshape(-1)
-        q = np.array(
-            [
-                self.get_state_by_name("quaternion_wb_0"),
-                self.get_state_by_name("quaternion_wb_1"),
-                self.get_state_by_name("quaternion_wb_2"),
-                self.get_state_by_name("quaternion_wb_3"),
-            ],
-            dtype=float,
-        )
-        # q = q/ca.norm_2(q)
-        self.x[6:10] = np.array(q).reshape(-1)
         res["yf_gyro"] = self.model["g_gyro"](
             res["xf"], self.u, self.p, np.random.randn(3), self.dt
         )
@@ -294,202 +453,56 @@ class Simulator(Node):
         res["yf_gps_pos"] = self.model["g_gps_pos"](
             res["xf"], self.u, self.p, np.random.randn(3), self.dt
         )
-
         self.y_gyro = np.array(res["yf_gyro"]).reshape(-1)
         self.y_mag = np.array(res["yf_mag"]).reshape(-1)
         self.y_accel = np.array(res["yf_accel"]).reshape(-1)
         self.y_gps_pos = np.array(res["yf_gps_pos"]).reshape(-1)
         self.publish_state()
 
-        # ------------------------------------
-        # estimator
-        # ------------------------------------
-        # ["x0", "a_b", "omega_b", "g", "dt"],
-        res = self.eqs["strapdown_ins_propagate"](
-            self.est_x, self.y_accel, self.y_gyro, self.get_param_by_name("g"), self.dt
+    def update_fake_estimator(self):
+        # if not using estimator, use true states from sim
+        self.q = np.array(
+            [
+                self.get_state_by_name("quaternion_wb_0"),
+                self.get_state_by_name("quaternion_wb_1"),
+                self.get_state_by_name("quaternion_wb_2"),
+                self.get_state_by_name("quaternion_wb_3"),
+            ]
         )
-        self.est_x = np.array(res, dtype=float).reshape(-1)
-
-        # 'P0', 'dt', 'wb', 'Q']
-
-        self.P = np.array(
-            self.eqs["attitude_covariance_propagation"](
-                self.P, self.Q, self.y_gyro, self.dt
-            )
-        ).reshape(-1)
-
-        # ------------------------------------
-        # control state
-        # ------------------------------------
-        use_estimator = False
-        if use_estimator:
-            q = np.array(
-                [self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]],
-                dtype=float,
-            )
-            omega = self.y_gyro
-            pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]], dtype=float)
-            vw = np.array([self.est_x[3], self.est_x[4], self.est_x[5]], dtype=float)
-            self.vb = np.array(
-                self.eqs["rotate_vector_w_to_b"](q, vw), dtype=float
-            ).reshape(-1)
-        else:
-            omega = np.array(
-                [
-                    self.get_state_by_name("omega_wb_b_0"),
-                    self.get_state_by_name("omega_wb_b_1"),
-                    self.get_state_by_name("omega_wb_b_2"),
-                ],
-                dtype=float,
-            )
-            pw = np.array(
-                [
-                    self.get_state_by_name("position_op_w_0"),
-                    self.get_state_by_name("position_op_w_1"),
-                    self.get_state_by_name("position_op_w_2"),
-                ],
-                dtype=float,
-            )
-            self.vb = np.array(
-                [
-                    self.get_state_by_name("velocity_w_p_b_0"),
-                    self.get_state_by_name("velocity_w_p_b_1"),
-                    self.get_state_by_name("velocity_w_p_b_2"),
-                ],
-                dtype=float,
-            )
-            vw = self.eqs["rotate_vector_b_to_w"](q, self.vb)
-
-        # ------------------------------------
-        # joy input handling
-        # ------------------------------------
-        if self.input_mode == "acro":
-            [omega_sp, thrust] = self.eqs["joy_acro"](
-                thrust_trim,
-                thrust_delta,
-                self.input_roll,
-                self.input_pitch,
-                self.input_yaw,
-                self.input_thrust,
-            )
-
-        elif self.input_mode == "auto_level":
-            [self.q_sp, thrust] = self.eqs["joy_auto_level"](
-                thrust_trim,
-                thrust_delta,
-                self.input_roll,
-                self.input_pitch,
-                self.input_yaw,
-                self.input_thrust,
-                q,
-            )
-            omega_sp = self.eqs["attitude_control"](k_p_att, q, self.q_sp)
-
-        elif self.input_mode == "velocity":
-            # ['thrust_trim', 'pt_w', 'vt_w', 'at_w', 'qc_wb', 'p_w', 'v_b', 'q_wb', 'z_i', 'dt'],
-            # ['nT', 'qr_wb', 'z_i_2'])
-            reset_position = False
-
-            #         f_get_u = ca.Function(
-            # "position_control",
-            # [thrust_trim, pt_w, vt_w, at_w, qc_wb.param, p_w, v_b, q_wb.param, z_i, dt], [nT, qr_wb.param, z_i_2],
-            # ['thrust_trim', 'pt_w', 'vt_w', 'at_w', 'qc_wb', 'p_w', 'v_b', 'q_wb', 'z_i', 'dt'],
-            # ['nT', 'qr_wb', 'z_i_2'])
-
-            [self.yawc_sp, self.pw_sp, self.vw_sp, self.aw_sp, self.qc_sp] = self.eqs[
-                "joy_velocity"
-            ](
-                self.dt,
-                self.yawc_sp,
-                self.pw_sp,
-                pw,
-                self.input_roll,
-                self.input_pitch,
-                self.input_yaw,
-                self.input_thrust,
-                reset_position,
-            )
-            if self.control_mode == "mellinger":
-                [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
-                    thrust_trim,
-                    self.pw_sp,
-                    self.vw_sp,
-                    self.aw_sp,
-                    self.qc_sp,
-                    pw,
-                    vw,
-                    self.z_i,
-                    self.dt,
-                )
-                omega_sp = self.eqs["attitude_control"](k_p_att, q, self.q_sp)
-            elif self.control_mode == "loglinear":
-                zeta = self.eqs["se23_error"](
-                    pw,
-                    vw,
-                    q,
-                    self.pw_sp,
-                    self.vw_sp,
-                    self.qc_sp,
-                )
-                # position control: world frame
-                [thrust, self.q_sp, self.z_i] = self.eqs["se23_position_control"](
-                    thrust_trim,
-                    k_p_att,
-                    zeta,
-                    self.aw_sp,
-                    self.qc_sp,
-                    self.z_i,
-                    self.dt,
-                )
-                # attitude control: q_br
-                omega_sp = self.eqs["so3_attitude_control"](k_p_att, q, self.q_sp)
-        else:
-            self.get_logger().info("unhandled mode: %s" % self.input_mode)
-            omega_sp = np.zeros(3, dtype=float)
-            thrust = 0
-
-        # ------------------------------------
-        # attitude rate control
-        # ------------------------------------
-        omega = self.y_gyro
-        # print(omega_sp, self.i0, self.e0, self.de0)
-        M, i1, e1, de1, alpha = self.eqs["attitude_rate_control"](
-            kp,
-            ki,
-            kd,
-            f_cut,
-            i_max,
-            omega,
-            omega_sp,
-            self.i0,
-            self.e0,
-            self.de0,
-            self.dt,
+        self.omega = np.array(
+            [
+                self.get_state_by_name("omega_wb_b_0"),
+                self.get_state_by_name("omega_wb_b_1"),
+                self.get_state_by_name("omega_wb_b_2"),
+            ],
+            dtype=float,
         )
-        self.i0 = i1
-        # self.get_logger().info('i0: %s' % self.i0)
-        # self.get_logger().info('e0: %s' % self.e0)
-        # self.get_logger().info('de0: %s' % self.de0)
-        self.e0 = e1
-        self.de0 = de1
+        self.pw = np.array(
+            [
+                self.get_state_by_name("position_op_w_0"),
+                self.get_state_by_name("position_op_w_1"),
+                self.get_state_by_name("position_op_w_2"),
+            ],
+            dtype=float,
+        )
+        self.vb = np.array(
+            [
+                self.get_state_by_name("velocity_w_p_b_0"),
+                self.get_state_by_name("velocity_w_p_b_1"),
+                self.get_state_by_name("velocity_w_p_b_2"),
+            ],
+            dtype=float,
+        )
+        self.vw = self.eqs["rotate_vector_b_to_w"](self.q, self.vb)
 
-        # TODO move to constant section
-        l = self.get_param_by_name("l_motor_0")  # assuming all the same
-        F_max = 20
-        CM = self.get_param_by_name("CM")
-        CT = self.get_param_by_name("CT")
-
-        assert CT != 0
-
-        # print("CT",CT)
-
-        # ------------------------------------
-        # control allocation
-        # ------------------------------------
-        self.u, Fp, Fm, Ft, Msat = self.eqs["f_alloc"](F_max, l, CM, CT, thrust, M)
-        # print("M, Msat", M, Msat)
-        # self.get_logger().info('M: %s' % M)
-        # self.get_logger().info('u: %s' % self.u)
+    def timer_callback(self):
+        self.integrate_simulation()
+        self.publish_state()
+        if self.use_estimator:
+            self.update_estimator()
+        else:
+            self.update_fake_estimator()
+        self.update_controller()
 
     def get_state_by_name(self, name):
         return self.x[self.model["x_index"][name]]
@@ -498,9 +511,6 @@ class Simulator(Node):
         return self.p[self.model["p_index"][name]]
 
     def publish_state(self):
-        # ------------------------------------
-        # get state variables
-        # ------------------------------------
         x = self.get_state_by_name("position_op_w_0")
         y = self.get_state_by_name("position_op_w_1")
         z = self.get_state_by_name("position_op_w_2")
@@ -522,14 +532,23 @@ class Simulator(Node):
         m1 = self.get_state_by_name("omega_motor_1")
         m2 = self.get_state_by_name("omega_motor_2")
         m3 = self.get_state_by_name("omega_motor_3")
-        m = np.array([m0, m1, m2, m3])
+        motors = np.array([m0, m1, m2, m3])
+
+        P_full = np.array(
+            [
+                [self.P[0], self.P[1], self.P[2]],
+                [self.P[1], self.P[3], self.P[4]],
+                [self.P[2], self.P[4], self.P[5]],
+            ]
+        )
+        P_pose_full = np.block(
+            [[np.eye(3), np.zeros((3, 3))], [np.zeros((3, 3)), P_full]]
+        )
 
         # ------------------------------------
         # publish simulation clock
         # ------------------------------------
         self.t += self.dt
-        sec = int(self.t)
-        nanosec = int(1e9 * (self.t - sec))
         msg_clock = self.clock_as_msg()
         self.pub_clock.publish(msg_clock)
 
@@ -561,7 +580,7 @@ class Simulator(Node):
             tf.transform.translation.x = r * np.cos(theta)
             tf.transform.translation.y = r * np.sin(theta)
             tf.transform.translation.z = 0.02
-            self.motor_pose[i] += m[i] * self.dt
+            self.motor_pose[i] += motors[i] * self.dt
             tf.transform.rotation.w = np.cos(self.motor_pose[i] / 2)
             tf.transform.rotation.x = 0.0
             tf.transform.rotation.y = 0.0
@@ -603,7 +622,7 @@ class Simulator(Node):
         msg_pose = PoseWithCovarianceStamped()
         msg_pose.header.stamp = msg_clock.clock
         msg_pose.header.frame_id = "map"
-        msg_pose.pose.covariance = 0.1 * np.eye(6).reshape(-1)
+        msg_pose.pose.covariance = P_pose_full.reshape(-1)
         msg_pose.pose.pose.position.x = x
         msg_pose.pose.pose.position.y = y
         msg_pose.pose.pose.position.z = z
@@ -635,16 +654,7 @@ class Simulator(Node):
         msg_odom.header.stamp = msg_clock.clock
         msg_odom.header.frame_id = "map"
         msg_odom.child_frame_id = "base_link"
-        P_full = np.array(
-            [
-                [self.P[0], self.P[1], self.P[2]],
-                [self.P[1], self.P[3], self.P[4]],
-                [self.P[2], self.P[4], self.P[5]],
-            ]
-        )
-        msg_odom.pose.covariance = np.block(
-            [[np.eye(3), np.zeros((3, 3))], [np.zeros((3, 3)), P_full]]
-        ).reshape(-1)
+        msg_odom.pose.covariance = P_full.reshape(-1)
         msg_odom.pose.pose.position.x = self.est_x[0]
         msg_odom.pose.pose.position.y = self.est_x[1]
         msg_odom.pose.pose.position.z = self.est_x[2]

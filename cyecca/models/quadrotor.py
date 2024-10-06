@@ -82,9 +82,9 @@ def derive_model():
         "rho": 1.225,  # air density
         "g": 9.8,
         "m": 2.0,
-        "J_x": 0.02166666666666667,
-        "J_y": 0.02166666666666667,
-        "J_z": 0.04000000000000001,
+        "Jx": 0.02166666666666667,
+        "Jy": 0.02166666666666667,
+        "Jz": 0.04000000000000001,
         "noise_power_sqrt_a_b_0": 70e-6 * g0,  # micro-g/sqrt(hz)
         "noise_power_sqrt_a_b_1": 70e-6 * g0,
         "noise_power_sqrt_a_b_2": 70e-6 * g0,

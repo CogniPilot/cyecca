@@ -131,11 +131,11 @@ def saturate(x, x_min, x_max):
     return ca.if_else(x > x_max, x_max, ca.if_else(x < x_min, x_min, x))
 
 
-def derive_joy_acro():
+def derive_input_acro():
     """
     Acro mode manual input:
 
-    Given joy input, find roll rate and thrust setpoints
+    Given input, find roll rate and thrust setpoints
     """
 
     # INPUT CONSTANTS
@@ -145,100 +145,102 @@ def derive_joy_acro():
 
     # INPUT VARIABLES
     # -------------------------------
-    joy_roll = ca.SX.sym("joy_roll")
-    joy_pitch = ca.SX.sym("joy_pitch")
-    joy_yaw = ca.SX.sym("joy_yaw")
-    joy_thrust = ca.SX.sym("joy_thrust")
+    input_aetr = ca.SX.sym("input_aetr", 4)
 
     # CALC
     # -------------------------------
     w = ca.vertcat(
-        rollpitch_rate_max * deg2rad * joy_roll,
-        rollpitch_rate_max * deg2rad * joy_pitch,
-        yaw_rate_max * deg2rad * joy_yaw,
+        rollpitch_rate_max * deg2rad * input_aetr[0],
+        rollpitch_rate_max * deg2rad * input_aetr[1],
+        yaw_rate_max * deg2rad * input_aetr[3],
     )
-    thrust = joy_thrust * thrust_delta + thrust_trim
+    thrust = input_aetr[2] * thrust_delta + thrust_trim
 
     # FUNCTION
     # -------------------------------
-    f_joy_acro = ca.Function(
-        "joy_acro",
-        [thrust_trim, thrust_delta, joy_roll, joy_pitch, joy_yaw, joy_thrust],
+    f_input_acro = ca.Function(
+        "input_acro",
+        [thrust_trim, thrust_delta, input_aetr],
         [w, thrust],
         [
             "thrust_trim",
             "thrust_delta",
-            "joy_roll",
-            "joy_pitch",
-            "joy_yaw",
-            "joy_thrust",
+            "input_aetr",
         ],
         ["omega", "thrust"],
     )
 
-    return {"joy_acro": f_joy_acro}
+    return {"input_acro": f_input_acro}
 
 
-def derive_joy_velocity():
+def derive_input_velocity():
     # INPUT VARIABLES
     # -------------------------------
     dt = ca.SX.sym("dt")
-    yaw_sp0 = ca.SX.sym("yaw_sp0")
-    pw_sp0 = ca.SX.sym("pw_sp0", 3)
+    psi_sp = ca.SX.sym("psi_sp")
+    psi_vel_sp = ca.SX.sym("psi_vel_sp")
+    psi_acc_sp = ca.SX.sym("psi_acc_sp")
+
+    pw_sp = ca.SX.sym("pw_sp", 3)
     pw = ca.SX.sym("pw", 3)
-    joy_roll = ca.SX.sym("joy_roll")
-    joy_pitch = ca.SX.sym("joy_pitch")
-    joy_yaw = ca.SX.sym("joy_yaw")
-    joy_thrust = ca.SX.sym("joy_thrust")
+
+    input_aetr = ca.SX.sym("input_aetr", 4)
+
     reset_position = ca.SX.sym("reset_position")
 
-    yaw_rate = 60 * deg2rad * joy_yaw
-    yaw_sp1 = yaw_sp0 + yaw_rate * dt
-    yaw_sp1 = ca.remainder(yaw_sp1, 2 * ca.pi)
+    psi_vel_sp = 60 * deg2rad * input_aetr[3]
+    psi_sp1 = psi_sp + psi_vel_sp * dt
+    psi_sp1 = ca.remainder(psi_sp1, 2 * ca.pi)
 
-    cos_yaw = ca.cos(yaw_sp1)
-    sin_yaw = ca.sin(yaw_sp1)
+    cos_yaw = ca.cos(psi_sp1)
+    sin_yaw = ca.sin(psi_sp1)
 
-    vb = ca.vertcat(2 * joy_pitch, -2 * joy_roll, joy_thrust)
+    vb = ca.vertcat(2 * input_aetr[1], -2 * input_aetr[0], input_aetr[2])
     vw_sp = ca.vertcat(
         vb[0] * cos_yaw - vb[1] * sin_yaw, vb[0] * sin_yaw + vb[1] * cos_yaw, vb[2]
     )
 
-    pw_sp1 = ca.if_else(reset_position, pw, pw_sp0 + vw_sp * dt)
+    pw_sp1 = ca.if_else(reset_position, pw, pw_sp + vw_sp * dt)
 
     e = pw_sp1 - pw
     e_max = 2
     e_norm = ca.norm_2(e)
     e = ca.if_else(e_norm > e_max, 2 * e / e_norm, e)
 
-    q_sp = SO3Quat.from_Euler(SO3EulerB321.elem(ca.vertcat(yaw_sp1, 0, 0))).param
+    q_sp = SO3Quat.from_Euler(SO3EulerB321.elem(ca.vertcat(psi_sp1, 0, 0))).param
 
     pw_sp1 = pw + e
 
     aw_sp = ca.vertcat(0, 0, 0)
-    f_joy_velocity = ca.Function(
-        "joy_velocity",
+    f_input_velocity = ca.Function(
+        "input_velocity",
         [
             dt,
-            yaw_sp0,
-            pw_sp0,
+            psi_sp,
+            pw_sp,
             pw,
-            joy_roll,
-            joy_pitch,
-            joy_yaw,
-            joy_thrust,
+            input_aetr,
             reset_position,
         ],
-        [yaw_sp1, pw_sp1, vw_sp, aw_sp, q_sp],
+        [psi_sp1, psi_vel_sp, pw_sp1, vw_sp, aw_sp, q_sp],
+        [
+            "dt",
+            "psi_sp",
+            "pw_sp",
+            "pw",
+            "input_aetr",
+            "reset_position",
+        ],
+        ["psi_sp1", "psi_vel_sp", "pw_sp1", "vw_sp", "aw_sp", "q_sp"],
     )
-    return {"joy_velocity": f_joy_velocity}
+    return {"input_velocity": f_input_velocity}
 
 
-def derive_joy_auto_level():
+def derive_input_auto_level():
     """
     Auto level mode manual input:
 
-    Given joy input, find attitude and thrust set points
+    Given manual input, find attitude and thrust set points
     """
 
     # INPUT CONSTANTS
@@ -248,11 +250,7 @@ def derive_joy_auto_level():
 
     # INPUT VARIABLES
     # -------------------------------
-    joy_roll = ca.SX.sym("joy_roll")
-    joy_pitch = ca.SX.sym("joy_pitch")
-    joy_yaw = ca.SX.sym("joy_yaw")
-    joy_thrust = ca.SX.sym("joy_thrust")
-
+    input_aetr = ca.SX.sym("input_aetr", 4)  # aileron, elevator, thrust, rudder
     q = SO3Quat.elem(ca.SX.sym("q", 4))
 
     # CALC
@@ -264,34 +262,31 @@ def derive_joy_auto_level():
 
     euler_r = SO3EulerB321.elem(
         ca.vertcat(
-            yaw + yaw_rate_max * deg2rad * joy_yaw,
-            rollpitch_max * deg2rad * joy_pitch,
-            rollpitch_max * deg2rad * joy_roll,
+            yaw + yaw_rate_max * deg2rad * input_aetr[3],
+            rollpitch_max * deg2rad * input_aetr[1],
+            rollpitch_max * deg2rad * input_aetr[0],
         )
     )
 
     q_r = SO3Quat.from_Euler(euler_r)
-    thrust = joy_thrust * thrust_delta + thrust_trim
+    thrust = input_aetr[2] * thrust_delta + thrust_trim
 
     # FUNCTION
     # -------------------------------
-    f_joy_auto_level = ca.Function(
-        "joy_auto_level",
-        [thrust_trim, thrust_delta, joy_roll, joy_pitch, joy_yaw, joy_thrust, q.param],
+    f_input_auto_level = ca.Function(
+        "input_auto_level",
+        [thrust_trim, thrust_delta, input_aetr, q.param],
         [q_r.param, thrust],
         [
             "thrust_trim",
             "thrust_delta",
-            "joy_roll",
-            "joy_pitch",
-            "joy_yaw",
-            "joy_thrust",
+            "input_aetr",  # aileron, elevator, thrust, rudder
             "q",
         ],
         ["q_r", "thrust"],
     )
 
-    return {"joy_auto_level": f_joy_auto_level}
+    return {"input_auto_level": f_input_auto_level}
 
 
 def derive_attitude_estimator():
@@ -657,9 +652,9 @@ if __name__ == "__main__":
     eqs.update(derive_attitude_rate_control())
     eqs.update(derive_attitude_control())
     eqs.update(derive_position_control())
-    eqs.update(derive_joy_acro())
-    eqs.update(derive_joy_auto_level())
-    eqs.update(derive_joy_velocity())
+    eqs.update(derive_input_acro())
+    eqs.update(derive_input_auto_level())
+    eqs.update(derive_input_velocity())
     eqs.update(derive_strapdown_ins_propagation())
     eqs.update(derive_control_allocation())
     eqs.update(derive_common())

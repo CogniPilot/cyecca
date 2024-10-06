@@ -34,7 +34,7 @@ def sqrt_covariance_predict(W: ca.SX, F: ca.SX, Q: ca.SX) -> ca.SX:
     W_dot_sol: sqrt of P deriative, lower triangular
     """
     n_x = F.shape[0]
-    XL = ca.SX.sym("X", ca.Sparsity_lower(n_x))
+    XL = ca.SX.sym("X", ca.Sparsity.lower(n_x))
     X = XL - XL.T
     for i in range(n_x):
         X[i, i] = 0
@@ -100,8 +100,8 @@ def ldl_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:
         D: Diagonal
     """
     n = P.shape[0]
-    D = ca.SX.zeros(ca.Sparsity_diag(n))
-    L = ca.SX.zeros(ca.Sparsity_lower(n))
+    D = ca.SX.zeros(ca.Sparsity.diag(n))
+    L = ca.SX.zeros(ca.Sparsity.lower(n))
     for j in range(n):
         D[j, j] = P[j, j]
         L[j, j] = 1
@@ -124,8 +124,8 @@ def udu_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:
     """
     n = P.shape[0]
     P2 = ca.SX(P)
-    D = ca.SX.zeros(ca.Sparsity_diag(n))
-    U = ca.SX.zeros(ca.Sparsity_upper(n))
+    D = ca.SX.zeros(ca.Sparsity.diag(n))
+    U = ca.SX.zeros(ca.Sparsity.upper(n))
     for j in range(n - 1, 0, -1):
         D[j, j] = P2[j, j]
         U[j, j] = 1

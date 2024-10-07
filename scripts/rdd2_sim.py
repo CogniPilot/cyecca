@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from cyecca.models import quadrotor
-from cyecca.models import rdd2, rdd2_loglinear, mr_ref_traj
+from cyecca.models import rdd2, rdd2_loglinear, mr_ref_traj, bezier
 
 import casadi as ca
 import numpy as np
@@ -13,6 +13,7 @@ from rclpy.parameter import Parameter
 
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, PoseStamped
 from geometry_msgs.msg import TwistWithCovarianceStamped, TwistStamped
+from synapse_msgs.msg import BezierTrajectory
 from rosgraph_msgs.msg import Clock
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import Joy, Imu
@@ -47,6 +48,7 @@ class Simulator(Node):
         # subscriptions
         # ----------------------------------------------
         self.sub_joy = self.create_subscription(Joy, "/joy", self.joy_callback, 1)
+        self.sub_bezier = self.create_subscription(BezierTrajectory, "/bezier_trajectory", self.bezier_callback, 1)
 
         # ----------------------------------------------
         # dynamics
@@ -90,6 +92,7 @@ class Simulator(Node):
         self.eqs.update(rdd2_loglinear.derive_so3_attitude_control())
         self.eqs.update(rdd2_loglinear.derive_outerloop_control())
         self.eqs.update(mr_ref_traj.derive_mr_ref_traj())
+        self.eqs.update(bezier.derive_multirotor())
 
         # ----------------------------------------------
         # sim state data
@@ -147,6 +150,13 @@ class Simulator(Node):
             callback=self.timer_callback,
             clock=self.system_clock,
         )
+
+        # bezier
+        self.bezier_msg = None
+        self.PX = np.zeros(8)
+        self.PY = np.zeros(8)
+        self.PZ = np.zeros(8)
+        self.Ppsi = np.zeros(4)
 
     def update_estimator(self):
         """
@@ -285,6 +295,34 @@ class Simulator(Node):
                 )
                 # attitude control: q_br
                 omega_sp = self.eqs["so3_attitude_control"](k_p_att, self.q, self.q_sp)
+        elif self.input_mode == "bezier":
+
+            time_start_nsec = self.bezier_msg.time_start.sec * 1e9 + self.bezier_msg.time_start.nanosec
+            time_stop_nsec = time_start_nsec
+            time_nsec = self.get_clock().now()
+            curve_idx = 0
+            while (True):
+                curve = self.bezier_msg.curves[curve_idx]
+                curve_prev = self.bezier_msg.curves[curve_idx - 1]
+                curve_stop_nsec = curve.time_stop.sec * 1e9 + curve.time_stop.nanosec
+                curve_prev_stop_nsec = curve_prev.time_stop.sec * 1e9 + curve_prev.time_stop.nanosec
+                if time_nsec < curve_stop_nsec:
+                    time_stop_nsec = curve_stop_nsec
+                    if curve_idx > 0:
+                        time_start_nsec = curve_prev_stop_nsec
+                    break
+                curve_idx += 1
+            if curve_idx < self.bezier_msg.curves_count:
+                T = (time_stop_nsec - time_start_nsec) * 1e-9
+                t = (time_nsec - time_start_nsec) * 1e-9
+                for i in range(8):
+                    self.PX[i] = self.bezier_msg.curves[curve_idx].x[i]
+                    self.PY[i] = self.bezier_msg.curves[curve_idx].y[i]
+                    self.PZ[i] = self.bezier_msg.curves[curve_idx].z[i]
+                for i in range(4):
+                    self.Ppsi[i] = self.bezier_msg.curves[curve_idx].yaw[i]
+                [x, y, z, psi, dpsi, ddpsi, v, a, j, s] = self.eqs["bezier_multirotor"](t, T, self.PX, self.PY, self.PZ, self.Ppsi)
+
         else:
             self.get_logger().info("unhandled mode: %s" % self.input_mode)
             omega_sp = np.zeros(3, dtype=float)
@@ -335,10 +373,10 @@ class Simulator(Node):
         elif msg.buttons[1] == 1:
             new_mode = "velocity"
         elif msg.buttons[2] == 1:
-            self.get_logger().info(
-                "bezier mode not yet supported, reverted to %s" % self.input_mode
-            )
-            # new_mode = "bezier"
+            # self.get_logger().info(
+            #     "bezier mode not yet supported, reverted to %s" % self.input_mode
+            # )
+            new_mode = "bezier"
         if new_mode != self.input_mode:
             self.get_logger().info(
                 "mode changed from: %s to %s" % (self.input_mode, new_mode)
@@ -354,6 +392,9 @@ class Simulator(Node):
                 % (self.control_mode, new_control_mode)
             )
             self.control_mode = new_control_mode
+
+    def bezier_callback(self, msg: BezierTrajectory):
+        self.bezier_msg = msg
 
     def publish_static_transforms(self):
         msg_clock = self.clock_as_msg()

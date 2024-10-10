@@ -78,98 +78,30 @@ class SO3LieAlgebra(LieAlgebra):
         return self.elem(ca.vertcat(arg[2, 1], arg[0, 2], arg[1, 0]))
 
     def left_jacobian(self, arg: SO3LieAlgebraElement) -> ca.SX:
-        o = ca.SX.sym("o", 3)
-        O = so3.elem(o).ad()
-        O_sq = O @ O
-        theta = angle_wrap(ca.norm_2(o))
-
-        c_theta = ca.cos(theta)
-        s_theta = ca.sin(theta)
-
-        Coeff = ca.if_else(
-            ca.fabs(theta) > 1e-3,
-            ca.vertcat(
-                (1 - c_theta) / (theta**2),  # C0
-                (theta - s_theta) / (theta**3),  # C1
-            ),
-            ca.vertcat(
-                1 / 2 - theta**2 / 24 + theta**4 / 720,
-                1 / 6 - theta**2 / 120 + theta**4 / 5040,
-            ),
-        )
-
-        R = ca.SX.eye(3) + Coeff[0] * O + Coeff[1] * O_sq
-        f_R = ca.Function("f_R", [o], [R])
-
-        Jl = f_R(arg.param)
-        return Jl
+        W = arg.to_Matrix()
+        theta = angle_wrap(ca.norm_2(arg.param))
+        A = SERIES["(1 - cos(x))/x^2"](theta)
+        B = SERIES["(x - sin(x))/x^3"](theta)
+        return ca.SX.eye(3) + A * W + B * (W @ W)
 
     def left_jacobian_inv(self, arg: SO3LieAlgebraElement) -> ca.SX:
-        o = ca.SX.sym("o", 3)
-        O = so3.elem(o).ad()
-        O_sq = O @ O
-        theta = angle_wrap(ca.norm_2(o))
-        cot_theta = 1 / ca.tan(theta / 2)
-
-        Coeff = ca.if_else(
-            ca.fabs(theta) > 1e-3,
-            ca.vertcat((2 - theta * cot_theta) / (2 * theta**2)),
-            ca.vertcat(1 / 12 - theta**2 / 720 + theta**4 / 30240),
-        )
-
-        R_inv = ca.SX.eye(3) - 0.5 * O + Coeff[0] * O_sq
-        f_R_inv = ca.Function("f_R_inv", [o], [R_inv])
-
-        Jl_inv = f_R_inv(arg.param)
-        return Jl_inv
+        W = arg.to_Matrix()
+        theta = angle_wrap(ca.norm_2(arg.param))
+        A = SERIES["1/x^2 + sin(x)/(2 x (cos(x) - 1))"](theta)
+        return ca.SX.eye(3) - 0.5 * W + A * (W @ W)
 
     def right_jacobian(self, arg: SO3LieAlgebraElement) -> ca.SX:
-        o = ca.SX.sym("o", 3)
-        O = so3.elem(o).ad()
-        O_sq = O @ O
-        theta = angle_wrap(ca.norm_2(o))
-
-        # A = so3.elem(a.param).ad()
-        # V = so3.elem(v.param).ad()
-        c_theta = ca.cos(theta)
-        s_theta = ca.sin(theta)
-
-        Coeff = ca.if_else(
-            ca.fabs(theta) > 1e-3,
-            ca.vertcat(
-                (1 - c_theta) / (theta**2),  # C0
-                (theta - s_theta) / (theta**3),  # C1
-            ),
-            ca.vertcat(
-                1 / 2 - theta**2 / 24 + theta**4 / 720,
-                1 / 6 - theta**2 / 120 + theta**4 / 5040,
-            ),
-        )
-
-        R = ca.SX.eye(3) - Coeff[0] * O + Coeff[1] * O_sq
-        f_R = ca.Function("f_R", [o], [R])
-
-        Jr = f_R(arg.param)
-        return Jr
+        W = arg.to_Matrix()
+        theta = angle_wrap(ca.norm_2(arg.param))
+        A = SERIES["(1 - cos(x))/x^2"](theta)
+        B = SERIES["(x - sin(x))/x^3"](theta)
+        return ca.SX.eye(3) - A * W + B * (W @ W)
 
     def right_jacobian_inv(self, arg: SO3LieAlgebraElement) -> ca.SX:
-        o = ca.SX.sym("o", 3)
-        O = so3.elem(o).ad()
-        O_sq = O @ O
-        theta = angle_wrap(ca.norm_2(o))
-        cot_theta = 1 / ca.tan(theta / 2)
-
-        Coeff = ca.if_else(
-            ca.fabs(theta) > 1e-3,
-            ca.vertcat((2 - theta * cot_theta) / (2 * theta**2)),
-            ca.vertcat(1 / 12 - theta**2 / 720 + theta**4 / 30240),
-        )
-
-        R_inv = ca.SX.eye(3) + 0.5 * O + Coeff[0] * O_sq
-        f_R_inv = ca.Function("f_R_inv", [o], [R_inv])
-
-        Jr_inv = f_R_inv(arg.param)
-        return Jr_inv
+        W = arg.to_Matrix()
+        theta = angle_wrap(ca.norm_2(arg.param))
+        A = SERIES["1/x^2 + sin(x)/(2 x (cos(x) - 1))"](theta)
+        return ca.SX.eye(3) + 0.5 * W + A * (W @ W)
 
 
 @beartype
@@ -197,26 +129,28 @@ class EulerType(Enum):
 
 @beartype
 def rotation_matrix(axis: Axis, angle: SCALAR_TYPE):
+    cos_angle = ca.cos(angle)
+    sin_angle = ca.sin(angle)
     if axis == Axis.x:
         R = ca.SX.eye(3)
-        R[1, 1] = ca.cos(angle)
-        R[1, 2] = -ca.sin(angle)
-        R[2, 1] = ca.sin(angle)
-        R[2, 2] = ca.cos(angle)
+        R[1, 1] = cos_angle
+        R[1, 2] = -sin_angle
+        R[2, 1] = sin_angle
+        R[2, 2] = cos_angle
         return R
     elif axis == Axis.y:
         R = ca.SX.eye(3)
-        R[0, 0] = ca.cos(angle)
-        R[2, 0] = -ca.sin(angle)
-        R[0, 2] = ca.sin(angle)
-        R[2, 2] = ca.cos(angle)
+        R[0, 0] = cos_angle
+        R[2, 0] = -sin_angle
+        R[0, 2] = sin_angle
+        R[2, 2] = cos_angle
         return R
     elif axis == Axis.z:
         R = ca.SX.eye(3)
-        R[0, 0] = ca.cos(angle)
-        R[0, 1] = -ca.sin(angle)
-        R[1, 0] = ca.sin(angle)
-        R[1, 1] = ca.cos(angle)
+        R[0, 0] = cos_angle
+        R[0, 1] = -sin_angle
+        R[1, 0] = sin_angle
+        R[1, 1] = cos_angle
         return R
     else:
         raise ValueError("unknown axis")
@@ -248,7 +182,9 @@ class SO3LieGroup(LieGroup):
         v = left.to_Matrix() @ right.param
         return R3LieAlgebraElement(algebra=right.algebra, param=v)
 
-    def product_vector(self, left: SO3LieGroupElement, right: ca.SX) -> ca.SX:
+    def product_vector(
+        self, left: SO3LieGroupElement, right: Union[ca.SX, ca.DM]
+    ) -> ca.SX:
         """
         Vector product, uses matrix conversion
         """
@@ -270,7 +206,9 @@ class SO3LieGroupElement(LieGroupElement):
         """
         if isinstance(right, R3LieAlgebraElement):
             return self.group.product_r3(self, right)
-        if isinstance(right, ca.SX) and right.shape == (3, 1):
+        elif isinstance(right, ca.SX) and right.shape == (3, 1):
+            return self.group.product_vector(self, right)
+        elif isinstance(right, ca.DM) and right.shape == (3, 1):
             return self.group.product_vector(self, right)
         else:
             print(type(right))
@@ -498,13 +436,8 @@ class SO3QuatLieGroup(SO3LieGroup):
     def exp(self, arg: SO3LieAlgebraElement) -> SO3QuatLieGroupElement:
         v = arg.param
         theta = angle_wrap(ca.norm_2(v))
-        c = ca.sin(theta / 2)
-        q = ca.vertcat(
-            ca.cos(theta / 2), c * v[0] / theta, c * v[1] / theta, c * v[2] / theta
-        )
-        return self.elem(
-            param=ca.if_else(ca.fabs(theta) > 1e-7, q, ca.SX([1, 0, 0, 0]))
-        )
+        A = SERIES["sin(x)/x"](theta / 2) / 2
+        return SO3Quat.elem(ca.vertcat(ca.cos(theta / 2), A * v[0], A * v[1], A * v[2]))
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         q = arg.param

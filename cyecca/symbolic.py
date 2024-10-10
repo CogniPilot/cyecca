@@ -106,11 +106,15 @@ def _sympy_parser(f, f_dict=None, symbols=None, depth=0, cse=False, verbose=Fals
         return ca.sin(prs(f.args[0]))
     elif str(f_type) == "cos":
         return ca.cos(prs(f.args[0]))
+    elif str(f_type) == "tan":
+        return ca.tan(prs(f.args[0]))
     elif str(f_type) in dict_keys:
         for i in range(len(dict_keys)):
             return f_dict[dict_keys[i]](prs(f.args[0]))
     else:
-        print("unhandled type", type(f), f)
+        raise NotImplementedError(
+            "unhandled type: {:s} {:s}".format(str(f_type), str(f))
+        )
 
 
 def casadi_to_sympy(expr, syms=None):
@@ -210,6 +214,8 @@ def casadi_to_sympy(expr, syms=None):
         return binary(expr, lambda a, b: sympy.Piecewise((a, a < b), (b, True)))
     elif op == ca.OP_FMAX:
         return binary(expr, lambda a, b: sympy.Piecewise((a, a > b), (b, True)))
+    elif op == ca.OP_INV:
+        return unary(expr, lambda a: 1 / a)
     elif op == ca.OP_SINH:
         return unary(expr, lambda a: sympy.sinh(a))
     elif op == ca.OP_COSH:
@@ -338,15 +344,16 @@ def casadi_to_sympy(expr, syms=None):
     elif op == ca.OP_LOGSUMEXP:
         raise NotImplementedError("")
     elif op == ca.OP_REMAINDER:
-        raise NotImplementedError("")
+        return binary(expr, lambda a, b: sympy.Mod(a + b, b) - b)
     else:
-        raise NotImplementedError("op", op)
+        raise NotImplementedError("op: {:s} {:s}".format(str(op), str(expr)))
 
 
 def derive_series():
     x = sympy.symbols("x")
     cos = sympy.cos
     sin = sympy.sin
+    tan = sympy.tan
     return {
         "sin(x)/x": taylor_series_near_zero(x, sin(x) / x),
         "x/sin(x)": taylor_series_near_zero(x, x / sin(x)),
@@ -363,6 +370,12 @@ def derive_series():
             x, (x**2 / 2 + cos(x) - 1) / x**4
         ),
         "1/x^2": taylor_series_near_zero(x, 1 / x**2),
+        "(2 - x cos(x))/(2 x^2)": taylor_series_near_zero(
+            x, (2 - x * cos(x)) / (2 * x**2)
+        ),
+        "1/x^2 + sin(x)/(2 x (cos(x) - 1))": taylor_series_near_zero(
+            x, 1 / x**2 + sin(x) / (2 * x * (cos(x) - 1))
+        ),
     }
 
 

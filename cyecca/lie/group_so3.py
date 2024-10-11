@@ -435,9 +435,10 @@ class SO3QuatLieGroup(SO3LieGroup):
 
     def exp(self, arg: SO3LieAlgebraElement) -> SO3QuatLieGroupElement:
         v = arg.param
-        theta = angle_wrap(ca.norm_2(v))
-        A = SERIES["sin(x)/x"](theta / 2) / 2
-        return SO3Quat.elem(ca.vertcat(ca.cos(theta / 2), A * v[0], A * v[1], A * v[2]))
+        theta_sq = ca.remainder(ca.dot(v, v), (2 * ca.pi) ** 2)
+        A = SERIES["sin(sqrt(x))/sqrt(x)"](theta_sq / 4) / 2
+        B = SERIES["cos(sqrt(x))"](theta_sq / 4)
+        return SO3Quat.elem(ca.vertcat(B, A * v[0], A * v[1], A * v[2]))
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         q = arg.param

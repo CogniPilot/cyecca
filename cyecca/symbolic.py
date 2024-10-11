@@ -354,7 +354,10 @@ def derive_series():
     cos = sympy.cos
     sin = sympy.sin
     tan = sympy.tan
+    sqrt = sympy.sqrt
     return {
+        "sin(sqrt(x))/sqrt(x)": taylor_series_near_zero(x, sin(sqrt(x)) / sqrt(x)),
+        "cos(sqrt(x))": taylor_series_near_zero(x, cos(sqrt(x))),
         "sin(x)/x": taylor_series_near_zero(x, sin(x) / x),
         "x/sin(x)": taylor_series_near_zero(x, x / sin(x)),
         "(1 - cos(x))/x": taylor_series_near_zero(x, (1 - cos(x)) / x),

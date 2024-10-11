@@ -354,6 +354,30 @@ def derive_multirotor():
 
     return { f.name(): f for f in functions }
 
+def derive_eulerB321_to_quat():
+    """
+    eulerB321 to quaternion converion
+    """
+
+    # INPUTS
+    # -------------------------------
+    e = SO3EulerB321.elem(ca.SX.sym('e', 3))
+
+    # CALC
+    # -------------------------------
+    X = SO3Quat.from_Euler(e)
+
+    # FUNCTION
+    # -------------------------------
+    f_eulerB321_to_quat = ca.Function(
+       "eulerB321_to_quat",
+       [e.param[0], e.param[1], e.param[2]], [X.param],
+       ["yaw", "pitch", "roll"], ["q"])
+
+    return {
+        "eulerB321_to_quat": f_eulerB321_to_quat
+    }
+
 def generate_code(eqs: dict, filename, dest_dir: str, **kwargs):
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(exist_ok=True)

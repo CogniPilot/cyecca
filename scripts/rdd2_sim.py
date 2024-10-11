@@ -48,7 +48,9 @@ class Simulator(Node):
         # subscriptions
         # ----------------------------------------------
         self.sub_joy = self.create_subscription(Joy, "/joy", self.joy_callback, 1)
-        self.sub_bezier = self.create_subscription(BezierTrajectory, "/cerebri/in/bezier_trajectory", self.bezier_callback, 1)
+        self.sub_bezier = self.create_subscription(
+            BezierTrajectory, "/cerebri/in/bezier_trajectory", self.bezier_callback, 1
+        )
 
         # ----------------------------------------------
         # dynamics
@@ -298,19 +300,23 @@ class Simulator(Node):
                 # attitude control: q_br
                 omega_sp = self.eqs["so3_attitude_control"](k_p_att, self.q, self.q_sp)
         elif self.input_mode == "bezier":
-
-            time_start_nsec = self.bezier_msg.time_start.sec * 1e9 + self.bezier_msg.time_start.nanosec
+            time_start_nsec = (
+                self.bezier_msg.time_start.sec * 1e9
+                + self.bezier_msg.time_start.nanosec
+            )
             time_stop_nsec = time_start_nsec
             now = self.get_clock().now()
             sec, nanosec = now.seconds_nanoseconds()
             time_nsec = sec * 1e9 + nanosec
             curve_idx = 0
-            
-            while (True):
+
+            while True:
                 curve = self.bezier_msg.curves[curve_idx]
                 curve_prev = self.bezier_msg.curves[curve_idx - 1]
                 curve_stop_nsec = curve.time_stop.sec * 1e9 + curve.time_stop.nanosec
-                curve_prev_stop_nsec = curve_prev.time_stop.sec * 1e9 + curve_prev.time_stop.nanosec
+                curve_prev_stop_nsec = (
+                    curve_prev.time_stop.sec * 1e9 + curve_prev.time_stop.nanosec
+                )
                 if time_nsec < curve_stop_nsec:
                     time_stop_nsec = curve_stop_nsec
                     if curve_idx > 0:
@@ -326,11 +332,16 @@ class Simulator(Node):
                     self.PZ[i] = self.bezier_msg.curves[curve_idx].z[i]
                 for i in range(4):
                     self.Ppsi[i] = self.bezier_msg.curves[curve_idx].yaw[i]
-                [x, y, z, psi, dpsi, ddpsi, self.vw_sp, a, j, s] = self.eqs["bezier_multirotor"](t, T, self.PX, self.PY, self.PZ, self.Ppsi)
-                [_, q_att, self.omega, _, M, _] = self.eqs["f_ref"](psi, dpsi, ddpsi, self.vw_sp, a, j, s)
-                self.qc_sp = self.eqs["eulerB321_to_quat"](psi, 0, 0) 
+                [x, y, z, psi, dpsi, ddpsi, self.vw_sp, a, j, s] = self.eqs[
+                    "bezier_multirotor"
+                ](t, T, self.PX, self.PY, self.PZ, self.Ppsi)
+                [_, q_att, self.omega, _, M, _] = self.eqs["f_ref"](
+                    psi, dpsi, ddpsi, self.vw_sp, a, j, s
+                )
+                self.qc_sp = self.eqs["eulerB321_to_quat"](psi, 0, 0)
                 self.pw_sp = np.array([x, y, z]).reshape(-1)
-                print(thrust_trim,
+                print(
+                    thrust_trim,
                     self.pw_sp,
                     self.vw_sp,
                     self.aw_sp,
@@ -338,7 +349,8 @@ class Simulator(Node):
                     self.pw,
                     self.vw,
                     self.z_i,
-                    self.dt)
+                    self.dt,
+                )
                 [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
                     thrust_trim,
                     self.pw_sp,

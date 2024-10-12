@@ -1,10 +1,16 @@
 import casadi as ca
 import sympy
 
-__all__ = ["taylor_series_near_zero", "sympy_to_casadi", "SERIES", "casadi_to_sympy"]
+__all__ = [
+    "taylor_series_near_zero",
+    "sympy_to_casadi",
+    "SERIES",
+    "SQUARED_SERIES",
+    "casadi_to_sympy",
+]
 
 
-def taylor_series_near_zero(x, f, order=6, eps=1e-7, verbose=False):
+def taylor_series_near_zero(x, f, order=6, eps=1e-20, verbose=False):
     """
     Takes a sympy function and near zero approximates it by a taylor
     series. The resulting function is converted to a casadi function.
@@ -108,6 +114,8 @@ def _sympy_parser(f, f_dict=None, symbols=None, depth=0, cse=False, verbose=Fals
         return ca.cos(prs(f.args[0]))
     elif str(f_type) == "tan":
         return ca.tan(prs(f.args[0]))
+    elif str(f_type) == "atan":
+        return ca.arctan(prs(f.args[0]))
     elif str(f_type) in dict_keys:
         for i in range(len(dict_keys)):
             return f_dict[dict_keys[i]](prs(f.args[0]))
@@ -346,40 +354,79 @@ def casadi_to_sympy(expr, syms=None):
     elif op == ca.OP_REMAINDER:
         return binary(expr, lambda a, b: sympy.Mod(a + b, b) - b)
     else:
-        raise NotImplementedError("op: {:s} {:s}".format(str(op), str(expr)))
+        raise NotImplementedError("op: {:s}: {:s}".format(str(op), str(expr)))
 
 
-def derive_series():
-    x = sympy.symbols("x")
-    cos = sympy.cos
-    sin = sympy.sin
+def derive_series(input_squared=False):
+    """
+    Derives taylor series near zero, useful for Lie Groups.
+
+    If use_sqrt is passed as True, will take the sqrt of the argument x before passing
+    it to the function. This is useful as many series in Lie groups depend on theta, and
+    to find theta we take the sqrt(dot(v, v)), which results in a nan for the jacobian at
+    zero. By making the series in terms of sqrt(x), we can avoid this issue.
+    """
+    u = sympy.symbols("x")
+
+    if input_squared:
+        x = sympy.sqrt(u)
+    else:
+        x = u
+
+    x2 = sympy.simplify(x**2)
+    x3 = sympy.simplify(x**3)
+    x4 = sympy.simplify(x**4)
+    x5 = sympy.simplify(x**5)
+    x6 = sympy.simplify(x**6)
+
+    # functions we will use
+    cos_x = sympy.cos(x)
+    sin_x = sympy.sin(x)
     tan = sympy.tan
-    sqrt = sympy.sqrt
+    atan = sympy.atan
+
+    # return series dictionary
     return {
-        "sin(sqrt(x))/sqrt(x)": taylor_series_near_zero(x, sin(sqrt(x)) / sqrt(x)),
-        "cos(sqrt(x))": taylor_series_near_zero(x, cos(sqrt(x))),
-        "sin(x)/x": taylor_series_near_zero(x, sin(x) / x),
-        "x/sin(x)": taylor_series_near_zero(x, x / sin(x)),
-        "(1 - cos(x))/x": taylor_series_near_zero(x, (1 - cos(x)) / x),
-        "(1 - cos(x))/x^2": taylor_series_near_zero(x, (1 - cos(x)) / x**2),
-        "(x - sin(x))/x^3": taylor_series_near_zero(x, (x - sin(x)) / x**3),
+        "cos(x)": taylor_series_near_zero(
+            u, cos_x
+        ),  # necessary for series of cos(sqrt(x))
+        "sin(x)/x": taylor_series_near_zero(u, sin_x / x),
+        "x/sin(x)": taylor_series_near_zero(u, x / sin_x),
+        "(1 - cos(x))/x": taylor_series_near_zero(u, (1 - cos_x) / x),
+        "(1 - cos(x))/x^2": taylor_series_near_zero(u, (1 - cos_x) / x2),
+        "(x - sin(x))/x^3": taylor_series_near_zero(u, (x - sin_x) / x3),
         "(1 - x*sin(x)/(2*(1 - cos(x))))/x^2": taylor_series_near_zero(
-            x, (1 - x * sin(x) / (2 * (1 - cos(x)))) / x**2
+            u, (1 - x * sin_x / (2 * (1 - cos_x))) / x2
         ),
         "(-x^2/2 - cos(x) + 1)/x^2": taylor_series_near_zero(
-            x, (-(x**2) / 2 - cos(x) + 1) / x**2
+            u, (-x2 / 2 - cos_x + 1) / x2
         ),
         "(x^2/2 + cos(x) - 1)/x^4": taylor_series_near_zero(
-            x, (x**2 / 2 + cos(x) - 1) / x**4
+            u, (x2 / 2 + cos_x - 1) / x4
         ),
-        "1/x^2": taylor_series_near_zero(x, 1 / x**2),
+        "1/x^2": taylor_series_near_zero(u, 1 / x2),
         "(2 - x cos(x))/(2 x^2)": taylor_series_near_zero(
-            x, (2 - x * cos(x)) / (2 * x**2)
+            u, (2 - x * cos_x) / (2 * x2)
         ),
         "1/x^2 + sin(x)/(2 x (cos(x) - 1))": taylor_series_near_zero(
-            x, 1 / x**2 + sin(x) / (2 * x * (cos(x) - 1))
+            u, 1 / x2 + sin_x / (2 * x * (cos_x - 1))
         ),
+        "(x^2 + 2 cos(x) - 2)/(2 x^4)": taylor_series_near_zero(
+            u, (x2 + 2 * cos_x - 2) / (2 * x4)
+        ),
+        "(x cos(x) + 2 x - 3 sin(x))/(2 x^5)": taylor_series_near_zero(
+            u, (x * cos_x + 2 * x - 3 * sin_x) / (2 * x5)
+        ),
+        "(x^2 + x sin(x) + 4 cos(x) - 4)/(2 x^6)": taylor_series_near_zero(
+            u, (x2 + x * sin_x + 4 * cos_x - 4) / (2 * x6)
+        ),
+        "(2 - 2 cos(x) - x sin(x))/(2 x^4))": taylor_series_near_zero(
+            u, (2 - 2 * cos_x - x * sin_x) / (2 * x4)
+        ),
+        "tan(x/4)/x": taylor_series_near_zero(u, tan(x / 4) / x),
+        "4 atan(x)/x": taylor_series_near_zero(u, 4 * atan(x) / x),
     }
 
 
-SERIES = derive_series()
+SERIES = derive_series(input_squared=False)
+SQUARED_SERIES = derive_series(input_squared=True)

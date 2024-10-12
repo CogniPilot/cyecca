@@ -1,5 +1,5 @@
 import casadi as ca
-from ..common import SX_close, ProfiledTestCase
+from ..common import SX_close, ProfiledTestCase, is_finite
 
 from cyecca.lie.group_se23 import SE23Mrp, se23
 from beartype import beartype
@@ -71,18 +71,42 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
     def test_print_group(self):
         print(SE23Mrp)
 
-    def test_leftjacobian(self):
-        g1 = se23.elem(self.v1)
-        g1.left_jacobian()
+    def test_left_jacobian(self):
+        x = ca.SX.sym("x", 9)
+        omega = se23.elem(x)
+        Jl = omega.left_jacobian()
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl, x), x, ca.DM.zeros(9))))
 
-    def test_rightjacobian(self):
-        g1 = se23.elem(self.v1)
-        g1.right_jacobian()
+        Jl_inv = omega.left_jacobian_inv()
+        self.assertTrue(
+            is_finite(ca.substitute(ca.jacobian(Jl_inv, x), x, ca.DM.zeros(9)))
+        )
 
-    def test_leftjacobianinv(self):
-        g1 = se23.elem(self.v1)
-        g1.left_jacobian_inv()
+        I_check = ca.substitute(Jl @ Jl_inv, x, ca.DM.zeros(9))
+        self.assertTrue(SX_close(I_check, ca.DM.eye(9)))
 
-    def test_rightjacobian(self):
-        g1 = se23.elem(self.v1)
-        g1.right_jacobian_inv()
+    def test_right_jacobian(self):
+        x = ca.SX.sym("x", 9)
+        omega = se23.elem(x)
+        Jr = omega.right_jacobian()
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr, x), x, ca.DM.zeros(9))))
+
+        Jr_inv = omega.right_jacobian_inv()
+        self.assertTrue(
+            is_finite(ca.substitute(ca.jacobian(Jr_inv, x), x, ca.DM.zeros(9)))
+        )
+
+        I_check = ca.substitute(Jr @ Jr_inv, x, ca.DM.zeros(9))
+        self.assertTrue(SX_close(I_check, ca.DM.eye(9)))
+
+    def test_ad_exp_jacobian(self):
+        x1 = ca.DM([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+        omega = se23.elem(x1)
+        Jl = omega.left_jacobian()
+        Jr = omega.right_jacobian()
+        Jl_inv = omega.left_jacobian_inv()
+        Jr_inv = omega.right_jacobian_inv()
+
+        self.assertTrue(SX_close(Jl, scipy.linalg.expm(ca.DM(omega.ad())) @ Jr))
+
+        self.assertTrue(SX_close(Jr_inv, scipy.linalg.expm(ca.DM(omega.ad())) @ Jl_inv))

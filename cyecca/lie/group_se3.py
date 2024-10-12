@@ -3,7 +3,7 @@ from __future__ import annotations
 import casadi as ca
 
 from beartype import beartype
-from beartype.typing import List
+from beartype.typing import List, Union
 
 from cyecca.lie.base import *
 
@@ -13,7 +13,7 @@ from cyecca.lie.group_rn import R3LieAlgebraElement
 from cyecca.lie.group_so3 import *
 from cyecca.lie.group_so3 import SO3LieGroupElement, SO3LieAlgebraElement
 
-from cyecca.symbolic import SERIES, taylor_series_near_zero
+from cyecca.symbolic import SERIES, SQUARED_SERIES, taylor_series_near_zero
 
 __all__ = ["se3", "SE3Quat", "SE3Mrp"]
 
@@ -63,101 +63,68 @@ class SE3LieAlgebra(LieAlgebra):
             ca.vertcat(arg[0, 3], arg[1, 3], arg[2, 3], arg[2, 1], arg[0, 2], arg[1, 0])
         )
 
-    def wedge(self, arg: (ca.SX, ca.DM)) -> SE3LieAlgebraElement:
+    def wedge(self, arg: Union[ca.SX, ca.DM]) -> SE3LieAlgebraElement:
         return self.elem(param=arg)
 
     def vee(self, arg: SE3LieAlgebraElement) -> ca.SX:
         return arg.param
 
-    def left_Q(self, vb: R3LieAlgebraElement, omega: SO3LieAlgebraElement) -> ca.SX:
-        v = ca.SX.sym("v", 3)
-        o = ca.SX.sym("o", 3)
-        V = so3.elem(v).ad()
-        O = so3.elem(o).ad()
+    def left_Q(self, arg: SE3LieAlgebraElement) -> ca.SX:
+        V = so3.elem(arg.v_b.param).ad()
+        O = arg.Omega.ad()
         O_sq = O @ O
-        theta = ca.norm_2(o)
-        c_theta = ca.cos(theta)
-        s_theta = ca.sin(theta)
+        o = arg.Omega.param
+        theta_sq = ca.dot(o, o)
 
-        Coeff = ca.if_else(
-            ca.fabs(theta) > 1e-3,
-            ca.vertcat(
-                (1 - c_theta) / (theta**2),  # C0
-                (theta - s_theta) / (theta**3),  # C1
-                (theta**2 + 2 * c_theta - 2) / (2 * theta**4),  # C2
-                (theta * c_theta + 2 * theta - 3 * s_theta) / (2 * theta**5),  # C3
-                (theta**2 + theta * s_theta + 4 * c_theta - 4)
-                / (2 * theta**6),  # C4
-                (2 - 2 * c_theta - theta * s_theta) / (2 * theta**4),  # C5
-            ),
-            ca.vertcat(
-                1 / 2 - theta**2 / 24 + theta**4 / 720,
-                1 / 6 - theta**2 / 120 + theta**4 / 5040,
-                1 / 24 - theta**2 / 720 + theta**4 / 40320,
-                1 / 120 - theta**2 / 2520 + theta**4 / 120960,
-                1 / 720 - theta**2 / 20160 + theta**4 / 1209600,
-                1 / 24 - theta**2 / 360 + theta**4 / 134400,
-            ),
+        Coeff = ca.vertcat(
+            SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq),  # C0
+            SQUARED_SERIES["(x - sin(x))/x^3"](theta_sq),  # C1
+            SQUARED_SERIES["(x^2 + 2 cos(x) - 2)/(2 x^4)"](theta_sq),  # C2
+            SQUARED_SERIES["(x cos(x) + 2 x - 3 sin(x))/(2 x^5)"](theta_sq),  # C3
+            SQUARED_SERIES["(x^2 + x sin(x) + 4 cos(x) - 4)/(2 x^6)"](theta_sq),  # C4
+            SQUARED_SERIES["(2 - 2 cos(x) - x sin(x))/(2 x^4))"](theta_sq),  # C5
         )
 
-        C = V / 2
-        C += Coeff[1] * (O @ V + V @ O)
-        C += Coeff[2] * (O_sq @ V + V @ O_sq)
-        C += Coeff[3] * (O @ V @ O_sq + O_sq @ V @ O)
-        C += Coeff[4] * (O_sq @ V @ O_sq)
-        C += Coeff[5] * (O @ V @ O)
-
-        f_Q = ca.Function("f_Q", [v, o], [C])
-
-        Ql = f_Q(vb.param, omega.param)
+        Ql = V / 2
+        Ql += Coeff[1] * (O @ V + V @ O)
+        Ql += Coeff[2] * (O_sq @ V + V @ O_sq)
+        Ql += Coeff[3] * (O @ V @ O_sq + O_sq @ V @ O)
+        Ql += Coeff[4] * (O_sq @ V @ O_sq)
+        Ql += Coeff[5] * (O @ V @ O)
 
         return Ql
 
     def left_jacobian(self, arg: SE3LieAlgebraElement) -> ca.SX:
-        omega = arg.Omega
-        vb = arg.v_b
-        Ql = arg.left_Q(vb, omega)
-        R = omega.left_jacobian()
+        Ql = arg.left_Q()
+        R = arg.Omega.left_jacobian()
         Z = ca.SX.zeros(3, 3)
-        Jl = ca.sparsify(ca.vertcat(ca.horzcat(R, Ql), ca.horzcat(Z, R)))
-
-        return Jl
+        return ca.sparsify(ca.vertcat(ca.horzcat(R, Ql), ca.horzcat(Z, R)))
 
     def left_jacobian_inv(self, arg: SE3LieAlgebraElement) -> ca.SX:
-        omega = arg.Omega
-        vb = arg.v_b
-        Ql = arg.left_Q(vb, omega)
-        R_inv = omega.left_jacobian_inv()
+        Ql = arg.left_Q()
+        R_inv = arg.Omega.left_jacobian_inv()
         Z = ca.SX.zeros(3, 3)
-        Jl_inv = ca.sparsify(
+        return ca.sparsify(
             ca.vertcat(ca.horzcat(R_inv, -R_inv @ Ql @ R_inv), ca.horzcat(Z, R_inv))
         )
 
-        return Jl_inv
-
-    def right_Q(self, vb: R3LieAlgebraElement, omega: SO3LieAlgebraElement) -> ca.SX:
-        Qr = self.left_Q(-vb, -omega)
-        return Qr
+    def right_Q(self, arg: SE3LieAlgebraElement) -> ca.SX:
+        return self.left_Q(-arg)
 
     def right_jacobian(self, arg: SE3LieAlgebraElement) -> ca.SX:
-        omega = arg.Omega
-        vb = arg.v_b
-        Qr = arg.right_Q(vb, omega)
-        R = omega.right_jacobian()
+        Qr = arg.right_Q()
+        R = arg.Omega.right_jacobian()
         Z = ca.SX.zeros(3, 3)
         Jr = ca.sparsify(ca.vertcat(ca.horzcat(R, Qr), ca.horzcat(Z, R)))
         return Jr
 
     def right_jacobian_inv(self, arg: SE3LieAlgebraElement) -> ca.SX:
-        omega = arg.Omega
-        vb = arg.v_b
-        Qr = arg.right_Q(vb, omega)
-        R_inv = omega.right_jacobian_inv()
+        Qr = arg.right_Q()
+        R_inv = arg.Omega.right_jacobian_inv()
         Z = ca.SX.zeros(3, 3)
-        Jr_inv = ca.sparsify(
+        return ca.sparsify(
             ca.vertcat(ca.horzcat(R_inv, -R_inv @ Qr @ R_inv), ca.horzcat(Z, R_inv))
         )
-        return Jr_inv
 
 
 @beartype
@@ -176,6 +143,12 @@ class SE3LieAlgebraElement(LieAlgebraElement):
     @property
     def Omega(self) -> SO3LieAlgebraElement:
         return so3.elem(self.param[3:6])
+
+    def left_Q(self) -> ca.SX:
+        return self.algebra.left_Q(self)
+
+    def right_Q(self) -> ca.SX:
+        return self.algebra.right_Q(self)
 
 
 se3 = SE3LieAlgebra()
@@ -217,26 +190,13 @@ class SE3LieGroup(LieGroup):
         return ca.vertcat(horz1, horz2)
 
     def exp(self, arg: SE3LieAlgebraElement) -> SE3LieGroupElement:
-        u = arg.param[:3]  # translation
-        omega = self.SO3.algebra.elem(arg.param[3:])
-        Omega = omega.to_Matrix()
-        rotation = omega.exp(self.SO3).param
-        theta = ca.norm_2(omega.param)
-
-        A = SERIES["(1 - cos(x))/x^2"](theta)
-        B = SERIES["(x - sin(x))/x^3"](theta)
-        V = ca.SX.eye(3) + A * Omega + B * Omega @ Omega
-        p = V @ u  # position
-        return self.elem(ca.vertcat(p, rotation))
+        p = arg.Omega.left_jacobian() @ arg.v_b.param
+        R = arg.Omega.exp(self.SO3).param
+        return self.elem(ca.vertcat(p, R))
 
     def log(self, arg: SE3LieGroupElement) -> SE3LieAlgebraElement:
         Omega = arg.R.log()
-        theta = ca.norm_2(Omega.param)
-        A = SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](theta)
-        B = SERIES["1/x^2"](theta)
-        Omega_mat = Omega.to_Matrix()
-        V_inv = ca.SX.eye(3) - Omega_mat / 2 + A * (Omega_mat @ Omega_mat)
-        u = V_inv @ arg.p.param
+        u = Omega.left_jacobian_inv() @ arg.p.param
         return self.algebra.elem(ca.vertcat(u, Omega.param))
 
     def to_Matrix(self, arg: SE3LieGroupElement) -> ca.SX:

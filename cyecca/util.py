@@ -136,3 +136,52 @@ def udu_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:
     U[0, 0] = 1
     D[0, 0] = P2[0, 0]
     return U, D
+
+
+def count_ops(s, ops=None, dep=None, invdep=None):
+    """
+    count ops in expression
+    """
+    import casadi
+    import casadi.tools
+
+    if dep is None:
+        dep = {}
+    if invdep is None:
+        invdep = {}
+
+    op_str = {
+        eval("casadi." + item): item for item in dir(casadi) if item.startswith("OP_")
+    }
+    if ops is None:
+        ops = {}
+
+    try:
+
+        def getHashSX(e):
+            if e.is_scalar(True):
+                try:
+                    return e.element_hash()
+                except:
+                    return SX__hash__backup(e)
+            else:
+                return 0
+
+        SX__hash__backup = casadi.SX.__hash__
+        casadi.SX.__hash__ = getHashSX
+        print("building dependency graph...", end="")
+        dep, invdep = casadi.tools.graph.dependencyGraph(s, dep, invdep)
+        print("done")
+        allnodes = set(dep.keys()).union(set(invdep.keys()))
+        n = len(allnodes)
+        for i, node in enumerate(allnodes):
+            if node.is_scalar():
+                op = node.op()
+                op_name = op_str[op]
+                if op_name in ops:
+                    ops[op_name] += 1
+                else:
+                    ops[op_name] = 1
+    finally:
+        casadi.SX.__hash__ = SX__hash__backup
+    return ops

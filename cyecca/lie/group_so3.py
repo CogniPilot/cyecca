@@ -10,7 +10,7 @@ from beartype.typing import List, Union
 
 from cyecca.lie.base import *
 from cyecca.lie.group_rn import R3LieGroupElement, R3LieAlgebraElement
-from cyecca.symbolic import SERIES
+from cyecca.symbolic import SERIES, SQUARED_SERIES
 
 __all__ = [
     "so3",
@@ -23,11 +23,6 @@ __all__ = [
     "SO3EulerB321",
     "SO3LieGroup",
 ]
-
-
-@beartype
-def angle_wrap(theta: ca.SX):
-    return ca.remainder(theta, 2 * ca.pi)
 
 
 @beartype
@@ -78,30 +73,42 @@ class SO3LieAlgebra(LieAlgebra):
         return self.elem(ca.vertcat(arg[2, 1], arg[0, 2], arg[1, 0]))
 
     def left_jacobian(self, arg: SO3LieAlgebraElement) -> ca.SX:
-        W = arg.to_Matrix()
-        theta = angle_wrap(ca.norm_2(arg.param))
-        A = SERIES["(1 - cos(x))/x^2"](theta)
-        B = SERIES["(x - sin(x))/x^3"](theta)
-        return ca.SX.eye(3) + A * W + B * (W @ W)
+        v = arg.param
+        X = arg.to_Matrix()
+        # must do series for theta_sq to avoid sqrt(x) nan for jacobian
+        # near zero
+        theta_sq = ca.dot(v, v)
+        A = SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq)
+        B = SQUARED_SERIES["(x - sin(x))/x^3"](theta_sq)
+        return ca.SX.eye(3) + A * X + B * (X @ X)
 
     def left_jacobian_inv(self, arg: SO3LieAlgebraElement) -> ca.SX:
-        W = arg.to_Matrix()
-        theta = angle_wrap(ca.norm_2(arg.param))
-        A = SERIES["1/x^2 + sin(x)/(2 x (cos(x) - 1))"](theta)
-        return ca.SX.eye(3) - 0.5 * W + A * (W @ W)
+        v = arg.param
+        X = arg.to_Matrix()
+        # must do series for theta_sq to avoid sqrt(x) nan for jacobian
+        # near zero
+        theta_sq = ca.dot(v, v)
+        A = SQUARED_SERIES["1/x^2 + sin(x)/(2 x (cos(x) - 1))"](theta_sq)
+        return ca.SX.eye(3) - 0.5 * X + A * (X @ X)
 
     def right_jacobian(self, arg: SO3LieAlgebraElement) -> ca.SX:
-        W = arg.to_Matrix()
-        theta = angle_wrap(ca.norm_2(arg.param))
-        A = SERIES["(1 - cos(x))/x^2"](theta)
-        B = SERIES["(x - sin(x))/x^3"](theta)
-        return ca.SX.eye(3) - A * W + B * (W @ W)
+        v = arg.param
+        X = arg.to_Matrix()
+        # must do series for theta_sq to avoid sqrt(x) nan for jacobian
+        # near zero
+        theta_sq = ca.dot(v, v)
+        A = SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq)
+        B = SQUARED_SERIES["(x - sin(x))/x^3"](theta_sq)
+        return ca.SX.eye(3) - A * X + B * (X @ X)
 
     def right_jacobian_inv(self, arg: SO3LieAlgebraElement) -> ca.SX:
-        W = arg.to_Matrix()
-        theta = angle_wrap(ca.norm_2(arg.param))
-        A = SERIES["1/x^2 + sin(x)/(2 x (cos(x) - 1))"](theta)
-        return ca.SX.eye(3) + 0.5 * W + A * (W @ W)
+        v = arg.param
+        X = arg.to_Matrix()
+        # must do series for theta_sq to avoid sqrt(x) nan for jacobian
+        # near zero
+        theta_sq = ca.dot(v, v)
+        A = SQUARED_SERIES["1/x^2 + sin(x)/(2 x (cos(x) - 1))"](theta_sq)
+        return ca.SX.eye(3) + 0.5 * X + A * (X @ X)
 
 
 @beartype
@@ -233,18 +240,21 @@ class SO3DcmLieGroup(SO3LieGroup):
         return self.to_Matrix()
 
     def exp(self, arg: SO3LieAlgebraElement) -> SO3DcmLieGroupElement:
-        theta = angle_wrap(ca.norm_2(arg.param))
+        v = arg.param
         X = arg.to_Matrix()
-        A = SERIES["sin(x)/x"]
-        B = SERIES["(1 - cos(x))/x^2"]
-        return self.from_Matrix(ca.SX.eye(3) + A(theta) * X + B(theta) * X @ X)
+        # must do series for theta_sq to avoid sqrt(x) nan for jacobian
+        # near zero
+        theta_sq = ca.dot(v, v)
+        C1 = SQUARED_SERIES["sin(x)/x"](theta_sq)
+        C2 = SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq)
+        return self.from_Matrix(ca.SX.eye(3) + C1 * X + C2 * X @ X)
 
     def log(self, arg: SO3DcmLieGroupElement) -> SO3LieAlgebraElement:
         R = self.to_Matrix(arg)
         e1 = (ca.trace(R) - 1) / 2
-        theta = ca.if_else(e1 > 1, 0, ca.if_else(e1 < -1, ca.pi, ca.arccos(e1)))
-        A = SERIES["x/sin(x)"](theta)
-        return self.algebra.from_Matrix((R - R.T) * A / 2)
+        theta = ca.if_else(e1 > 1, 0, ca.if_else(e1 < -1, ca.pi, ca.acos(e1)))
+        C1 = SERIES["x/sin(x)"](theta) / 2
+        return self.algebra.from_Matrix((R - R.T) * C1)
 
     def to_Matrix(self, arg: SO3DcmLieGroupElement) -> ca.SX:
         return arg.param.reshape((3, 3))
@@ -281,8 +291,9 @@ class SO3DcmLieGroup(SO3LieGroup):
         return self.from_Matrix(arg=R)
 
     def from_Mrp(self, arg: SO3MrpLieGroupElement) -> SO3DcmLieGroupElement:
+        v = arg.param
         X = arg.to_Matrix()
-        n_sq = ca.dot(arg.param, arg.param)
+        n_sq = ca.dot(v, v)
         X_sq = X @ X
         R = ca.SX.eye(3) + (8 * X_sq - 4 * (1 - n_sq) * X) / (1 + n_sq) ** 2
         # return transpose, due to convention difference in book
@@ -435,20 +446,19 @@ class SO3QuatLieGroup(SO3LieGroup):
 
     def exp(self, arg: SO3LieAlgebraElement) -> SO3QuatLieGroupElement:
         v = arg.param
-        theta_sq = ca.remainder(ca.dot(v, v), (2 * ca.pi) ** 2)
-        A = SERIES["sin(sqrt(x))/sqrt(x)"](theta_sq / 4) / 2
-        B = SERIES["cos(sqrt(x))"](theta_sq / 4)
+        # must do series for theta_sq to avoid sqrt(x) nan for jacobian
+        # near zero
+        theta_sq = ca.dot(v, v)
+        A = SQUARED_SERIES["sin(x)/x"](theta_sq / 4) / 2
+        B = SQUARED_SERIES["cos(x)"](theta_sq / 4)
         return SO3Quat.elem(ca.vertcat(B, A * v[0], A * v[1], A * v[2]))
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         q = arg.param
-        theta = angle_wrap(2 * ca.atan2(ca.norm_2(q[1:4]), q[0]))
-        A = SERIES["x/sin(x)"](
-            theta / 2
-        )  # x / sin(x) removed negative sign since sin odd
-        omega = ca.sign(theta) * q[1:4] * A * 2
+        theta = 2 * ca.acos(q[0])
+        A = SERIES["x/sin(x)"](theta / 2)
+        omega = q[1:4] * A * 2
         return self.algebra.elem(omega)
-        # return SO3Dcm.from_Quat(arg).log()
 
     def left_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
         w = so3.elem(ca.SX.sym("w", 3))
@@ -595,7 +605,7 @@ class SO3MrpLieGroup(SO3LieGroup):
         assert param.shape == (3, 1)
         n_sq = ca.dot(param, param)
         shadow_param = -param / n_sq
-        param = ca.if_else(ca.norm_2(param) > 1, shadow_param, param)
+        param = ca.if_else(ca.dot(param, param) > 1, shadow_param, param)
         arg.param = param
 
     def adjoint(self, arg: SO3MrpLieGroupElement) -> ca.SX:
@@ -603,18 +613,17 @@ class SO3MrpLieGroup(SO3LieGroup):
 
     def exp(self, arg: SO3LieAlgebraElement) -> SO3MrpLieGroupElement:
         v = arg.param
-        angle = angle_wrap(ca.norm_2(v))
-        res = ca.tan(angle / 4) * v / angle
-        p = ca.if_else(angle > 1e-7, res, ca.SX([0, 0, 0]))
-        V = self.elem(param=p)
+        theta_sq = ca.dot(v, v)
+        A = SQUARED_SERIES["tan(x/4)/x"](theta_sq)
+        V = self.elem(param=A * v)
         self.shadow_if_necessary(arg=V)
         return V
 
     def log(self, arg: SO3MrpLieGroupElement) -> SO3LieAlgebraElement:
         r = arg.param
-        n = angle_wrap(ca.norm_2(r[:3]))
-        v = 4 * ca.atan(n) * r[:3] / n
-        return self.algebra.elem(param=ca.if_else(n > 1e-7, v, ca.SX([0, 0, 0])))
+        theta_sq = ca.dot(r, r)
+        A = SQUARED_SERIES["4 atan(x)/x"](theta_sq)
+        return self.algebra.elem(param=A * r)
 
     def right_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
         r = arg.param

@@ -3,7 +3,7 @@ from __future__ import annotations
 import casadi as ca
 
 from beartype import beartype
-from beartype.typing import List
+from beartype.typing import List, Union
 
 from cyecca.lie.base import *
 from cyecca.lie.group_so2 import *
@@ -57,7 +57,7 @@ class SE2LieAlgebra(LieAlgebra):
     def from_Matrix(self, arg: ca.SX) -> SE2LieAlgebraElement:
         raise NotImplementedError("")
 
-    def wedge(self, arg: (ca.SX, ca.DM)) -> SE2LieAlgebraElement:
+    def wedge(self, arg: Union[ca.SX, ca.DM]) -> SE2LieAlgebraElement:
         return self.elem(param=arg)
 
     def vee(self, arg: SE2LieAlgebraElement) -> ca.SX:

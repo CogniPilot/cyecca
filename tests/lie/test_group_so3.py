@@ -1,7 +1,9 @@
-from tests.common import ProfiledTestCase, SX_close
+from tests.common import ProfiledTestCase, SX_close, is_finite
 from beartype import beartype
 
 import casadi as ca
+import numpy as np
+import scipy.linalg
 
 from cyecca.lie.group_so3 import so3, SO3EulerB321, SO3Quat, SO3Mrp
 
@@ -75,21 +77,47 @@ class Test_LieAlgebraSO3(ProfiledTestCase):
     def test_repr(self):
         repr(so3)
 
-    def test_leftjacobian(self):
-        g1 = so3.elem(self.v1)
-        g1.left_jacobian()
+    def test_left_jacobian(self):
+        n = 3
+        x = ca.SX.sym("x", n)
+        omega = so3.elem(x)
+        Jl = omega.left_jacobian()
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl, x), x, ca.DM.zeros(n))))
 
-    def test_rightjacobian(self):
-        g1 = so3.elem(self.v1)
-        g1.right_jacobian()
+        Jl_inv = omega.left_jacobian_inv()
+        self.assertTrue(
+            is_finite(ca.substitute(ca.jacobian(Jl_inv, x), x, ca.DM.zeros(n)))
+        )
 
-    def test_leftjacobianinv(self):
-        g1 = so3.elem(self.v1)
-        g1.left_jacobian_inv()
+        I_check = ca.substitute(Jl @ Jl_inv, x, ca.DM.zeros(n))
+        self.assertTrue(SX_close(I_check, ca.DM.eye(n)))
 
-    def test_rightjacobian(self):
-        g1 = so3.elem(self.v1)
-        g1.right_jacobian_inv()
+    def test_right_jacobian(self):
+        n = 3
+        x = ca.SX.sym("x", n)
+        omega = so3.elem(x)
+        Jr = omega.right_jacobian()
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr, x), x, ca.DM.zeros(n))))
+
+        Jr_inv = omega.right_jacobian_inv()
+        self.assertTrue(
+            is_finite(ca.substitute(ca.jacobian(Jr_inv, x), x, ca.DM.zeros(n)))
+        )
+
+        I_check = ca.substitute(Jr @ Jr_inv, x, ca.DM.zeros(n))
+        self.assertTrue(SX_close(I_check, ca.DM.eye(n)))
+
+    def test_ad_exp_jacobian(self):
+        x1 = ca.DM([0.1, 0.2, 0.3])
+        omega = so3.elem(x1)
+        Jl = omega.left_jacobian()
+        Jr = omega.right_jacobian()
+        Jl_inv = omega.left_jacobian_inv()
+        Jr_inv = omega.right_jacobian_inv()
+
+        self.assertTrue(SX_close(Jl, scipy.linalg.expm(ca.DM(omega.ad())) @ Jr))
+
+        self.assertTrue(SX_close(Jr_inv, scipy.linalg.expm(ca.DM(omega.ad())) @ Jl_inv))
 
 
 class Test_LieGroupSO3Euler(ProfiledTestCase):

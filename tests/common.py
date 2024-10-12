@@ -1,4 +1,5 @@
 from beartype import beartype
+from beartype.typing import Union
 from pathlib import Path
 import cProfile
 from pstats import Stats
@@ -9,11 +10,17 @@ import casadi as ca
 EPS = 1e-9
 
 from cyecca.symbolic import casadi_to_sympy
+import numpy as np
 
 
 @beartype
-def SX_close(e1: (ca.SX, ca.DM), e2: (ca.SX, ca.DM)):
-    close = ca.norm_2(e1 - e2) < EPS
+def is_finite(e: ca.SX) -> bool:
+    return bool(np.all(np.isfinite(ca.DM(e))))
+
+
+@beartype
+def SX_close(e1: Union[ca.SX, ca.DM], e2: Union[ca.SX, ca.DM]):
+    close = ca.mmax(e1 - e2) < EPS
     if not close:
         print(ca.DM(e1), ca.DM(e2))
     return close

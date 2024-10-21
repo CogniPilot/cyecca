@@ -10,7 +10,7 @@ __all__ = [
 ]
 
 
-def taylor_series_near_zero(x, f, order=6, eps=1e-20, verbose=False):
+def taylor_series_near_zero(x, f, order=6, eps=1e-3, verbose=False):
     """
     Takes a sympy function and near zero approximates it by a taylor
     series. The resulting function is converted to a casadi function.

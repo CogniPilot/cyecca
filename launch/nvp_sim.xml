@@ -1,0 +1,5 @@
+<launch>
+	<node pkg="cyecca" exec="nvp_sim.py" output="screen"/>
+	<node pkg="joy" exec="joy_node"/>
+</launch>	
+<!-- vi: ts=4 sw=4 et-->

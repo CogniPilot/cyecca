@@ -41,36 +41,46 @@ class Simulator(Node):
         self.dt = 0.01
         self.real_time_factor = 1.0
         self.x = 0.0
+        self.y = 0.0
         self.z = 0.0
         self.vx = 0.0
+        self.vy = 0.0
         self.vz = 0.0
 
-        self.thr_max= 1 #max thrust
-        self.m = 0.8 #mass
-        self.rho = 1.225
-        self.g = 9.8
-        self.S = 1.0
-        self.cl = 1.8
+        # self.thr_max= 1.0 #max thrust
+        # self.m = 0.2 #mass
+        # self.cl = 3.3
+        # self.cd = 0.0
+        # self.S = 1.0
+        # self.rho = 1.225
+        # self.g = 9.8
 
-        self.p = ca.vertcat(self.thr_max, self.m, self.cl, self.S, self.rho, self.g)
+        # self.p = ca.vertcat(self.thr_max, self.m, self.cl, self.S, self.rho, self.g)
 
 
         # -------------------------------------------------------
         # Dynamics
         # ----------------------------------------------
         dynamics = flying_box
-        self.model = dynamics.derive_model(self.dt)
+        self.model = dynamics.derive_model()
         self.x0_dict = self.model["x0_defaults"]
         if x0 is not None:
             for k in x0.keys():
                 if not k in self.x0_dict.keys():
                     raise KeyError(k)
                 self.x0_dict[k] = x0[k]
+        self.p_dict = self.model["p_defaults"]
+        if p is not None:
+            for k in p.keys():
+                if not k in self.p_dict.keys():
+                    raise KeyError(k)
+                self.p_dict[k] = p[k]
 
         # init state (x), param(p), and input(u)
         self.state = np.array(list(self.x0_dict.values()), dtype=float)
-        # self.p = np.array(list(self.p_dict.values()), dtype=float)
-        # self.u = np.zeros(4, dtype=float)
+        self.p = np.array(list(self.p_dict.values()), dtype=float)
+        # self.get_logger().info(f"p: {self.p}")
+        self.u = np.zeros(1, dtype=float)
 
 
         # start main loop on timer
@@ -106,11 +116,14 @@ class Simulator(Node):
         """
         try:
             # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
-            control = ca.vertcat(float(self.input_aetr[2]))
+
+            self.u = ca.vertcat(float(self.input_aetr[2]))
+            # self.get_logger().info(f"States: {self.state}, control: {control}")
+
             f_int = ca.integrator(
                 "test", "idas", self.model["dae"], self.t, self.t + self.dt
             )
-            res = f_int(x0=self.state, z0=0.0, p=self.p, u=control)
+            res = f_int(x0=self.state, z0=0.0, p=self.p, u=self.u)
         except RuntimeError as e:
             print(e)
             raise e
@@ -119,14 +132,17 @@ class Simulator(Node):
         if not np.all(np.isfinite(x1)):
             print("integration not finite")
             raise RuntimeError("nan in integration")
-
-
+        
         # ---------------------------------------------------------------------
         # store states and measurements
         # ---------------------------------------------------------------------
         self.state = np.array(res["xf"]).reshape(-1)
-        self.x += self.state[0]
-        self.vx += self.state[1]
+        self.x = self.state[0] 
+        self.y = self.state[1]
+        self.z = self.state[2]
+        self.vx = self.state[3]
+        self.vy = self.state[4]
+        self.vz = self.state[5]
 
         # self.get_logger().info(f"x: {self.x:0.2f}, vx: {self.vx:0.2f}")
 
@@ -134,36 +150,20 @@ class Simulator(Node):
 
     def timer_callback(self):
         self.integrate_simulation()
-        # self.get_logger().info("in timer")
-        # fx = float(self.input_aetr[2]-self.vx)
-        # self.vx += (fx/self.m)*self.dt
-        # self.x += self.vx*self.dt
-
-        # q = 0.5 * self.rho * self.vx**2
-        # S = 1
-        # cl = 1.8
-        # if self.z < 0:
-        #     ground = -self.z * 10 - self.vz * 10
-        # else:
-        #     ground = 0
-        # L = cl * q * S 
-        # fz = L - self.m * self.g + ground
-        # self.vz += (fz/self.m)*self.dt
-        # self.z += self.vz*self.dt
-        self.get_logger().info(f"x: {self.x:0.2f}, vx: {self.vx:0.2f}")
-
-        # self.get_logger().info(f"x: {self.x:0.2f}, z: {self.z:0.2f}, vx: {self.vx:0.2f}, vz: {self.vz:0.2f}")
+        self.get_logger().info(f"x: {self.x:0.2f}, z: {self.z:0.2f}, vx: {self.vx:0.2f}, vz: {self.vz:0.2f}")
         # self.get_logger().info(f"fx: {fx:0.2f}, fz: {fz:0.2f}")
         self.publish_state()
 
     def publish_state(self):
         x= self.x
         y= 0.0
-        z= 0.0#self.z
+        z= self.z
         qx=0.0
         qy=0.0
         qz=0.0
         qw=1.0
+
+
 
         # ------------------------------------
         # publish simulation clock

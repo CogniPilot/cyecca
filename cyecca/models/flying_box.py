@@ -83,7 +83,7 @@ def derive_model():
         "velocity_b_0" : 1e-10,
         "velocity_b_1" : 1e-10,
         "velocity_b_2" : 1e-10,
-        "quat_wb_0" :# - cd * qbar * S * wX  # drag 1,
+        "quat_wb_0" : 1,
         "quat_wb_1" : 0,
         "quat_wb_2" : 0,
         "quat_wb_3" : 0,

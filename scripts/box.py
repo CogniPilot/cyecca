@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from cyecca.models import flying_box
+from cyecca.models import fixedwing
 
 import casadi as ca
 import numpy as np

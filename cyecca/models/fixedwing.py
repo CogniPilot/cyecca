@@ -109,7 +109,8 @@ def derive_model():
 
     velocity_w_w = quat_wb @ velocity_b #Velocity in Wind frame
 
-    # force and moment
+    ##############################################################################################
+    # Force and Moment Model
     # qbar = 0.5 * rho * velocity_b[0]**2  # qbar in terms of body vel_x
     qbar = 0.5 * rho * ca.norm_2(velocity_w_w)**2 # TODO Recheck wind frame velocity --> qbar in terms of wind velocity
 
@@ -146,6 +147,8 @@ def derive_model():
     M_b += (u[2]-omega_wb_b[1]) * Cm_q *yAxis #moment due to elevator
     M_b += (u[3]-omega_wb_b[2]) * Cn_r *zAxis #moment due to rudder
 
+    ##############################################################################################
+    
     # # kinematics
     derivative_omega_wb_b = ca.inv(J) @ (M_b - ca.cross(omega_wb_b, J @ omega_wb_b))
     derivative_quaternion_wb = quat_wb.right_jacobian() @ omega_wb_b
@@ -160,7 +163,6 @@ def derive_model():
         derivative_omega_wb_b,
     )
 
-
     # algebraic (these algebraic expressions are used during the simulation)
     z = ca.vertcat()
     alg = z
@@ -168,7 +170,7 @@ def derive_model():
 
     f = ca.Function("f", [x, u, p], [xdot], ["x", "u", "p"], ["xdot"])
 
-    dae = {"x": x, "ode": f(x, u, p), "p": p, "u": u, "z": z, "alg": alg}
+    dae = {"x": x, "ode": f(x, u, p), "p": p, "u": u, "z": z, "alg": alg} # set up dae
 
     p_index = {p[i].name(): i for i in range(p.shape[0])}
     x_index = {x[i].name(): i for i in range(x.shape[0])}

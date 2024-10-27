@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from cyecca.models import flying_box
+from cyecca.models import fixedwing
 
 import casadi as ca
 import numpy as np
@@ -61,7 +61,7 @@ class Simulator(Node):
         # -------------------------------------------------------
         # Dynamics
         # ----------------------------------------------
-        dynamics = flying_box
+        dynamics = fixedwing
         self.model = dynamics.derive_model()
         self.x0_dict = self.model["x0_defaults"]
         if x0 is not None:

@@ -40,7 +40,7 @@ def derive_model():
         Cn_r,
     )
     p_defaults = {
-        "thr_max" : 1.0,
+        "thr_max" : 1,
         "m" : 0.2,
         "cl": 6.28,
         "cd" : 0.0,
@@ -50,24 +50,15 @@ def derive_model():
         'Jx': 0.0217,
         'Jy': 0.0217,
         "Jz" : 0.04,
-        "Cl_p": 0,
-        "Cm_q": 0,
-        "Cn_r": 0,
+        "Cl_p": 0.02,
+        "Cm_q": 0.02,
+        "Cn_r": 0.02,
     }
 
     # states
-    # # x, state
-    # posx = ca.SX.sym("posx")
-    # posy = ca.SX.sym("posy")
-    # posz = ca.SX.sym("posz")
-    # velx = ca.SX.sym("velx")
-    # vely = ca.SX.sym("vely")
-    # velz = ca.SX.sym("velz")
-
     position_w = ca.SX.sym("position_w",3) # w = world frame
     velocity_b = ca.SX.sym("velocity_b",3)
-    quat_wb = ca.SX.sym("quat_b",4) # Quaternion world - body frame
-    # quad_w = ca.SX.sym("quad_w",4)
+    quat_wb = ca.SX.sym("quat_wb",4) # Quaternion world - body frame
     omega_wb_b = ca.SX.sym("omega_wb_b",3) # world-body
 
     x = ca.vertcat(
@@ -94,34 +85,20 @@ def derive_model():
 
     # input
     throttle_cmd = ca.SX.sym("throttle_cmd")
+    ail_cmd = ca.SX.sym("ail_cmd")
     elev_cmd = ca.SX.sym("elev_cmd")
+    rud_cmd = ca.SX.sym("rud_cmd")
 
-    u = ca.vertcat(throttle_cmd, elev_cmd)
+    u = ca.vertcat(throttle_cmd, ail_cmd, elev_cmd, rud_cmd)
 
-
-    # Defining frames
-    # code this, recheck in stewen and lewis
-   # alpha = atan(vel_b_z/vel_b_x)
-   # beta = y/atan(posy/posx)
-   # test =lie.SO3EulerB321.elem(ca.vertcat(beta,-alpha,0))
-    # q_bn = lie.SO3Quat.from_Euler(test)  #body to wind
-    # fn = ca.vert(L ,sideforce,drag) #n is wind frame
-    # fb= q_bn@fn #force in body frame
-
-    # idea:calculate alpha and beta based on stephen and lewis
-    # quat --> world to body
-    # Quat --> body to wind
     xAxis = ca.vertcat(1, 0, 0)
     yAxis = ca.vertcat(0, 1, 0)
     zAxis = ca.vertcat(0, 0, 1)
 
-
-    # VT = ca.norm_2(ca.vertcat(velocity_b[0],velocity_b[1],velocity_b[2]))
     V_b = ca.norm_2(velocity_b)
-    alpha = ca.atan(velocity_b[2]/velocity_b[0])
-    V_b = ca.if_else(V_b ==0, 1e-10,V_b)
-    beta = ca.asin(velocity_b[1]/V_b)
-    euler_n = lie.SO3EulerB321.elem(ca.vertcat(-beta, -alpha, 0)) # Euler elements for wind frame
+    alpha = ca.if_else(ca.fabs(velocity_b[0]) > 1e-1, ca.atan(velocity_b[2]/velocity_b[0]), ca.SX(0))
+    beta = ca.if_else(ca.fabs(V_b) > 1e-5, ca.asin(velocity_b[1]/V_b), ca.SX(0))
+    euler_n = lie.SO3EulerB321.elem(ca.vertcat(beta, -alpha, 0)) # Euler elements for wind frame
     quat_bn = lie.SO3Quat.from_Euler(euler_n)
 
     quat_wb = lie.SO3Quat.elem(quat_wb)
@@ -132,43 +109,42 @@ def derive_model():
 
     velocity_w_w = quat_wb @ velocity_b #Velocity in Wind frame
 
-
     # force and moment
-    qbar = 0.5 * rho * velocity_b[0]**2 # TODO velocity should be in wind frame
-    # qbar = 0.5 * rho * velocity_w_w**2 # TODO velocity should be in wind frame
+    # qbar = 0.5 * rho * velocity_b[0]**2  # qbar in terms of body vel_x
+    qbar = 0.5 * rho * ca.norm_2(velocity_w_w)**2 # TODO Recheck wind frame velocity --> qbar in terms of wind velocity
 
-    # ground = ca.if_else(position_w[2]<0,
-    #                     -position_w[2] * 150 - velocity_b[2] * 150,
-    #                     0)
     ground = ca.if_else(position_w[2]<0,
-        -position_w[2] * 50 *zAxis - velocity_b[2] * 50,
+        -position_w[2] * 150 *zAxis - velocity_w_w * 150,
         ca.vertcat(0,0,0))
-    D = cd * qbar * S 
-    L = cl * qbar * S
-
-    # Thrust Control
-    fx_b = (thr_max*u[0]-velocity_b[0]) # Longitudinal Force assume thrust is directly on the x axis
+    
+    D = cd * qbar * S # Drag force -- wind frame
+    L = cl * qbar * S # Lift force -- wind frame
     Fs = 0 #side force
 
-    F_n = ca.vertcat(L, Fs, D) #force in wind frame (n)
-    F_b = quat_bn @ F_n # Aerodynamic force from wind
+    F_n = ca.vertcat(-D, Fs, L) #force in wind frame (n)
+    F_b = quat_bn @ ca.SX(F_n) # Aerodynamic force from wind in body frame
 
-    # F_b += (L - m *g + ground) * zAxis # Vertical Component TODO m*g is in body frame, L is in wind frame
-    F_b = quat_bw @ ground #ground
-    F_b += quat_bw @ (-m * g * zAxis) # gravity
+    F_b += quat_bw @ ground *zAxis # TODO current method does not consider wheel friction on ground
+    # F_b += quat_bw@ground
 
-    # ax_b = fx_b/m
-    # az_b = F_b[2]/m
+    # TODO RECHECK Gravity --> frame seems reverse
+    F_b += (-m*g*zAxis) #gravity default in world frame
+    # F_b += quat_bw @ (-m * g * zAxis) # gravity
+
+    fx_b = (thr_max*u[0]-velocity_b[0])*xAxis # Longitudinal Force assume thrust is directly on the x axis
+    F_b += fx_b #force due to thrust
 
     # Moment
     M_b = ca.vertcat(0, 0, 0)
-    moment_Cl = Cl_p * P  # rolling moment
-    moment_Cm = Cm_q * Q  # pitching moment
-    moment_Cn = Cn_r * R  # yawing moment
-    Fi_b = fx_b * xAxis #thrust
-    Mi_b = ca.vertcat(moment_Cl, moment_Cm, moment_Cn) * S # aerodynamic moment in body frame
-    F_b += Fi_b
-    M_b += Mi_b
+    # moment_Cl = Cl_p * P  # rolling moment
+    # moment_Cm = Cm_q * Q  # pitching moment
+    # moment_Cn = Cn_r * R  # yawing moment
+    # Mi_b = ca.vertcat(moment_Cl, moment_Cm, moment_Cn) * S # aerodynamic moment in body frame
+    # M_b += Mi_b
+
+    M_b += (u[1]-omega_wb_b[0]) * Cl_p *xAxis #moment due to roll
+    M_b += (u[2]-omega_wb_b[1]) * Cm_q *yAxis #moment due to elevator
+    M_b += (u[3]-omega_wb_b[2]) * Cn_r *zAxis #moment due to rudder
 
     # # kinematics
     derivative_omega_wb_b = ca.inv(J) @ (M_b - ca.cross(omega_wb_b, J @ omega_wb_b))
@@ -193,6 +169,11 @@ def derive_model():
     f = ca.Function("f", [x, u, p], [xdot], ["x", "u", "p"], ["xdot"])
 
     dae = {"x": x, "ode": f(x, u, p), "p": p, "u": u, "z": z, "alg": alg}
+
+    p_index = {p[i].name(): i for i in range(p.shape[0])}
+    x_index = {x[i].name(): i for i in range(x.shape[0])}
+    u_index = {u[i].name(): i for i in range(u.shape[0])}
+    z_index = {z[i].name(): i for i in range(z.shape[0])}
 
     return locals()
 

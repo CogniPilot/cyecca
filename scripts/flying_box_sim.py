@@ -117,7 +117,12 @@ class Simulator(Node):
         try:
             # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
 
-            self.u = ca.vertcat(float(self.input_aetr[2]))
+            self.u = ca.vertcat(
+                float(self.input_aetr[2]),
+                float(self.input_aetr[0]),
+                float(self.input_aetr[1]),
+                float(self.input_aetr[3])
+                )
             # self.get_logger().info(f"States: {self.state}, control: {control}")
 
             f_int = ca.integrator(
@@ -137,31 +142,56 @@ class Simulator(Node):
         # store states and measurements
         # ---------------------------------------------------------------------
         self.state = np.array(res["xf"]).reshape(-1)
-        self.x = self.state[0] 
-        self.y = self.state[1]
-        self.z = self.state[2]
-        self.vx = self.state[3]
-        self.vy = self.state[4]
-        self.vz = self.state[5]
+        # self.x = self.state[0] 
+        # self.y = self.state[1]
+        # self.z = self.state[2]
+        # self.vx = self.state[3]
+        # self.vy = self.state[4]
+        # self.vz = self.state[5]
 
         # self.get_logger().info(f"x: {self.x:0.2f}, vx: {self.vx:0.2f}")
+
+        # self.get_logger().info(f"F_b: {self.state[1]}")
+
 
         self.publish_state()
 
     def timer_callback(self):
         self.integrate_simulation()
-        self.get_logger().info(f"x: {self.x:0.2f}, z: {self.z:0.2f}, vx: {self.vx:0.2f}, vz: {self.vz:0.2f}")
         # self.get_logger().info(f"fx: {fx:0.2f}, fz: {fz:0.2f}")
         self.publish_state()
 
+    def get_state_by_name(self, name):
+        return self.state[self.model["x_index"][name]]
+
     def publish_state(self):
-        x= self.x
-        y= 0.0
-        z= self.z
-        qx=0.0
-        qy=0.0
-        qz=0.0
-        qw=1.0
+        # x= self.x
+        # y= self.y
+        # z= self.z
+        # qx=0.0
+        # qy=0.0
+        # qz=0.0
+        # qw=1.0
+        x = self.get_state_by_name("position_w_0")
+        y = self.get_state_by_name("position_w_1")
+        z = self.get_state_by_name("position_w_2")
+
+        wx = self.get_state_by_name("omega_wb_b_0")
+        wy = self.get_state_by_name("omega_wb_b_1")
+        wz = self.get_state_by_name("omega_wb_b_2")
+
+        vx = self.get_state_by_name("velocity_b_0")
+        vy = self.get_state_by_name("velocity_b_1")
+        vz = self.get_state_by_name("velocity_b_2")
+
+        qw = self.get_state_by_name("quat_wb_0")
+        qx = self.get_state_by_name("quat_wb_1")
+        qy = self.get_state_by_name("quat_wb_2")
+        qz = self.get_state_by_name("quat_wb_3")
+        # self.get_logger().info(f"atan term: {vz/vx}, asin term: {vy/ca.norm_2(ca.vertcat(vx,vy,vz))}")
+        self.get_logger().info(f"x: {x:0.2f}, y: {y:0.2f}, z: {z:0.2f},\n vx: {vx:0.2f},  vy: {vy:0.2} vz: {vz:0.2f}")
+        # self.get_logger().info(f"wx: {wx:0.2f} wy: {wy:0.2f} wz: {wz:0.2f}")
+        # self.get_logger().info(f"qw: {qw:0.2f} qx: {qx:0.2f} qy: {qy:0.2f} qz{qz:0.2f}")
 
 
 

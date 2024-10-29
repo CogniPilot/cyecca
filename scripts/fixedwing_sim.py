@@ -40,23 +40,6 @@ class Simulator(Node):
         self.t = 0.0
         self.dt = 0.01
         self.real_time_factor = 1.0
-        self.x = 0.0
-        self.y = 0.0
-        self.z = 0.0
-        self.vx = 0.0
-        self.vy = 0.0
-        self.vz = 0.0
-
-        # self.thr_max= 1.0 #max thrust
-        # self.m = 0.2 #mass
-        # self.cl = 3.3
-        # self.cd = 0.0
-        # self.S = 1.0
-        # self.rho = 1.225
-        # self.g = 9.8
-
-        # self.p = ca.vertcat(self.thr_max, self.m, self.cl, self.S, self.rho, self.g)
-
 
         # -------------------------------------------------------
         # Dynamics
@@ -114,19 +97,16 @@ class Simulator(Node):
         """
         Integrate the simulation one step and calculate measurements
         """
+        self.u = ca.vertcat(
+            float(self.input_aetr[2]),
+            float(self.input_aetr[0]),
+            float(self.input_aetr[1]),
+            float(self.input_aetr[3])
+            )
         try:
             # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
-
-            self.u = ca.vertcat(
-                float(self.input_aetr[2]),
-                float(self.input_aetr[0]),
-                float(self.input_aetr[1]),
-                float(self.input_aetr[3])
-                )
-            # self.get_logger().info(f"States: {self.state}, control: {control}")
-
             f_int = ca.integrator(
-                "test", "idas", self.model["dae"], self.t, self.t + self.dt
+                "test", "cvodes", self.model["dae"], self.t, self.t + self.dt
             )
             res = f_int(x0=self.state, z0=0.0, p=self.p, u=self.u)
         except RuntimeError as e:
@@ -165,13 +145,6 @@ class Simulator(Node):
         return self.state[self.model["x_index"][name]]
 
     def publish_state(self):
-        # x= self.x
-        # y= self.y
-        # z= self.z
-        # qx=0.0
-        # qy=0.0
-        # qz=0.0
-        # qw=1.0
         x = self.get_state_by_name("position_w_0")
         y = self.get_state_by_name("position_w_1")
         z = self.get_state_by_name("position_w_2")
@@ -188,12 +161,16 @@ class Simulator(Node):
         qx = self.get_state_by_name("quat_wb_1")
         qy = self.get_state_by_name("quat_wb_2")
         qz = self.get_state_by_name("quat_wb_3")
-        # self.get_logger().info(f"atan term: {vz/vx}, asin term: {vy/ca.norm_2(ca.vertcat(vx,vy,vz))}")
+
+        # Logger output
+        # alpha = -1*float(ca.if_else(ca.fabs(vx) > 1e-1, ca.atan(vz/vx), ca.SX(0)))
+        # self.get_logger().info(f"alpha: {alpha:0.3f}")
+
         self.get_logger().info(f"x: {x:0.2f}, y: {y:0.2f}, z: {z:0.2f},\n vx: {vx:0.2f},  vy: {vy:0.2} vz: {vz:0.2f}")
+
+        # self.get_logger().info(f"x: {x:0.2f}, y: {y:0.2f}, z: {z:0.2f},\n vx: {vx:0.2f},  vy: {vy:0.2} vz: {vz:0.2f}")
         # self.get_logger().info(f"wx: {wx:0.2f} wy: {wy:0.2f} wz: {wz:0.2f}")
         # self.get_logger().info(f"qw: {qw:0.2f} qx: {qx:0.2f} qy: {qy:0.2f} qz{qz:0.2f}")
-
-
 
         # ------------------------------------
         # publish simulation clock
@@ -234,6 +211,7 @@ class Simulator(Node):
         msg_pose.pose.pose.orientation.y = qy
         msg_pose.pose.pose.orientation.z = qz
         self.pub_pose.publish(msg_pose)
+
 
 def main(args=None):
     try:

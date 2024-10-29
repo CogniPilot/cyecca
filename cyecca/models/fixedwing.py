@@ -12,7 +12,7 @@ def derive_model():
     # p, parameters
     thr_max = ca.SX.sym("thr_max")
     m = ca.SX.sym("m")
-    cl = ca.SX.sym("cl")
+    # cl = ca.SX.sym("cl")
     cd = ca.SX.sym("cd")
     S = ca.SX.sym("S")
     rho = ca.SX.sym("rho")
@@ -21,13 +21,17 @@ def derive_model():
     Jy = ca.SX.sym("Jy")
     Jz = ca.SX.sym("Jz")
     J = ca.diag(ca.vertcat(Jx, Jy, Jz))
-    Cl_p = ca.SX.sym("Cl_p")
-    Cm_q = ca.SX.sym("Cm_q")
-    Cn_r = ca.SX.sym("Cn_r")
+    Cm_p = ca.SX.sym("Cm_p") #moment coefficient for roll
+    Cm_q = ca.SX.sym("Cm_q") #moment coefficient for pitch
+    Cm_r = ca.SX.sym("Cm_r") #moment coefficent for yaw
+    cbar = ca.SX.sym("cbar") #mean chord (m)
+    span = ca.SX.sym("span") #wing span (m)
+    cla = ca.SX.sym("cla") # Cl_alpha per alpha
+    cl0 = ca.SX.sym("cl0")
     p= ca.vertcat(
         thr_max,
         m,
-        cl,
+        # cl,
         cd,
         S,
         rho,
@@ -35,30 +39,38 @@ def derive_model():
         Jx,
         Jy,
         Jz,
-        Cl_p,
+        Cm_p,
         Cm_q,
-        Cn_r,
+        Cm_r,
+        cbar,
+        span,
+        cla,
+        cl0
     )
     p_defaults = {
-        "thr_max" : 1,
-        "m" : 0.2,
-        "cl": 6.28,
-        "cd" : 0.0,
-        "S":1.0,
+        "thr_max" : 2.0,
+        "m" : 0.5,
+        # "cl": 6.28,
+        "cd" : 0.1,
+        "S": 1.0,
         "rho": 1.225,
         "g": 9.8,
-        'Jx': 0.0217,
-        'Jy': 0.0217,
-        "Jz" : 0.04,
-        "Cl_p": 0.02,
-        "Cm_q": 0.02,
-        "Cn_r": 0.02,
+        'Jx': 0.02166666666666667,
+        'Jy': 0.02166666666666667,
+        "Jz" : 0.02166666666666667,
+        "Cm_p": 0.2,
+        "Cm_q": 0.4,
+        "Cm_r": 0.2,
+        "cbar" : 0.075,
+        "span" : 0.30,
+        "cla" : 6.28,
+        "cl0" : 3.25,
     }
 
     # states
-    position_w = ca.SX.sym("position_w",3) # w = world frame
-    velocity_b = ca.SX.sym("velocity_b",3)
-    quat_wb = ca.SX.sym("quat_wb",4) # Quaternion world - body frame
+    position_w = ca.SX.sym("position_w", 3) # w = world frame
+    velocity_b = ca.SX.sym("velocity_b", 3)
+    quat_wb = ca.SX.sym("quat_wb", 4) # Quaternion world - body frame
     omega_wb_b = ca.SX.sym("omega_wb_b",3) # world-body
 
     x = ca.vertcat(
@@ -68,19 +80,19 @@ def derive_model():
         omega_wb_b,
         )
     x0_defaults = {
-        "position_w_0" : 0,
-        "position_w_1" : 0,
-        "position_w_2" : 0,
-        "velocity_b_0" : 1e-10,
-        "velocity_b_1" : 1e-10,
-        "velocity_b_2" : 1e-10,
-        "quat_wb_0" : 1,
-        "quat_wb_1" : 0,
-        "quat_wb_2" : 0,
-        "quat_wb_3" : 0,
-        "omega_wb_b_0" : 0,
-        "omega_wb_b_1" : 0,
-        "omega_wb_b_2" : 0,
+        "position_w_0" : 0.0,
+        "position_w_1" : 0.0,
+        "position_w_2" : 0.0,
+        "velocity_b_0" : 1e-5,
+        "velocity_b_1" : 1e-5,
+        "velocity_b_2" : 1e-5,
+        "quat_wb_0" : 1.0,
+        "quat_wb_1" : 0.0,
+        "quat_wb_2" : 0.0,
+        "quat_wb_3" : 0.0,
+        "omega_wb_b_0" : 0.0,
+        "omega_wb_b_1" : 0.0,
+        "omega_wb_b_2" : 0.0,
     }
 
     # input
@@ -96,9 +108,13 @@ def derive_model():
     zAxis = ca.vertcat(0, 0, 1)
 
     V_b = ca.norm_2(velocity_b)
-    alpha = ca.if_else(ca.fabs(velocity_b[0]) > 1e-1, ca.atan(velocity_b[2]/velocity_b[0]), ca.SX(0))
-    beta = ca.if_else(ca.fabs(V_b) > 1e-5, ca.asin(velocity_b[1]/V_b), ca.SX(0))
-    euler_n = lie.SO3EulerB321.elem(ca.vertcat(beta, -alpha, 0)) # Euler elements for wind frame
+    # frac_alp = ca.if_else(ca.fabs(velocity_b[2]/velocity_b[0])> 0.1,  (velocity_b[2]/velocity_b[0]), ca.SX(0))
+    # alpha = ca.if_else(ca.fabs(velocity_b[0]) > 1e-4, ca.atan(frac_alp), ca.SX(0))
+
+    alpha = ca.if_else(ca.fabs(velocity_b[0]) > 1e-3, ca.atan(velocity_b[2]/velocity_b[0]), ca.SX(0))
+    vxvb = ca.if_else(ca.fabs(velocity_b[1]/V_b) < 1, (velocity_b[1]/V_b), ca.sign(velocity_b[1]/V_b))
+    beta = ca.asin(vxvb)
+    euler_n = lie.SO3EulerB321.elem(ca.vertcat(beta, -alpha, 0.0)) # Euler elements for wind frame
     quat_bn = lie.SO3Quat.from_Euler(euler_n)
 
     quat_wb = lie.SO3Quat.elem(quat_wb)
@@ -111,41 +127,45 @@ def derive_model():
 
     ##############################################################################################
     # Force and Moment Model
+    cl = cl0 + cla*(-1*alpha) # Lift Coefficient
+    
     # qbar = 0.5 * rho * velocity_b[0]**2  # qbar in terms of body vel_x
     qbar = 0.5 * rho * ca.norm_2(velocity_w_w)**2 # TODO Recheck wind frame velocity --> qbar in terms of wind velocity
 
-    ground = ca.if_else(position_w[2]<0,
-        -position_w[2] * 150 *zAxis - velocity_w_w * 150,
+    ground = ca.if_else(position_w[2]< 0.0,
+        -position_w[2] * 1500 *zAxis - velocity_b * 1,
         ca.vertcat(0,0,0))
     
     D = cd * qbar * S # Drag force -- wind frame
     L = cl * qbar * S # Lift force -- wind frame
-    Fs = 0 #side force
+    Fs = -2*velocity_b[1] #crosswind force to counteract slip
 
+
+    F_b = ca.vertcat(0,0,0)
     F_n = ca.vertcat(-D, Fs, L) #force in wind frame (n)
-    F_b = quat_bn @ ca.SX(F_n) # Aerodynamic force from wind in body frame
+    F_b += quat_bn @ ca.SX(F_n) # Aerodynamic force from wind in body frame
+    F_b += quat_bw @ ground # TODO current method does not consider wheel friction on ground
+    F_b += quat_bw @ (-m * g * zAxis) # gravity converted to body frame
 
-    F_b += quat_bw @ ground *zAxis # TODO current method does not consider wheel friction on ground
-    # F_b += quat_bw@ground
-
-    # TODO RECHECK Gravity --> frame seems reverse
-    F_b += (-m*g*zAxis) #gravity default in world frame
-    # F_b += quat_bw @ (-m * g * zAxis) # gravity
-
-    fx_b = (thr_max*u[0]-velocity_b[0])*xAxis # Longitudinal Force assume thrust is directly on the x axis
+    throttle = ca.if_else(u[0] > 1e-6, u[0], 1e-6)
+    fx_b = (thr_max*throttle-velocity_b[0])*xAxis # Longitudinal Force assume thrust is directly on the x axis
     F_b += fx_b #force due to thrust
 
     # Moment
     M_b = ca.vertcat(0, 0, 0)
-    # moment_Cl = Cl_p * P  # rolling moment
-    # moment_Cm = Cm_q * Q  # pitching moment
-    # moment_Cn = Cn_r * R  # yawing moment
-    # Mi_b = ca.vertcat(moment_Cl, moment_Cm, moment_Cn) * S # aerodynamic moment in body frame
-    # M_b += Mi_b
 
-    M_b += (u[1]-omega_wb_b[0]) * Cl_p *xAxis #moment due to roll
-    M_b += (u[2]-omega_wb_b[1]) * Cm_q *yAxis #moment due to elevator
-    M_b += (u[3]-omega_wb_b[2]) * Cn_r *zAxis #moment due to rudder
+    # Direct Command Rotation
+    # M_b += (u[1]-omega_wb_b[0]) * Cm_p *xAxis #moment due to roll angle command
+    # M_b += (u[2]-omega_wb_b[1]) * Cm_q *yAxis #moment due to pitch angle command
+    # M_b += (u[3]-omega_wb_b[2]) * Cm_r *zAxis #moment due to yaw angle command
+
+    # Rotation by aerodynamic moment
+    M_b += Cm_p * qbar * S * span *(u[1]-omega_wb_b[0]) * xAxis #roll moment due to aileron
+    M_b += Cm_q * qbar * S * cbar * (u[2]-omega_wb_b[1]) * yAxis #pitch moment due to elevator deflection
+    M_b += Cm_r * qbar * S * span *(u[3]-omega_wb_b[2]) * zAxis #yaw moment due to rudder
+    Cm_yr = 0.1 # Moment coefficent for yaw due to aileron rolling
+    M_b += Cm_yr * qbar * S * span *(-u[1]-omega_wb_b[2]) * zAxis #yaw moment due to aileron
+
 
     ##############################################################################################
     
@@ -153,7 +173,7 @@ def derive_model():
     derivative_omega_wb_b = ca.inv(J) @ (M_b - ca.cross(omega_wb_b, J @ omega_wb_b))
     derivative_quaternion_wb = quat_wb.right_jacobian() @ omega_wb_b
     derivative_position_w = quat_wb @ velocity_b
-    derivative_velocity_b = F_b / m - ca.cross(omega_wb_b, velocity_b)
+    derivative_velocity_b = F_b / m - ca.cross(omega_wb_b, (velocity_b- F_b/m))
 
     # state derivative vector
     xdot = ca.vertcat(

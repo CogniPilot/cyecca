@@ -48,23 +48,23 @@ def derive_model():
         cl0
     )
     p_defaults = {
-        "thr_max" : 2.0,
+        "thr_max" : 4.50,
         "m" : 0.5,
         # "cl": 6.28,
-        "cd" : 0.1,
+        "cd" : 0.3, #0.1,
         "S": 1.0,
         "rho": 1.225,
         "g": 9.8,
-        'Jx': 0.02166666666666667,
-        'Jy': 0.02166666666666667,
-        "Jz" : 0.02166666666666667,
+        'Jx': 0.04166666666666667,
+        'Jy': 0.04166666666666667,
+        "Jz" : 0.04166666666666667,
         "Cm_p": 0.2,
-        "Cm_q": 0.4,
+        "Cm_q": 0.2,
         "Cm_r": 0.2,
         "cbar" : 0.075,
         "span" : 0.30,
         "cla" : 6.28,
-        "cl0" : 3.25,
+        "cl0" : 2.25,
     }
 
     # states
@@ -160,11 +160,13 @@ def derive_model():
     # M_b += (u[3]-omega_wb_b[2]) * Cm_r *zAxis #moment due to yaw angle command
 
     # Rotation by aerodynamic moment
-    M_b += Cm_p * qbar * S * span *(u[1]-omega_wb_b[0]) * xAxis #roll moment due to aileron
-    M_b += Cm_q * qbar * S * cbar * (u[2]-omega_wb_b[1]) * yAxis #pitch moment due to elevator deflection
-    M_b += Cm_r * qbar * S * span *(u[3]-omega_wb_b[2]) * zAxis #yaw moment due to rudder
-    Cm_yr = 0.1 # Moment coefficent for yaw due to aileron rolling
+    M_b += Cm_p * qbar * S * span *(u[1]) * xAxis- 0.1*omega_wb_b*xAxis#roll moment due to aileron
+    M_b += Cm_q * qbar * S * cbar * (u[2]) * yAxis - 0.1*omega_wb_b*yAxis #pitch moment due to elevator deflection
+    M_b += Cm_r * qbar * S * span *(u[3]) * zAxis - 0.05*omega_wb_b*zAxis #yaw moment due to rudder
+    Cm_yr = 0.01 # Moment coefficent for yaw due to aileron rolling
     M_b += Cm_yr * qbar * S * span *(-u[1]-omega_wb_b[2]) * zAxis #yaw moment due to aileron
+    # Cm_thr = 0.001 # Moment coefficient for pitch due to throttle
+    # M_b += -1 *(Cm_thr * u[0] - omega_wb_b[0]) * yAxis # moment due to throttle
 
 
     ##############################################################################################

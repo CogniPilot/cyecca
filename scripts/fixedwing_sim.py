@@ -12,6 +12,7 @@ from rclpy.parameter import Parameter
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
 
 from rosgraph_msgs.msg import Clock
+from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import Joy
 from tf2_ros import TransformBroadcaster
 
@@ -29,17 +30,28 @@ class Simulator(Node):
         # ----------------------------------------------
         self.pub_pose = self.create_publisher(PoseWithCovarianceStamped, "pose", 1)
         self.pub_clock = self.create_publisher(Clock, "clock", 1)
+        self.pub_odom = self.create_publisher(Odometry, "odom", 1)
+
         self.tf_broadcaster = TransformBroadcaster(self)
 
         # ----------------------------------------------
         # subscriptions
         # ----------------------------------------------
         self.sub_joy = self.create_subscription(Joy, "/joy", self.joy_callback, 1)
+        self.sub_auto_joy = self.create_subscription(
+            Joy, "/auto_joy", self.auto_joy_callback, 1)
 
         self.input_aetr = ca.vertcat(0.0, 0.0, 0.0, 0.0)
+        self.input_auto = ca.vertcat(0.0, 0.0, 0.0, 0.0)
+
         self.t = 0.0
         self.dt = 0.01
         self.real_time_factor = 1.0
+
+        # -------------------------------------------------------
+        # mode handling
+        # ----------------------------------------------
+        self.input_mode = "manual"
 
         # -------------------------------------------------------
         # Dynamics
@@ -63,7 +75,7 @@ class Simulator(Node):
         self.state = np.array(list(self.x0_dict.values()), dtype=float)
         self.p = np.array(list(self.p_dict.values()), dtype=float)
         # self.get_logger().info(f"p: {self.p}")
-        self.u = np.zeros(1, dtype=float)
+        self.u = np.zeros(4, dtype=float)
 
 
         # start main loop on timer
@@ -86,6 +98,28 @@ class Simulator(Node):
             msg.axes[0],  # rudder
         )
 
+        new_mode = self.input_mode
+        # new_control_mode = self.control_mode
+        if msg.buttons[0] == 1:
+            new_mode = "auto"
+        elif msg.buttons[1] == 1:
+            new_mode = "manual"
+
+        if new_mode != self.input_mode:
+            self.get_logger().info(
+                "mode changed from: %s to %s" % (self.input_mode, new_mode)
+            )
+            self.input_mode = new_mode
+
+
+    def auto_joy_callback(self, msg: Joy):
+        self.input_auto = ca.vertcat(
+            msg.axes[0],  # thrust
+            msg.axes[1],  # aileron
+            msg.axes[2],  # elevator
+            msg.axes[3],  # rudder
+        )    #TAER
+
     def clock_as_msg(self):
         msg = Clock()
         msg.clock.sec = int(self.t)
@@ -93,16 +127,48 @@ class Simulator(Node):
         return msg
     
 
+    def update_controller(self):
+        # ---------------------------------------------------------------------
+        # mode handling
+        # ---------------------------------------------------------------------
+        if self.input_mode == "manual":
+            self.u = ca.vertcat(
+                float(self.input_aetr[2]),
+                float(self.input_aetr[0]),
+                float(self.input_aetr[1]),
+                float(self.input_aetr[3])
+                )
+
+        elif self.input_mode == "auto":
+            self.u = ca.vertcat(
+                float(self.input_auto[0]),
+                0.0*float(self.input_auto[1]), #scaled roll moment from rudder
+                float(self.input_auto[2]),
+                float(self.input_auto[1])
+                )
+        else:
+            self.get_logger().info("unhandled mode: %s" % self.input_mode)
+            self.u = ca.vertcat(
+                float(0),
+                float(0),
+                float(0),
+                float(0)
+                )
+
+    
+
     def integrate_simulation(self):
         """
         Integrate the simulation one step and calculate measurements
         """
-        self.u = ca.vertcat(
-            float(self.input_aetr[2]),
-            float(self.input_aetr[0]),
-            float(self.input_aetr[1]),
-            float(self.input_aetr[3])
-            )
+        # self.u = ca.vertcat(
+        #     float(self.input_aetr[2]),
+        #     float(self.input_aetr[0]),
+        #     float(self.input_aetr[1]),
+        #     float(self.input_aetr[3])
+        #     )
+        # self.get_logger().info(f"control: {self.u}")
+
         try:
             # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
             f_int = ca.integrator(
@@ -137,6 +203,7 @@ class Simulator(Node):
         self.publish_state()
 
     def timer_callback(self):
+        self.update_controller()
         self.integrate_simulation()
         # self.get_logger().info(f"fx: {fx:0.2f}, fz: {fz:0.2f}")
         self.publish_state()
@@ -166,7 +233,7 @@ class Simulator(Node):
         # alpha = -1*float(ca.if_else(ca.fabs(vx) > 1e-1, ca.atan(vz/vx), ca.SX(0)))
         # self.get_logger().info(f"alpha: {alpha:0.3f}")
 
-        self.get_logger().info(f"x: {x:0.2f}, y: {y:0.2f}, z: {z:0.2f},\n vx: {vx:0.2f},  vy: {vy:0.2} vz: {vz:0.2f}")
+        # self.get_logger().info(f"x: {x:0.2f}, y: {y:0.2f}, z: {z:0.2f},\n vx: {vx:0.2f},  vy: {vy:0.2} vz: {vz:0.2f}")
 
         # self.get_logger().info(f"x: {x:0.2f}, y: {y:0.2f}, z: {z:0.2f},\n vx: {vx:0.2f},  vy: {vy:0.2} vz: {vz:0.2f}")
         # self.get_logger().info(f"wx: {wx:0.2f} wy: {wy:0.2f} wz: {wz:0.2f}")
@@ -211,6 +278,23 @@ class Simulator(Node):
         msg_pose.pose.pose.orientation.y = qy
         msg_pose.pose.pose.orientation.z = qz
         self.pub_pose.publish(msg_pose)
+
+        # ------------------------------------
+        # publish odom
+        # ------------------------------------
+        msg_odom = Odometry()
+        msg_odom.header.stamp = msg_clock.clock
+        msg_odom.header.frame_id = "map"
+        msg_odom.child_frame_id = "base_link"
+        # msg_pose.pose.covariance = P_pose_full.reshape(-1)
+        msg_odom.pose.pose.position.x = x
+        msg_odom.pose.pose.position.y = y
+        msg_odom.pose.pose.position.z = z
+        msg_odom.pose.pose.orientation.w = qw
+        msg_odom.pose.pose.orientation.x = qx
+        msg_odom.pose.pose.orientation.y = qy
+        msg_odom.pose.pose.orientation.z = qz
+        self.pub_odom.publish(msg_odom)
 
 
 def main(args=None):

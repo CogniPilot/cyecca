@@ -88,8 +88,8 @@ class Simulator(Node):
             clock=self.system_clock,
         )
 
-
-
+ 
+    # Manual Joy AETR
     def joy_callback(self, msg: Joy):
         self.input_aetr = ca.vertcat(
             -msg.axes[3],  # aileron
@@ -111,7 +111,7 @@ class Simulator(Node):
             )
             self.input_mode = new_mode
 
-
+    # Auto Joy TAER
     def auto_joy_callback(self, msg: Joy):
         self.input_auto = ca.vertcat(
             msg.axes[0],  # thrust
@@ -132,7 +132,7 @@ class Simulator(Node):
         # mode handling
         # ---------------------------------------------------------------------
         if self.input_mode == "manual":
-            self.u = ca.vertcat(
+            self.u = ca.vertcat( #TAER mode
                 float(self.input_aetr[2]),
                 float(self.input_aetr[0]),
                 float(self.input_aetr[1]),
@@ -140,11 +140,11 @@ class Simulator(Node):
                 )
 
         elif self.input_mode == "auto":
-            self.u = ca.vertcat(
+            self.u = ca.vertcat( #TAER mode
                 float(self.input_auto[0]),
-                0.0*float(self.input_auto[1]), #scaled roll moment from rudder
+                float(self.input_auto[1]), #scaled roll moment from rudder
                 float(self.input_auto[2]),
-                float(self.input_auto[1])
+                float(self.input_auto[3]) #Rudder directly affects yaw for nvp
                 )
         else:
             self.get_logger().info("unhandled mode: %s" % self.input_mode)

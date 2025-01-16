@@ -55,12 +55,12 @@ def derive_model():
         "S": 1.0,
         "rho": 1.225,
         "g": 9.8,
-        'Jx': 0.04166666666666667,
-        'Jy': 0.04166666666666667,
-        "Jz" : 0.04166666666666667,
-        "Cm_p": 0.2,
-        "Cm_q": 0.2,
-        "Cm_r": 0.2,
+        'Jx': 0.02166666666666667,
+        'Jy': 0.02166666666666667,
+        "Jz" : 0.02166666666666667,
+        "Cm_p": 0.1,
+        "Cm_q": 0.3,
+        "Cm_r": 0.1,
         "cbar" : 0.075,
         "span" : 0.30,
         "cla" : 6.28,
@@ -138,7 +138,7 @@ def derive_model():
     
     D = cd * qbar * S # Drag force -- wind frame
     L = cl * qbar * S # Lift force -- wind frame
-    Fs = -2*velocity_b[1] #crosswind force to counteract slip
+    Fs = -4*velocity_b[1] #crosswind force to counteract slip
 
 
     F_b = ca.vertcat(0,0,0)
@@ -156,8 +156,8 @@ def derive_model():
 
     # Direct Command Rotation
     # M_b += (u[1]-omega_wb_b[0]) * Cm_p *xAxis #moment due to roll angle command
-    # M_b += (u[2]-omega_wb_b[1]) * Cm_q *yAxis #moment due to pitch angle command
-    # M_b += (u[3]-omega_wb_b[2]) * Cm_r *zAxis #moment due to yaw angle command
+    # M_b += (u[2]-omega_wb_b[1]) * 0.1 *yAxis #moment due to pitch angle command
+    # M_b += (u[3]-omega_wb_b[2]) * 0.1 *zAxis #moment due to yaw angle command
 
     # Rotation by aerodynamic moment
     M_b += Cm_p * qbar * S * span *(u[1]) * xAxis- 0.1*omega_wb_b*xAxis#roll moment due to aileron

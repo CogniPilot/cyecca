@@ -36,6 +36,11 @@ kp_vel = 2.0  # velocity proportional gain
 z_integral_max = 0  # 5.0
 ki_z = 0.05  # velocity z integral gain
 
+# estimator params
+att_w_acc = 0.2
+att_w_gyro_bias = 0.1
+param_att_w_mag = 0.1
+
 
 def derive_control_allocation():
     """
@@ -290,47 +295,74 @@ def derive_input_auto_level():
 
 
 def derive_attitude_estimator():
-    chi = so3.elem(ca.SX.sym("chi", 3))
-    wb = so3.elem(ca.SX.sym("wb", 3))
-    A = -wb.ad()
-    # B = chi.right_jacobian_inv()
+    q0 = ca.SX.sym("q", 4)
+    q = SO3Quat.elem(param=q0)
+    mag = ca.SX.sym("mag", 3)
+    mag_decl = ca.SX.sym("mag_decl",1)
+    gyro = ca.SX.sym("gyro", 3)
+    accel = ca.SX.sym("accel", 3)
+    pos_acc = ca.SX.sym("pos_acc", 3)
+    dt = ca.SX.sym("dt", 1)
 
-    def sym33_to_vector6(m):
-        return ca.vertcat(m[0, 0], m[0, 1], m[0, 2], m[1, 1], m[1, 2], m[2, 2])
 
-    def vector6_to_sym33(v):
-        return ca.vertcat(
-            ca.horzcat(v[0], v[1], v[2]),
-            ca.horzcat(v[1], v[3], v[4]),
-            ca.horzcat(v[2], v[4], v[5]),
-        )
+    mag1 = SO3Quat.elem(ca.vertcat(0, mag))
 
-    P0 = ca.triu2symm(ca.SX.sym("P0", ca.Sparsity.upper(3)))
-    Q = ca.triu2symm(ca.SX.sym("Q", ca.Sparsity.upper(3)))
-    dt = ca.SX.sym("dt")
 
-    # prediction
-    P1 = P0 + A @ P0 + P0 @ A.T + Q
+    spin_rate = ca.norm_2(gyro)
+    mag_earth = (q * mag1 * q.inverse()).param[1:]
+    
+    # TODO need to wrap this form -pi to pi 
+    mag_err = ca.fmod(ca.atan2(mag_earth[1], mag_earth[0]) - mag_decl + ca.pi, 2*ca.pi) - ca.pi
 
-    # mag correction
-    # X = SO3Quat("X", ca.SX.param("X", 4))
-    # Xr = SO3Quat("X", ca.SX.param("X", 4))
+    gain_mult = 1
+    fifty_dps = 0.873
 
-    # H = np.eye(3)
-    # R_mag
-    # S = H @ P @ H.T + R
 
-    # K = P0.T @ C @ S.inv
+    # TODO Need to handle spin rate probelm here
+    #if spin_rate > fifty_dps:
+    #gain_mult = min(spin_rate/fifty_dps , 10.0)
+    gain_mult = spin_rate/fifty_dps
 
-    f_cov_prop = ca.Function(
-        "attitude_covariance_propagation",
-        [sym33_to_vector6(P0), sym33_to_vector6(Q), wb.param, dt],
-        [sym33_to_vector6(ca.triu(P1))],
-        ["P0", "Q0", "wb", "dt"],
-        ["P1"],
+    correction = ca.SX.zeros(3,1)
+    correction += (q.inverse() * SO3Quat.elem(ca.vertcat(0,0,0,-mag_err)) * q).param[1:] * param_att_w_mag * gain_mult
+    
+    k = np.array([[2 * q.param[1] * q.param[3] - q.param[0] * q.param[2]],
+             [2 * q.param[2] * q.param[3] - q.param[0] * q.param[1]],
+             [(q.param[0] **2 - q.param[1]**2 - q.param[2]**2) + q.param[3]**2]])
+    
+
+    accel_norm_sq = ca.norm_2(accel)**2
+
+    
+
+    corr1 = ca.if_else(accel_norm_sq > ((g * 1.1)**2) , 1, 0)
+    corr2 = ca.if_else(accel_norm_sq < ((g * 1.1)**2), 1, 0)
+    # print(k.shape)
+    # print(((accel - pos_acc)/ca.norm_2(accel - pos_acc)).shape)
+
+    correction += corr1 * corr2 * ca.cross(k, (accel - pos_acc)/ca.norm_2(accel - pos_acc)) * att_w_acc
+
+    ## TODO No gyro bias stuff
+
+    correction += gyro
+    
+    # correction
+    
+    q1 = q * so3.elem(correction * dt).exp(SO3Quat)
+
+    # print(q1)
+
+    # print(q0, mag, mag_decl, gyro, accel, pos_acc, dt)
+    # print("Hello World")
+    f_att_estimator = ca.Function(
+        "attitude_estimator",
+        [q0, mag, mag_decl, gyro, accel, pos_acc, dt],
+        [q1.param],
+        ["q", "mag", "mag_decl", "gyro", "accel", "pos_acc","dt"],
+        ["q1"],
     )
 
-    return {"attitude_covariance_propagation": f_cov_prop}
+    return {"attitude_estimator": f_att_estimator}
 
 
 def derive_attitude_control():

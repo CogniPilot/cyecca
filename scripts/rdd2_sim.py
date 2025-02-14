@@ -117,7 +117,7 @@ class Simulator(Node):
         self.de0 = np.zeros(3, dtype=float)  # deriv of att error (for lowpass)
 
         # estimator data
-        self.use_estimator = False  # if false, will use sim state instead for control
+        self.use_estimator = True  # if false, will use sim state instead for control
         self.P = 1e-2 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # state covariance
         self.Q = 1e-9 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # process noise
 
@@ -170,16 +170,38 @@ class Simulator(Node):
             self.est_x, self.y_accel, self.y_gyro, self.get_param_by_name("g"), self.dt
         )
         self.est_x = np.array(res, dtype=float).reshape(-1)
-        self.P = np.array(
-            self.eqs["attitude_covariance_propagation"](
-                self.P, self.Q, self.y_gyro, self.dt
-            )
-        ).reshape(-1)
 
+        self.est_x[0] = self.x[0]
+        self.est_x[1] = self.x[1]
+        self.est_x[2] = self.x[2]
+        self.est_x[3] = self.x[3]
+        self.est_x[4] = self.x[4]
+        self.est_x[5] = self.x[5]
+
+
+        # self.P = np.array(
+        #     self.eqs["attitude_covariance_propagation"](
+        #         self.P, self.Q, self.y_gyro, self.dt
+        #     )
+        # ).reshape(-1)
+
+        DECLANATION = 0
+        # IDK what this is
+        pos_acc = self.y_accel
+        
+        # new code
+        temp_q = np.array(self.eqs["attitude_estimator"](self.q, self.y_mag, DECLANATION, self.y_gyro, self.y_accel, pos_acc, self.dt), dtype=float)
+        
+
+        self.est_x[6] = temp_q[0]
+        self.est_x[7] = temp_q[1]
+        self.est_x[8] = temp_q[2]
+        self.est_x[9] = temp_q[3]
         self.q = np.array(
             [self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]],
             dtype=float,
         )
+
         self.omega = self.y_gyro
         self.pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]], dtype=float)
         self.vw = np.array([self.est_x[3], self.est_x[4], self.est_x[5]], dtype=float)
@@ -581,9 +603,11 @@ class Simulator(Node):
         self.integrate_simulation()
         self.publish_state()
         if self.use_estimator:
+            # print("updating")
             self.update_estimator()
         else:
             self.update_fake_estimator()
+            # print("wrong")
         self.update_controller()
 
     def get_state_by_name(self, name):

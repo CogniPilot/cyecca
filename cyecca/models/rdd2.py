@@ -37,9 +37,9 @@ z_integral_max = 0  # 5.0
 ki_z = 0.05  # velocity z integral gain
 
 # estimator params
-att_w_acc = 0.2
+att_w_acc =0.2
 att_w_gyro_bias = 0.1
-param_att_w_mag = 0.1
+param_att_w_mag = 0.2
 
 
 def derive_control_allocation():
@@ -295,6 +295,7 @@ def derive_input_auto_level():
 
 
 def derive_attitude_estimator():
+    # Define Casadi variables
     q0 = ca.SX.sym("q", 4)
     q = SO3Quat.elem(param=q0)
     mag = ca.SX.sym("mag", 3)
@@ -304,61 +305,59 @@ def derive_attitude_estimator():
     pos_acc = ca.SX.sym("pos_acc", 3)
     dt = ca.SX.sym("dt", 1)
 
-
+    # Convert magnetometer to quat
     mag1 = SO3Quat.elem(ca.vertcat(0, mag))
 
+    # correction angular velocity vector
+    correction = ca.SX.zeros(3,1)
 
+    # Convert vector to world frame and extract xy component
     spin_rate = ca.norm_2(gyro)
-    mag_earth = (q * mag1 * q.inverse()).param[1:]
+    mag_earth = (q.inverse() * mag1 * q).param[1:]
     
     # TODO need to wrap this form -pi to pi 
-    mag_err = ca.fmod(ca.atan2(mag_earth[1], mag_earth[0]) - mag_decl + ca.pi, 2*ca.pi) - ca.pi
+    mag_err = ca.fmod(ca.atan2(mag_earth[1], mag_earth[0] - mag_decl)  + ca.pi, 2*ca.pi) - ca.pi
 
-    gain_mult = 1
-    fifty_dps = 0.873
-
-
-    # TODO Need to handle spin rate probelm here
-    #if spin_rate > fifty_dps:
-    #gain_mult = min(spin_rate/fifty_dps , 10.0)
-    gain_mult = spin_rate/fifty_dps
-
-    correction = ca.SX.zeros(3,1)
-    correction += (q.inverse() * SO3Quat.elem(ca.vertcat(0,0,0,-mag_err)) * q).param[1:] * param_att_w_mag * gain_mult
     
-    k = np.array([[2 * q.param[1] * q.param[3] - q.param[0] * q.param[2]],
-             [2 * q.param[2] * q.param[3] - q.param[0] * q.param[1]],
-             [(q.param[0] **2 - q.param[1]**2 - q.param[2]**2) + q.param[3]**2]])
+    # Change gain if spin rate is large
+    fifty_dps = 0.873
+    gain_mult = ca.if_else(spin_rate > fifty_dps, ca.fmin(spin_rate/fifty_dps, 10), 1)
+
+    # Move magnetometer correction in body frame
+    correction += (q.inverse() * SO3Quat.elem(ca.vertcat(0,0,0, mag_err)) * q).param[1:] * param_att_w_mag * gain_mult
+    
+    # Accelerometer correction
+    # project k into body frame
+    
+    # k = np.array([[2 * q.param[1] * q.param[3] - q.param[0] * q.param[2]],
+    #          [2 * q.param[2] * q.param[3] - q.param[0] * q.param[1]],
+    #          [(q.param[0] **2 - q.param[1]**2 - q.param[2]**2) + q.param[3]**2]])
     
 
     accel_norm_sq = ca.norm_2(accel)**2
 
-    
+    # Correct accelerometer only if g between 
+    higher_lim_check = ca.if_else(accel_norm_sq < ((g * 1.1)**2) , 1, 0)
+    lower_lim_check = ca.if_else(accel_norm_sq > ((g * 0.9)**2), 1, 0)
 
-    corr1 = ca.if_else(accel_norm_sq > ((g * 1.1)**2) , 1, 0)
-    corr2 = ca.if_else(accel_norm_sq < ((g * 1.1)**2), 1, 0)
-    # print(k.shape)
-    # print(((accel - pos_acc)/ca.norm_2(accel - pos_acc)).shape)
+    # TODO slightly odd workaroun
 
-    correction += corr1 * corr2 * ca.cross(k, (accel - pos_acc)/ca.norm_2(accel - pos_acc)) * att_w_acc
+    correction += lower_lim_check * higher_lim_check * ca.cross(np.array([[0],[0],[1]]), accel/ca.norm_2(accel)) * att_w_acc
 
     ## TODO No gyro bias stuff
 
+    # Add gyro to correction
     correction += gyro
     
-    # correction
-    
+    # Make the correction
     q1 = q * so3.elem(correction * dt).exp(SO3Quat)
 
-    # print(q1)
-
-    # print(q0, mag, mag_decl, gyro, accel, pos_acc, dt)
-    # print("Hello World")
+    # Return estimator
     f_att_estimator = ca.Function(
         "attitude_estimator",
-        [q0, mag, mag_decl, gyro, accel, pos_acc, dt],
+        [q0, mag, mag_decl, gyro, accel, dt],
         [q1.param],
-        ["q", "mag", "mag_decl", "gyro", "accel", "pos_acc","dt"],
+        ["q", "mag", "mag_decl", "gyro", "accel","dt"],
         ["q1"],
     )
 

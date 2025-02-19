@@ -187,10 +187,9 @@ class Simulator(Node):
 
         DECLANATION = 0
         # IDK what this is
-        pos_acc = self.y_accel
         
         # new code
-        temp_q = np.array(self.eqs["attitude_estimator"](self.q, self.y_mag, DECLANATION, self.y_gyro, self.y_accel, pos_acc, self.dt), dtype=float)
+        temp_q = np.array(self.eqs["attitude_estimator"](self.q, self.y_mag, DECLANATION, self.y_gyro, self.y_accel, self.dt), dtype=float)
         
 
         self.est_x[6] = temp_q[0]
@@ -697,9 +696,9 @@ class Simulator(Node):
         tf.header.frame_id = "map"
         tf.child_frame_id = "base_link_est"
         tf.header.stamp = msg_clock.clock
-        tf.transform.translation.x = self.est_x[0]
-        tf.transform.translation.y = self.est_x[1]
-        tf.transform.translation.z = self.est_x[2]
+        tf.transform.translation.x = self.x[0]
+        tf.transform.translation.y = self.x[1]
+        tf.transform.translation.z = self.x[2]
         tf.transform.rotation.w = self.est_x[6]
         tf.transform.rotation.x = self.est_x[7]
         tf.transform.rotation.y = self.est_x[8]

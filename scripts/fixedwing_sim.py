@@ -74,7 +74,6 @@ class Simulator(Node):
         # init state (x), param(p), and input(u)
         self.state = np.array(list(self.x0_dict.values()), dtype=float)
         self.p = np.array(list(self.p_dict.values()), dtype=float)
-        # self.get_logger().info(f"p: {self.p}")
         self.u = np.zeros(4, dtype=float)
 
 
@@ -161,14 +160,6 @@ class Simulator(Node):
         """
         Integrate the simulation one step and calculate measurements
         """
-        # self.u = ca.vertcat(
-        #     float(self.input_aetr[2]),
-        #     float(self.input_aetr[0]),
-        #     float(self.input_aetr[1]),
-        #     float(self.input_aetr[3])
-        #     )
-        # self.get_logger().info(f"control: {self.u}")
-
         try:
             # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
             f_int = ca.integrator(
@@ -188,24 +179,12 @@ class Simulator(Node):
         # store states and measurements
         # ---------------------------------------------------------------------
         self.state = np.array(res["xf"]).reshape(-1)
-        # self.x = self.state[0] 
-        # self.y = self.state[1]
-        # self.z = self.state[2]
-        # self.vx = self.state[3]
-        # self.vy = self.state[4]
-        # self.vz = self.state[5]
-
-        # self.get_logger().info(f"x: {self.x:0.2f}, vx: {self.vx:0.2f}")
-
-        # self.get_logger().info(f"F_b: {self.state[1]}")
-
 
         self.publish_state()
 
     def timer_callback(self):
-        self.update_controller()
-        self.integrate_simulation()
-        # self.get_logger().info(f"fx: {fx:0.2f}, fz: {fz:0.2f}")
+        self.update_controller() #Controller
+        self.integrate_simulation() #Integrator
         self.publish_state()
 
     def get_state_by_name(self, name):
@@ -228,16 +207,6 @@ class Simulator(Node):
         qx = self.get_state_by_name("quat_wb_1")
         qy = self.get_state_by_name("quat_wb_2")
         qz = self.get_state_by_name("quat_wb_3")
-
-        # Logger output
-        # alpha = -1*float(ca.if_else(ca.fabs(vx) > 1e-1, ca.atan(vz/vx), ca.SX(0)))
-        # self.get_logger().info(f"alpha: {alpha:0.3f}")
-
-        # self.get_logger().info(f"x: {x:0.2f}, y: {y:0.2f}, z: {z:0.2f},\n vx: {vx:0.2f},  vy: {vy:0.2} vz: {vz:0.2f}")
-
-        # self.get_logger().info(f"x: {x:0.2f}, y: {y:0.2f}, z: {z:0.2f},\n vx: {vx:0.2f},  vy: {vy:0.2} vz: {vz:0.2f}")
-        # self.get_logger().info(f"wx: {wx:0.2f} wy: {wy:0.2f} wz: {wz:0.2f}")
-        # self.get_logger().info(f"qw: {qw:0.2f} qx: {qx:0.2f} qy: {qy:0.2f} qz{qz:0.2f}")
 
         # ------------------------------------
         # publish simulation clock

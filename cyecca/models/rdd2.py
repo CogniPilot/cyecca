@@ -543,52 +543,6 @@ def derive_common():
     }
 
 
-def calculate_N(v: SE23LieAlgebraElement, B: ca.SX):
-    """
-    N term for exp_mixed
-    """
-    omega = v.Omega
-    Omega = omega.to_Matrix()
-    OmegaSq = Omega @ Omega
-    A = ca.sparsify(ca.horzcat(v.a_b.param, v.v_b.param))
-    B = ca.sparsify(B)
-    theta = ca.norm_2(omega.param)
-    C1 = SERIES["(1 - cos(x))/x^2"](theta)
-    C2 = SERIES["(x - sin(x))/x^3"](theta)
-    C3 = SERIES["(x^2/2 + cos(x) - 1)/x^4"](theta)
-    AB = A @ B
-    I3 = ca.SX.eye(3)
-    return (
-        A
-        + AB / 2
-        + Omega @ A @ (C1 * np.eye(2) + C2 * B)
-        + Omega @ Omega @ A @ (C2 * np.eye(2) + C3 * B)
-    )
-
-
-def exp_mixed(
-    X0: SE23LieGroupElement,
-    l: SE23LieAlgebraElement,
-    r: SE23LieAlgebraElement,
-    B: ca.SX,
-):
-    """
-    exp_mixed
-    """
-    P0 = ca.horzcat(X0.v.param, X0.p.param)
-    Pl = calculate_N(l, B)
-    Pr = calculate_N(r, -B)
-    R0 = X0.R
-    Rl = (l).Omega.exp(lie.SO3Quat)
-    Rr = (r).Omega.exp(lie.SO3Quat)
-    Rr0 = Rr * R0
-    R1 = Rr0 * Rl
-
-    I2 = ca.SX.eye(2)
-    P1 = Rr0.to_Matrix() @ Pl + (Rr.to_Matrix() @ P0 + Pr) @ (I2 + B)
-    return lie.SE23Quat.elem(ca.vertcat(P1[:, 1], P1[:, 0], R1.param))
-
-
 def derive_strapdown_ins_propagation():
     """
     INS strapdown propagation
@@ -601,7 +555,7 @@ def derive_strapdown_ins_propagation():
     l = lie.se23.elem(ca.vertcat(0, 0, 0, a_b, omega_b))
     r = lie.se23.elem(ca.vertcat(0, 0, 0, 0, 0, -g, 0, 0, 0))
     B = ca.sparsify(ca.SX([[0, 1], [0, 0]]))
-    X1 = exp_mixed(X0, l * dt, r * dt, B * dt)
+    X1 = lie.SE23Quat.exp_mixed(X0, l * dt, r * dt, B * dt)
     # should do q renormalize check here
     f_ins = ca.Function(
         "strapdown_ins_propagate",

@@ -505,7 +505,7 @@ class Simulator(Node):
         try:
             # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
             f_int = ca.integrator(
-                "test", "idas", self.model["dae"], self.t, self.t + self.dt
+                "test", "cvodes", self.model["dae"], self.t, self.t + self.dt
             )
             res = f_int(x0=self.x, z0=0, p=self.p, u=self.u)
         except RuntimeError as e:

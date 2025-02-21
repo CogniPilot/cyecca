@@ -455,6 +455,7 @@ class SO3QuatLieGroup(SO3LieGroup):
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         q = arg.param
+        q = q / ca.norm_2(q)
         theta = 2 * ca.acos(q[0])
         A = SERIES["x/sin(x)"](theta / 2)
         omega = q[1:4] * A * 2

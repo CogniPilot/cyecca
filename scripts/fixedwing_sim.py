@@ -39,7 +39,8 @@ class Simulator(Node):
         # ----------------------------------------------
         self.sub_joy = self.create_subscription(Joy, "/joy", self.joy_callback, 1)
         self.sub_auto_joy = self.create_subscription(
-            Joy, "/auto_joy", self.auto_joy_callback, 1)
+            Joy, "/auto_joy", self.auto_joy_callback, 1
+        )
 
         self.input_aetr = ca.vertcat(0.0, 0.0, 0.0, 0.0)
         self.input_auto = ca.vertcat(0.0, 0.0, 0.0, 0.0)
@@ -76,7 +77,6 @@ class Simulator(Node):
         self.p = np.array(list(self.p_dict.values()), dtype=float)
         self.u = np.zeros(4, dtype=float)
 
-
         # start main loop on timer
         self.system_clock = rclpy.clock.Clock(
             clock_type=rclpy.clock.ClockType.SYSTEM_TIME
@@ -87,7 +87,6 @@ class Simulator(Node):
             clock=self.system_clock,
         )
 
- 
     # Manual Joy AETR
     def joy_callback(self, msg: Joy):
         self.input_aetr = ca.vertcat(
@@ -117,44 +116,36 @@ class Simulator(Node):
             msg.axes[1],  # aileron
             msg.axes[2],  # elevator
             msg.axes[3],  # rudder
-        )    #TAER
+        )  # TAER
 
     def clock_as_msg(self):
         msg = Clock()
         msg.clock.sec = int(self.t)
         msg.clock.nanosec = int(1e9 * (self.t - msg.clock.sec))
         return msg
-    
 
     def update_controller(self):
         # ---------------------------------------------------------------------
         # mode handling
         # ---------------------------------------------------------------------
         if self.input_mode == "manual":
-            self.u = ca.vertcat( #TAER mode
+            self.u = ca.vertcat(  # TAER mode
                 float(self.input_aetr[2]),
                 float(self.input_aetr[0]),
                 float(self.input_aetr[1]),
-                float(self.input_aetr[3])
-                )
+                float(self.input_aetr[3]),
+            )
 
         elif self.input_mode == "auto":
-            self.u = ca.vertcat( #TAER mode
+            self.u = ca.vertcat(  # TAER mode
                 float(self.input_auto[0]),
-                float(self.input_auto[1]), #scaled roll moment from rudder
+                float(self.input_auto[1]),  # scaled roll moment from rudder
                 float(self.input_auto[2]),
-                float(self.input_auto[3]) #Rudder directly affects yaw for nvp
-                )
+                float(self.input_auto[3]),  # Rudder directly affects yaw for nvp
+            )
         else:
             self.get_logger().info("unhandled mode: %s" % self.input_mode)
-            self.u = ca.vertcat(
-                float(0),
-                float(0),
-                float(0),
-                float(0)
-                )
-
-    
+            self.u = ca.vertcat(float(0), float(0), float(0), float(0))
 
     def integrate_simulation(self):
         """
@@ -174,7 +165,7 @@ class Simulator(Node):
         if not np.all(np.isfinite(x1)):
             print("integration not finite")
             raise RuntimeError("nan in integration")
-        
+
         # ---------------------------------------------------------------------
         # store states and measurements
         # ---------------------------------------------------------------------
@@ -183,8 +174,8 @@ class Simulator(Node):
         self.publish_state()
 
     def timer_callback(self):
-        self.update_controller() #Controller
-        self.integrate_simulation() #Integrator
+        self.update_controller()  # Controller
+        self.integrate_simulation()  # Integrator
         self.publish_state()
 
     def get_state_by_name(self, name):
@@ -230,7 +221,6 @@ class Simulator(Node):
         tf.transform.rotation.y = qy
         tf.transform.rotation.z = qz
         self.tf_broadcaster.sendTransform(tf)
-
 
         # ------------------------------------
         # publish pose with covariance stamped

@@ -59,8 +59,6 @@ class Simulator(Node):
             clock=self.system_clock,
         )
 
-
-
     def joy_callback(self, msg: Joy):
         self.input_aetr = ca.vertcat(
             -msg.axes[3],  # aileron
@@ -78,9 +76,9 @@ class Simulator(Node):
     def timer_callback(self):
         # self.integrate_simulation()
         # self.get_logger().info("in timer")
-        fx = float(self.input_aetr[2]-self.vx)
-        self.vx += (fx/self.m)*self.dt
-        self.x += self.vx*self.dt
+        fx = float(self.input_aetr[2] - self.vx)
+        self.vx += (fx / self.m) * self.dt
+        self.x += self.vx * self.dt
 
         q = 0.5 * self.rho * self.vx**2
         S = 1
@@ -89,26 +87,26 @@ class Simulator(Node):
             ground = -self.z * 10 - self.vz * 10
         else:
             ground = 0
-        L = cl * q * S 
+        L = cl * q * S
         fz = L - self.m * self.g + ground
-        self.vz += (fz/self.m)*self.dt
-        self.z += self.vz*self.dt
+        self.vz += (fz / self.m) * self.dt
+        self.z += self.vz * self.dt
 
-        self.get_logger().info(f"x: {self.x:0.2f}, z: {self.z:0.2f}, vx: {self.vx:0.2f}, vz: {self.vz:0.2f}")
+        self.get_logger().info(
+            f"x: {self.x:0.2f}, z: {self.z:0.2f}, vx: {self.vx:0.2f}, vz: {self.vz:0.2f}"
+        )
         self.get_logger().info(f"fx: {fx:0.2f}, fz: {fz:0.2f}")
-
 
         self.publish_state()
 
-
     def publish_state(self):
-        x= self.x
-        y= 0.0
-        z= self.z
-        qx=0.0
-        qy=0.0
-        qz=0.0
-        qw=1.0
+        x = self.x
+        y = 0.0
+        z = self.z
+        qx = 0.0
+        qy = 0.0
+        qz = 0.0
+        qw = 1.0
 
         # ------------------------------------
         # publish simulation clock
@@ -133,7 +131,6 @@ class Simulator(Node):
         tf.transform.rotation.z = qz
         self.tf_broadcaster.sendTransform(tf)
 
-
         # ------------------------------------
         # publish pose with covariance stamped
         # ------------------------------------
@@ -149,6 +146,7 @@ class Simulator(Node):
         msg_pose.pose.pose.orientation.y = qy
         msg_pose.pose.pose.orientation.z = qz
         self.pub_pose.publish(msg_pose)
+
 
 def main(args=None):
     try:

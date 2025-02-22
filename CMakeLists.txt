@@ -20,6 +20,7 @@ ament_python_install_package(cyecca)
 
 install(PROGRAMS
   scripts/rdd2_sim.py
+  scripts/fixedwing_sim.py
   DESTINATION lib/${PROJECT_NAME};
   )
 

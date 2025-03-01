@@ -293,6 +293,64 @@ def derive_input_auto_level():
 
     return {"input_auto_level": f_input_auto_level}
 
+def derive_position_correction():
+    ## Initializations
+    n = 9 # number of states [x, y, z, u, v, w]
+    sensor_dim = 3  # GPS (3) + Accelerometer (3)
+
+    ## Initilaizing measurments
+    ## TODO: figure out how to translate GPS to position. Need to Initilialize the GPS at the start point and track the change from that initial point. Need a function that converts lat long to x,y,z
+    gps = ca.SX.sym("gps", 3)
+    dt = ca.SX.sym("dt", 1)
+    P = ca.SX.sym("P", 6, 6)
+
+    # Initialize state
+    est_x = ca.SX.sym("est",10) # [x,y,z,u,v,w,q0,q1,q2,q3]
+    # x0 =  ca.vertcat(est_x[0:6], accel) # [x,y,z,u,v,w]
+    x0 =  est_x[0:6]# [x,y,z,u,v,w]
+
+    # Define the state transition matrix (A)
+    A = ca.SX.eye(6) # 6x6 identity matrix
+    A[0:3, 3:6] = np.eye(3) @ dt  # The velocity elements multiply by dt   
+
+    ## TODO: may need to pass Q and R throught the casadi function
+    Q = np.eye(6) * 1e-5  # Process noise (uncertainty in system model)
+    R = np.eye(3) * 1e-2  # Measurement noise (uncertainty in sensors)
+
+    ## TODO: Add H matrix
+    H = ca.horzcat(ca.SX.eye(3), ca.SX.zeros(3,3))  # Measurment matrix (Maps state matrix to measurement matrix)
+
+    # extrapolate uncertainty
+    P_s = A @ P @ A.T + Q
+
+    ## Measurment Update
+    ## vel is a basic integral given acceleration values. need to figure out how to get v0
+    Z = gps
+    y = H @ P_s @ H .T + R
+
+    # Update Kalman Gain
+    K = P_s @ H.T @ ca.inv(y)
+
+    # Update estimate w/ measurment
+    x_new = x0 + K @ ( Z - H @ x0)
+
+    # Update the measurement uncertainty
+    # TODO: Verify np.eye(3) is the correct dimension
+    P_new = (np.eye(6) - (K@H)) @ P_s
+
+    x_new = ca.vertcat(x_new, ca.SX.zeros(4))
+
+    print(x_new.shape)
+    f_pos_estimator = ca.Function(
+        "position_correction",
+        [est_x, gps, dt, P],
+        [x_new, P_new],
+        ["est_x", "gps", "dt", "P"],
+        ["x_new", "P_new"],
+    )
+
+    return {"position_correction": f_pos_estimator}
+    
 
 def derive_attitude_estimator():
     # Define Casadi variables
@@ -643,6 +701,8 @@ if __name__ == "__main__":
     eqs.update(derive_strapdown_ins_propagation())
     eqs.update(derive_control_allocation())
     eqs.update(derive_common())
+    eqs.update(derive_attitude_estimator())
+    eqs.update(derive_position_correction())
 
     for name, eq in eqs.items():
         print("eq: ", name)

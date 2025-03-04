@@ -96,9 +96,9 @@ def derive_model():
         "noise_power_sqrt_mag_b_0": 1e-6,
         "noise_power_sqrt_mag_b_1": 1e-6,
         "noise_power_sqrt_mag_b_2": 1e-6,
-        "noise_power_sqrt_gps_pos_0": 1e-3,
-        "noise_power_sqrt_gps_pos_1": 1e-3,
-        "noise_power_sqrt_gps_pos_2": 1e-3,
+        "noise_power_sqrt_gps_pos_0": 1e-8,
+        "noise_power_sqrt_gps_pos_1": 1e-8,
+        "noise_power_sqrt_gps_pos_2": 1e-8,
     }
 
     # x, state

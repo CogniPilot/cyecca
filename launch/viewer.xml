@@ -1,5 +1,5 @@
 <launch>
-	<node pkg="rviz2" exec="rviz2" args="-d $(env HOME)/cognipilot/cranium/src/cyecca/config/rdd2.config.rviz">
+	<node pkg="rviz2" exec="rviz2" args="-d $(find-pkg-prefix cyecca)/../../src/cyecca/config/rdd2.config.rviz">
 		<param name="use_sim_time" value="true"/>
 	</node>
 </launch>	

@@ -37,7 +37,7 @@ z_integral_max = 0  # 5.0
 ki_z = 0.05  # velocity z integral gain
 
 # estimator params
-att_w_acc =0.2
+att_w_acc = 0.2
 att_w_gyro_bias = 0.1
 param_att_w_mag = 0.2
 

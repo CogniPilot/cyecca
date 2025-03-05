@@ -123,7 +123,6 @@ class Simulator(Node):
         self.Q = 1e-9 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # process noise
         self.P_temp = 1e-2 * np.eye(6, dtype=float)
 
-
         # velocity control data
         self.psi_sp = 0.0  # world yaw orientation set point
         self.psi_vel_sp = 0.0  # " velocity
@@ -174,11 +173,12 @@ class Simulator(Node):
         )
         self.est_x = np.array(res, dtype=float).reshape(-1)
 
+        X1, P1 = self.eqs["position_correction"](
+            self.est_x, self.y_gps_pos, self.dt, self.P_temp
+        )
 
-        X1, P1 = self.eqs["position_correction"](self.est_x, self.y_gps_pos, self.dt, self.P_temp)
-        
-        #print(X1)
-        #print(P1)
+        # print(X1)
+        # print(P1)
 
         self.est_x = np.array(X1, dtype=float).reshape(-1)
         self.P_temp = np.array(P1, dtype=float)
@@ -191,10 +191,14 @@ class Simulator(Node):
 
         DECLANATION = 0
         # IDK what this is
-        
+
         # new code
-        temp_q = np.array(self.eqs["attitude_estimator"](self.q, self.y_mag, DECLANATION, self.y_gyro, self.y_accel, self.dt), dtype=float)
-        
+        temp_q = np.array(
+            self.eqs["attitude_estimator"](
+                self.q, self.y_mag, DECLANATION, self.y_gyro, self.y_accel, self.dt
+            ),
+            dtype=float,
+        )
 
         self.est_x[6] = temp_q[0]
         self.est_x[7] = temp_q[1]
@@ -422,7 +426,7 @@ class Simulator(Node):
         # control allocation
         # ---------------------------------------------------------------------
         self.u, Fp, Fm, Ft, Msat = self.eqs["f_alloc"](F_max, l, CM, CT, thrust, M)
-        # self.get_logger().info('M: %s' % M)
+        self.get_logger().info("Ct: %s" % self.u)
         # self.get_logger().info('u: %s' % self.u)
 
     def joy_callback(self, msg: Joy):

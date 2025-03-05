@@ -256,11 +256,11 @@ def derive_model():
         ["x", "u", "p", "w", "dt"],
         ["y"],
     )
-    north = cyecca.lie.SO3Quat.elem(ca.vertcat(0,1,0,0))
+    north = cyecca.lie.SO3Quat.elem(ca.vertcat(0, 1, 0, 0))
     g_mag = ca.Function(
         "g_mag",
         [x, u, p, w3, dt],
-        [(q_wb *  north * q_bw).param[1:] + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
+        [(q_wb * north * q_bw).param[1:] + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
         ["x", "u", "p", "w", "dt"],
         ["y"],
     )

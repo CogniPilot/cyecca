@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-from cyecca.models import fixedwing, lookupTableFixedwing
+from cyecca.models import fixedwing
 
-# from cyecca.models.lookupTableFixedwing import build_tables
 import casadi as ca
 import numpy as np
 
@@ -63,25 +62,10 @@ class Simulator(Node):
         self.input_mode = "manual"
 
         # -------------------------------------------------------
-        #  Lookup Table
-        # -------------------------------------------------------
-
-        self.lookup_tab = lookupTableFixedwing.build_tables()
-        self.coeff_data = {
-            "CL": 0.0,
-            "CD": 0.0,
-            "Cy": 0.0,
-            "Cl": 0.0,
-            "Cm": 0.0,
-            "Cn": 0.0,
-            "Cmdr": 0.0,
-            "Cmda": 0.0,
-        }
-        # -------------------------------------------------------
         # Dynamics
         # ----------------------------------------------
         dynamics = fixedwing
-        self.model = dynamics.derive_model(coeff_data=self.coeff_data)
+        self.model = dynamics.derive_model()
         self.x0_dict = self.model["x0_defaults"]
         if x0 is not None:
             for k in x0.keys():
@@ -89,7 +73,6 @@ class Simulator(Node):
                     raise KeyError(k)
                 self.x0_dict[k] = x0[k]
         self.p_dict = self.model["p_defaults"]
-        # print(self.p_dict)
         if p is not None:
             for k in p.keys():
                 if not k in self.p_dict.keys():
@@ -98,14 +81,9 @@ class Simulator(Node):
 
         # init state (x), param(p), and input(u)
         self.state = np.array(list(self.x0_dict.values()), dtype=float)
-        self.p = np.array(
-            [
-                self.p_dict[str(self.model["p"][i])]
-                for i in range(self.model["p"].shape[0])
-            ],
-            dtype=float,
-        )
+        self.p = np.array(list(self.p_dict.values()), dtype=float)
         self.u = np.zeros(4, dtype=float)
+
         # start main loop on timer
         self.system_clock = rclpy.clock.Clock(
             clock_type=rclpy.clock.ClockType.SYSTEM_TIME
@@ -115,6 +93,7 @@ class Simulator(Node):
             callback=self.timer_callback,
             clock=self.system_clock,
         )
+
         self.Info = None
 
     # Manual Joy AETR
@@ -169,9 +148,9 @@ class Simulator(Node):
         elif self.input_mode == "auto":
             self.u = ca.vertcat(  # TAER mode
                 float(self.input_auto[0]),
-                float(self.input_auto[1]),
+                float(self.input_auto[1]),  # scaled roll moment from rudder
                 float(self.input_auto[2]),
-                float(self.input_auto[3]),
+                float(self.input_auto[3]),  # Rudder directly affects yaw for nvp
             )
         else:
             self.get_logger().info("unhandled mode: %s" % self.input_mode)
@@ -181,55 +160,11 @@ class Simulator(Node):
         """
         Integrate the simulation one step and calculate measurements
         """
-        RAD2DEG = 180 / ca.pi
-
         try:
-            # Grab from Look Up Table
-            if self.Info == None:
-                self.Info = {}
-                self.Info["alpha"] = 0.0
-                self.Info["beta"] = 0.0
-                self.Info["ail"] = 0.0
-                self.Info["elev"] = 0.0
-                self.Info["rud"] = 0.0
-
-            else:
-                self.coeff_data["CD"] = -1 * self.lookup_tab["Cx"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["elev"] * RAD2DEG
-                )
-                self.coeff_data["Cmdr"] = -1 * self.lookup_tab["DnDr"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["beta"] * RAD2DEG / 2
-                )
-                self.coeff_data["Cmda"] = -1 * self.lookup_tab["DlDa"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["beta"] * RAD2DEG / 2
-                )
-                self.coeff_data["CL"] = self.lookup_tab["Cz"](
-                    self.Info["alpha"] * RAD2DEG,
-                    self.Info["beta"] * RAD2DEG,
-                    self.Info["elev"] * RAD2DEG,
-                )
-                self.coeff_data["Cy"] = self.lookup_tab["Cy"](
-                    self.Info["beta"] * RAD2DEG,
-                    self.Info["ail"] * RAD2DEG,
-                    self.Info["rud"] * RAD2DEG,
-                )
-                self.coeff_data["Cl"] = -1 * self.lookup_tab["Cl"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["beta"] * RAD2DEG
-                )
-                self.coeff_data["Cm"] = -1 * self.lookup_tab["Cm"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["elev"] * RAD2DEG
-                )
-                self.coeff_data["Cn"] = -1 * self.lookup_tab["Cn"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["beta"] * RAD2DEG
-                )
-
-                dynamics = fixedwing
-                # print("Cm", self.coeff_data["Cm"])
-                self.model = dynamics.derive_model(coeff_data=self.coeff_data)
-
             # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
             opts = {"abstol": 1e-2, "reltol": 1e-6, "fsens_err_con": True}
             xdot = self.model["f"](self.state, self.u, self.p)
+            self.get_logger().info("xdot: %s" % xdot)
 
             # RK4
             # f_int = ca.integrator(
@@ -374,6 +309,7 @@ class Simulator(Node):
         self.pub_vel_b.publish(
             vector(self.Info["v_b"], "vel_b", [0.0, 1.0, 1.0, 1.0], 0.1)
         )
+        print(self.Info["qbar"])
 
         # ------------------------------------
         # publish pose with covariance stamped

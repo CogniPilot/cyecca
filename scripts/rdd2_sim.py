@@ -132,6 +132,7 @@ class Simulator(Node):
         self.vb = np.zeros(3, dtype=float)  # velocity in body frame
         self.vw = np.zeros(3, dtype=float)  # velocity in world frame
         self.q = np.array([1, 0, 0, 0], dtype=float)  # quaternion
+        self.gyro_bias = np.zeros(3)  # gyro bias
 
         # diff flat trajectory points
         self.pw_sp = np.zeros(3, dtype=float)  # pos in world sp
@@ -195,7 +196,13 @@ class Simulator(Node):
         # new code
         temp_q = np.array(
             self.eqs["attitude_estimator"](
-                self.q, self.y_mag, DECLANATION, self.y_gyro, self.y_accel, self.dt
+                self.q,
+                self.y_mag,
+                DECLANATION,
+                self.y_gyro,
+                self.y_accel,
+                self.dt,
+                self.gyro_bias,
             ),
             dtype=float,
         )

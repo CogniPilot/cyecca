@@ -374,7 +374,7 @@ class Simulator(Node):
         self.pub_vel_b.publish(
             vector(self.Info["v_b"], "vel_b", [0.0, 1.0, 1.0, 1.0], 0.1)
         )
-
+        print("alpha", self.Info["alpha"],"CL", self.Info["CL"], "CD", self.Info["CD"])
         # ------------------------------------
         # publish pose with covariance stamped
         # ------------------------------------

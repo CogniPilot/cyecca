@@ -115,7 +115,7 @@ def derive_model(coeff_data):
         "Cldr": 0.05,  # Rudder Control effectiveness in roll
         "Cmde": 0.16,  # Elevator control effectiveness in pitch(per rad)
         "Cndr": 0.20,  # Rudder control effectiveness in yaw (per rad)
-        "Cnda": 0.0,  # Aileron control effectiveness in yaw (per rad)
+        "Cnda": 0.00,  # Aileron control effectiveness in yaw (per rad)
         "CYda": 0.02,  # Sideforce due to aileron defelction (per rad)
         "CYdr": -0.08,  # Side force due to rudder deflection (per rad)
         # Longitudinal Stability
@@ -130,7 +130,7 @@ def derive_model(coeff_data):
         "Clp": -0.11,  # Roll damping per rad/s
         "Cnr": -0.105,  # Yaw damping per rad/s
         "Cnp": -0.15,  # Yaw damping due to roll rate
-        "Clr": 0.1,  # Roll damping due to yaw rate
+        "Clr": 0.10,  # Roll damping due to yaw rate
         "CYb": -0.02,  # Sideforce due to sideslip (per rad)
         "CYr": 0.2,  # Sideforce due to yaw rate (per rad/s)
         "CYp": 0.1,  # Side force due to roll rate (per rad/s)

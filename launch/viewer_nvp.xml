@@ -1,0 +1,6 @@
+<launch>
+	<node pkg="rviz2" exec="rviz2" args="-d $(env HOME)/ros2_ws/src/cyecca/config/nvp_sim.config.rviz">
+		<param name="use_sim_time" value="true"/>
+	</node>
+</launch>	
+<!-- vi: ts=4 sw=4 et-->

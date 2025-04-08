@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
+<<<<<<< HEAD
 from cyecca.models import fixedwing, lookupTableFixedwing
 
 # from cyecca.models.lookupTableFixedwing import build_tables
+=======
+from cyecca.models import fixedwing
+
+>>>>>>> main
 import casadi as ca
 import numpy as np
 
@@ -10,13 +15,20 @@ import rclpy.clock
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 
+<<<<<<< HEAD
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, Point
+=======
+from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
+>>>>>>> main
 
 from rosgraph_msgs.msg import Clock
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import Joy
 from tf2_ros import TransformBroadcaster
+<<<<<<< HEAD
 from visualization_msgs.msg import Marker
+=======
+>>>>>>> main
 
 
 class Simulator(Node):
@@ -33,12 +45,15 @@ class Simulator(Node):
         self.pub_pose = self.create_publisher(PoseWithCovarianceStamped, "pose", 1)
         self.pub_clock = self.create_publisher(Clock, "clock", 1)
         self.pub_odom = self.create_publisher(Odometry, "odom", 1)
+<<<<<<< HEAD
         self.pub_lift = self.create_publisher(Marker, "lift", 1)
         self.pub_drag = self.create_publisher(Marker, "drag", 1)
         self.pub_weight = self.create_publisher(Marker, "weight", 1)
         self.pub_thrust = self.create_publisher(Marker, "thrust", 1)
         self.pub_side_force = self.create_publisher(Marker, "side_force", 1)
         self.pub_vel_b = self.create_publisher(Marker, "vel_b", 1)
+=======
+>>>>>>> main
 
         self.tf_broadcaster = TransformBroadcaster(self)
 
@@ -63,6 +78,7 @@ class Simulator(Node):
         self.input_mode = "manual"
 
         # -------------------------------------------------------
+<<<<<<< HEAD
         #  Lookup Table
         # -------------------------------------------------------
 
@@ -82,6 +98,12 @@ class Simulator(Node):
         # ----------------------------------------------
         dynamics = fixedwing
         self.model = dynamics.derive_model(coeff_data=self.coeff_data)
+=======
+        # Dynamics
+        # ----------------------------------------------
+        dynamics = fixedwing
+        self.model = dynamics.derive_model()
+>>>>>>> main
         self.x0_dict = self.model["x0_defaults"]
         if x0 is not None:
             for k in x0.keys():
@@ -89,7 +111,10 @@ class Simulator(Node):
                     raise KeyError(k)
                 self.x0_dict[k] = x0[k]
         self.p_dict = self.model["p_defaults"]
+<<<<<<< HEAD
         # print(self.p_dict)
+=======
+>>>>>>> main
         if p is not None:
             for k in p.keys():
                 if not k in self.p_dict.keys():
@@ -98,6 +123,7 @@ class Simulator(Node):
 
         # init state (x), param(p), and input(u)
         self.state = np.array(list(self.x0_dict.values()), dtype=float)
+<<<<<<< HEAD
         self.p = np.array(
             [
                 self.p_dict[str(self.model["p"][i])]
@@ -106,6 +132,11 @@ class Simulator(Node):
             dtype=float,
         )
         self.u = np.zeros(4, dtype=float)
+=======
+        self.p = np.array(list(self.p_dict.values()), dtype=float)
+        self.u = np.zeros(4, dtype=float)
+
+>>>>>>> main
         # start main loop on timer
         self.system_clock = rclpy.clock.Clock(
             clock_type=rclpy.clock.ClockType.SYSTEM_TIME
@@ -115,7 +146,10 @@ class Simulator(Node):
             callback=self.timer_callback,
             clock=self.system_clock,
         )
+<<<<<<< HEAD
         self.Info = None
+=======
+>>>>>>> main
 
     # Manual Joy AETR
     def joy_callback(self, msg: Joy):
@@ -144,7 +178,11 @@ class Simulator(Node):
         self.input_auto = ca.vertcat(
             msg.axes[0],  # thrust
             msg.axes[1],  # aileron
+<<<<<<< HEAD
             -msg.axes[2],  # elevator -- positive = elevator down (pitch up)
+=======
+            msg.axes[2],  # elevator
+>>>>>>> main
             msg.axes[3],  # rudder
         )  # TAER
 
@@ -169,9 +207,15 @@ class Simulator(Node):
         elif self.input_mode == "auto":
             self.u = ca.vertcat(  # TAER mode
                 float(self.input_auto[0]),
+<<<<<<< HEAD
                 float(self.input_auto[1]),
                 float(self.input_auto[2]),
                 float(self.input_auto[3]),
+=======
+                float(self.input_auto[1]),  # scaled roll moment from rudder
+                float(self.input_auto[2]),
+                float(self.input_auto[3]),  # Rudder directly affects yaw for nvp
+>>>>>>> main
             )
         else:
             self.get_logger().info("unhandled mode: %s" % self.input_mode)
@@ -181,6 +225,7 @@ class Simulator(Node):
         """
         Integrate the simulation one step and calculate measurements
         """
+<<<<<<< HEAD
         RAD2DEG = 180 / ca.pi
 
         try:
@@ -253,6 +298,16 @@ class Simulator(Node):
             print(e)
             xdot = self.model["f"](x=self.state, u=self.u, p=self.p)
             print(xdot)
+=======
+        try:
+            # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
+            f_int = ca.integrator(
+                "test", "cvodes", self.model["dae"], self.t, self.t + self.dt
+            )
+            res = f_int(x0=self.state, z0=0.0, p=self.p, u=self.u)
+        except RuntimeError as e:
+            print(e)
+>>>>>>> main
             raise e
 
         x1 = np.array(res["xf"]).reshape(-1)
@@ -264,7 +319,10 @@ class Simulator(Node):
         # store states and measurements
         # ---------------------------------------------------------------------
         self.state = np.array(res["xf"]).reshape(-1)
+<<<<<<< HEAD
         self.Info = self.model["Info"](x=self.state, u=self.u, p=self.p)
+=======
+>>>>>>> main
 
         self.publish_state()
 
@@ -318,6 +376,7 @@ class Simulator(Node):
         self.tf_broadcaster.sendTransform(tf)
 
         # ------------------------------------
+<<<<<<< HEAD
         # publish tf2 transform vector lift
         # ------------------------------------
         def vector(v, name, color, scale):
@@ -376,6 +435,8 @@ class Simulator(Node):
         )
         print("alpha", self.Info["alpha"], "CL", self.Info["CL"], "CD", self.Info["CD"])
         # ------------------------------------
+=======
+>>>>>>> main
         # publish pose with covariance stamped
         # ------------------------------------
         msg_pose = PoseWithCovarianceStamped()

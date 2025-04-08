@@ -36,6 +36,11 @@ kp_vel = 2.0  # velocity proportional gain
 z_integral_max = 0  # 5.0
 ki_z = 0.05  # velocity z integral gain
 
+# estimator params
+att_w_acc = 0.2
+att_w_gyro_bias = 0.1
+param_att_w_mag = 0.2
+
 
 def derive_control_allocation():
     """
@@ -289,50 +294,6 @@ def derive_input_auto_level():
     return {"input_auto_level": f_input_auto_level}
 
 
-def derive_attitude_estimator():
-    chi = so3.elem(ca.SX.sym("chi", 3))
-    wb = so3.elem(ca.SX.sym("wb", 3))
-    A = -wb.ad()
-    # B = chi.right_jacobian_inv()
-
-    def sym33_to_vector6(m):
-        return ca.vertcat(m[0, 0], m[0, 1], m[0, 2], m[1, 1], m[1, 2], m[2, 2])
-
-    def vector6_to_sym33(v):
-        return ca.vertcat(
-            ca.horzcat(v[0], v[1], v[2]),
-            ca.horzcat(v[1], v[3], v[4]),
-            ca.horzcat(v[2], v[4], v[5]),
-        )
-
-    P0 = ca.triu2symm(ca.SX.sym("P0", ca.Sparsity.upper(3)))
-    Q = ca.triu2symm(ca.SX.sym("Q", ca.Sparsity.upper(3)))
-    dt = ca.SX.sym("dt")
-
-    # prediction
-    P1 = P0 + A @ P0 + P0 @ A.T + Q
-
-    # mag correction
-    # X = SO3Quat("X", ca.SX.param("X", 4))
-    # Xr = SO3Quat("X", ca.SX.param("X", 4))
-
-    # H = np.eye(3)
-    # R_mag
-    # S = H @ P @ H.T + R
-
-    # K = P0.T @ C @ S.inv
-
-    f_cov_prop = ca.Function(
-        "attitude_covariance_propagation",
-        [sym33_to_vector6(P0), sym33_to_vector6(Q), wb.param, dt],
-        [sym33_to_vector6(ca.triu(P1))],
-        ["P0", "Q0", "wb", "dt"],
-        ["P1"],
-    )
-
-    return {"attitude_covariance_propagation": f_cov_prop}
-
-
 def derive_attitude_control():
     """
     Attitude control loop
@@ -568,6 +529,127 @@ def derive_strapdown_ins_propagation():
     return eqs
 
 
+def derive_position_correction():
+    ## Initilaizing measurments
+    z = ca.SX.sym("gps", 3)
+    dt = ca.SX.sym("dt", 1)
+    P = ca.SX.sym("P", 6, 6)
+
+    # Initialize state
+    est_x = ca.SX.sym("est", 10)  # [x,y,z,u,v,w,q0,q1,q2,q3]
+    x0 = est_x[0:6]  # [x,y,z,u,v,w]
+
+    # Define the state transition matrix (A)
+    A = ca.SX.eye(6)
+    A[0:3, 3:6] = np.eye(3) * dt  # The velocity elements multiply by dt
+
+    ## TODO: may need to pass Q and R throught the casadi function
+    Q = np.eye(6) * 1e-5  # Process noise (uncertainty in system model)
+    R = np.eye(3) * 1e-2  # Measurement noise (uncertainty in sensors)
+
+    # Measurement matrix
+    H = ca.horzcat(ca.SX.eye(3), ca.SX.zeros(3, 3))
+
+    # extrapolate uncertainty
+    P_s = A @ P @ A.T + Q
+
+    ## Measurment Update
+    ## vel is a basic integral given acceleration values. need to figure out how to get v0
+    y = H @ P_s @ H.T + R
+
+    # Update Kalman Gain
+    K = P_s @ H.T @ ca.inv(y)
+
+    # Update estimate w/ measurment
+    x_new = x0 + K @ (z - H @ x0)
+
+    # Update the measurement uncertainty
+    P_new = (np.eye(6) - (K @ H)) @ P_s
+
+    # Return to have attitude updated
+    x_new = ca.vertcat(x_new, ca.SX.zeros(4))
+
+    f_pos_estimator = ca.Function(
+        "position_correction",
+        [est_x, z, dt, P],
+        [x_new, P_new],
+        ["est_x", "gps", "dt", "P"],
+        ["x_new", "P_new"],
+    )
+    return {"position_correction": f_pos_estimator}
+
+
+def derive_attitude_estimator():
+    # Define Casadi variables
+    q0 = ca.SX.sym("q", 4)
+    q = SO3Quat.elem(param=q0)
+    mag = ca.SX.sym("mag", 3)
+    mag_decl = ca.SX.sym("mag_decl", 1)
+    gyro = ca.SX.sym("gyro", 3)
+    accel = ca.SX.sym("accel", 3)
+    dt = ca.SX.sym("dt", 1)
+
+    # Convert magnetometer to quat
+    mag1 = SO3Quat.elem(ca.vertcat(0, mag))
+
+    # correction angular velocity vector
+    correction = ca.SX.zeros(3, 1)
+
+    # Convert vector to world frame and extract xy component
+    spin_rate = ca.norm_2(gyro)
+    mag_earth = (q.inverse() * mag1 * q).param[1:]
+
+    mag_err = (
+        ca.fmod(ca.atan2(mag_earth[1], mag_earth[0] - mag_decl) + ca.pi, 2 * ca.pi)
+        - ca.pi
+    )
+
+    # Change gain if spin rate is large
+    fifty_dps = 0.873
+    gain_mult = ca.if_else(spin_rate > fifty_dps, ca.fmin(spin_rate / fifty_dps, 10), 1)
+
+    # Move magnetometer correction in body frame
+    correction += (
+        (q.inverse() * SO3Quat.elem(ca.vertcat(0, 0, 0, mag_err)) * q).param[1:]
+        * param_att_w_mag
+        * gain_mult
+    )
+
+    # Correction from accelerometer
+    accel_norm_sq = ca.norm_2(accel) ** 2
+
+    # Correct accelerometer only if g between
+    higher_lim_check = ca.if_else(accel_norm_sq < ((g * 1.1) ** 2), 1, 0)
+    lower_lim_check = ca.if_else(accel_norm_sq > ((g * 0.9) ** 2), 1, 0)
+
+    # Correct gravity as z
+    correction += (
+        lower_lim_check
+        * higher_lim_check
+        * ca.cross(np.array([[0], [0], [-1]]), accel / ca.norm_2(accel))
+        * att_w_acc
+    )
+
+    ## TODO add gyro bias stuff
+
+    # Add gyro to correction
+    correction += gyro
+
+    # Make the correction
+    q1 = q * so3.elem(correction * dt).exp(SO3Quat)
+
+    # Return estimator
+    f_att_estimator = ca.Function(
+        "attitude_estimator",
+        [q0, mag, mag_decl, gyro, accel, dt],
+        [q1.param],
+        ["q", "mag", "mag_decl", "gyro", "accel", "dt"],
+        ["q1"],
+    )
+
+    return {"attitude_estimator": f_att_estimator}
+
+
 def generate_code(eqs: dict, filename, dest_dir: str, **kwargs):
     """
     Generate C Code from python CasADi functions.
@@ -612,6 +694,8 @@ if __name__ == "__main__":
     eqs.update(derive_strapdown_ins_propagation())
     eqs.update(derive_control_allocation())
     eqs.update(derive_common())
+    eqs.update(derive_attitude_estimator())
+    eqs.update(derive_position_correction())
 
     for name, eq in eqs.items():
         print("eq: ", name)

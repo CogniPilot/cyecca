@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+import cyecca.lie
+
 
 def derive_model():
     n_motor = 4
@@ -85,18 +87,18 @@ def derive_model():
         "Jx": 0.02166666666666667,
         "Jy": 0.02166666666666667,
         "Jz": 0.04000000000000001,
-        "noise_power_sqrt_a_b_0": 70e-6 * g0,  # micro-g/sqrt(hz)
-        "noise_power_sqrt_a_b_1": 70e-6 * g0,
-        "noise_power_sqrt_a_b_2": 70e-6 * g0,
+        "noise_power_sqrt_a_b_0": 70e-3 * g0,  # micro-g/sqrt(hz)
+        "noise_power_sqrt_a_b_1": 70e-3 * g0,
+        "noise_power_sqrt_a_b_2": 70e-3 * g0,
         "noise_power_sqrt_omega_wb_b_0": np.deg2rad(2.8e-3),  # 2.8 milli-dpgs/sqrt(hz)
         "noise_power_sqrt_omega_wb_b_1": np.deg2rad(2.8e-3),
         "noise_power_sqrt_omega_wb_b_2": np.deg2rad(2.8e-3),
-        "noise_power_sqrt_mag_b_0": 0,
-        "noise_power_sqrt_mag_b_1": 0,
-        "noise_power_sqrt_mag_b_2": 0,
-        "noise_power_sqrt_gps_pos_0": 0,
-        "noise_power_sqrt_gps_pos_1": 0,
-        "noise_power_sqrt_gps_pos_2": 0,
+        "noise_power_sqrt_mag_b_0": 1e-6,
+        "noise_power_sqrt_mag_b_1": 1e-6,
+        "noise_power_sqrt_mag_b_2": 1e-6,
+        "noise_power_sqrt_gps_pos_0": 1e-8,
+        "noise_power_sqrt_gps_pos_1": 1e-8,
+        "noise_power_sqrt_gps_pos_2": 1e-8,
     }
 
     # x, state
@@ -177,7 +179,7 @@ def derive_model():
     # position_od_w = position_op_w + q_bw @ ca.vertcat(-0.17, 0.17, -0.1)
 
     # Fa_w = ca.if_else(position_oa_w[2] < 0, -1000*position_oa_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
-    # Fb_w = ca.if_else(position_ob_w[2] < 0, -1000*position_ob_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
+    # Fb_w = caposition_op_w.if_else(position_ob_w[2] < 0, -1000*position_ob_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
     # Fc_w = ca.if_else(position_oc_w[2] < 0, -1000*position_oc_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
     # Fd_w = ca.if_else(position_od_w[2] < 0, -1000*position_od_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
 
@@ -254,10 +256,11 @@ def derive_model():
         ["x", "u", "p", "w", "dt"],
         ["y"],
     )
+    north = cyecca.lie.SO3Quat.elem(ca.vertcat(0, 1, 0, 0))
     g_mag = ca.Function(
         "g_mag",
         [x, u, p, w3, dt],
-        [a_b + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
+        [(q_wb * north * q_bw).param[1:] + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
         ["x", "u", "p", "w", "dt"],
         ["y"],
     )

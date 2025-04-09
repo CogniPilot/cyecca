@@ -1,3 +1,8 @@
+'''
+Fixed-Wing Vehicle Dynamics for E-Flite Night Vapor UAV
+3-channel input control: [Throttle, Elevator, Rudder]
+'''
+
 import casadi as ca
 import cyecca
 import numpy as np
@@ -32,12 +37,12 @@ def derive_model(coeff_data):
 
     # Control Moment
     Cm0 = ca.SX.sym("Cm0")  # Coefficient of Moment
-    Clda = ca.SX.sym("Clda")  # roll moment coefficient based on aileron
+    # Clda = ca.SX.sym("Clda")  # roll moment coefficient based on aileron
     Cldr = ca.SX.sym("Cldr")  # roll moment coefficient based on rudder
     Cmde = ca.SX.sym("Cmde")  # pitch moment coefficient based on elevator
     Cndr = ca.SX.sym("Cndr")  # yaw moment coefficient based on rudder
-    Cnda = ca.SX.sym("Cnda")  # yaw moment coefficient based on aileron
-    CYda = ca.SX.sym("CYda")  # Sideforce due to aileron
+    # Cnda = ca.SX.sym("Cnda")  # yaw moment coefficient based on aileron
+    # CYda = ca.SX.sym("CYda")  # Sideforce due to aileron
     CYdr = ca.SX.sym("CYdr")  # Sideforce due to rudder
 
     # Longitudinal Stability Coefficients
@@ -73,12 +78,9 @@ def derive_model(coeff_data):
         cbar,
         span,
         Cm0,
-        Clda,
         Cldr,
         Cmde,
         Cndr,
-        Cnda,
-        CYda,
         CYdr,
         CL0,
         CLa,
@@ -111,12 +113,9 @@ def derive_model(coeff_data):
         "span": 0.34,  # Wingspan (m)
         # Control Effectiveness (Converted to radians)
         "Cm0": 0.01,  # Zero-lift pitching moment coefficient
-        "Clda": 0.00,  # 0.026,  # Aileron control effectiveness in roll(per rad)
-        "Cldr": 0.05,  # Rudder Control effectiveness in roll
-        "Cmde": 0.16,  # Elevator control effectiveness in pitch(per rad)
-        "Cndr": 0.20,  # Rudder control effectiveness in yaw (per rad)
-        "Cnda": 0.00,  # Aileron control effectiveness in yaw (per rad)
-        "CYda": 0.02,  # Sideforce due to aileron defelction (per rad)
+        "Cldr": 0.15,  # Rudder Control effectiveness in roll
+        "Cmde": 0.25,  # Elevator control effectiveness in pitch(per rad)
+        "Cndr": 0.10,  # Rudder control effectiveness in yaw (per rad)
         "CYdr": -0.08,  # Side force due to rudder deflection (per rad)
         # Longitudinal Stability
         "CL0": 0.6,  # Adjusted lift coefficient at zero AoA
@@ -151,16 +150,16 @@ def derive_model(coeff_data):
         omega_wb_b,
     )
     x0_defaults = {
-        "position_w_0": 0.0,
-        "position_w_1": 0.0,
+        "position_w_0": 1.0,
+        "position_w_1": 5.3,
         "position_w_2": 0.0,
         "velocity_b_0": 0.0,
         "velocity_b_1": 0.0,
         "velocity_b_2": 0.0,
-        "quat_wb_0": 1.0,
+        "quat_wb_0": 0.0,
         "quat_wb_1": 0.0,
         "quat_wb_2": 0.0,
-        "quat_wb_3": 0.0,
+        "quat_wb_3": 1.0,
         "omega_wb_b_0": 0.0,
         "omega_wb_b_1": 0.0,
         "omega_wb_b_2": 0.0,
@@ -168,11 +167,10 @@ def derive_model(coeff_data):
 
     # input
     throttle_cmd = ca.SX.sym("throttle_cmd")
-    ail_cmd = ca.SX.sym("ail_cmd")
     elev_cmd = ca.SX.sym("elev_cmd")
     rud_cmd = ca.SX.sym("rud_cmd")
 
-    u = ca.vertcat(throttle_cmd, ail_cmd, elev_cmd, rud_cmd)
+    u = ca.vertcat(throttle_cmd, elev_cmd, rud_cmd)
 
     xAxis = ca.vertcat(1, 0, 0)
     yAxis = ca.vertcat(0, 1, 0)
@@ -220,11 +218,8 @@ def derive_model(coeff_data):
     # Control Surface Defelction
     max_defl = 30  # maximum control surface deflection in deg
     max_defl_elev = 24
-    ail_rad = max_defl * DEG2RAD * u[1]
-    elev_rad = max_defl_elev * DEG2RAD * u[2]  #
-    rud_rad = (
-        max_defl * DEG2RAD * u[3]
-    )  # (u[3] is "rudder stick") (-1 * u[1] is "aileron stick")4
+    elev_rad = max_defl_elev * DEG2RAD * u[1] 
+    rud_rad = max_defl * DEG2RAD * u[2] 
     ##############################################################################################
 
     # Force and Moment Model
@@ -251,7 +246,6 @@ def derive_model(coeff_data):
     # (Steven pg 91 eqn 2.3-17a) and (Steven Pg 79 eqn 2.3-8b)
     CC = (
         -CYb * beta
-        + CYda * ail_rad / (max_defl * DEG2RAD)
         + CYdr * rud_rad / (max_defl * DEG2RAD)
     )  # Crosswind Force Coefficient
     CC += (
@@ -262,11 +256,11 @@ def derive_model(coeff_data):
     )  # Sideforce due to yaw rate #(Steven pg 91 eqn 2.3-17a)
 
     ### Using Equation to calculate rotational moment coefficent
-    Cl = Clda * ail_rad + (-1) * Cldr * rud_rad  # roll moment coefficient
+    Cl = (-1) * Cldr * rud_rad  # roll moment coefficient
     Cm = Cm0 + Cma * alpha + Cmde * elev_rad  # pitch moment coefficient
-    Cn = Cnb * beta + Cndr * rud_rad + (-1) * Cnda * ail_rad  # yaw moment coefficient
+    Cn = Cnb * beta + Cndr * rud_rad # yaw moment coefficient
     ### Using Lookup table to obtain rotational moment coefficent
-    # Cl = cl + Cmda * ail_rad/(max_defl*DEG2RAD)
+    # Cl = cl 
     # Cm = cm
     # Cn = cn + Cndr * rud_rad/(max_defl*DEG2RAD)
 
@@ -292,7 +286,7 @@ def derive_model(coeff_data):
         force_w = ca.if_else(
             pos_wheel_w[2] < 0.0,
             saturate(-(pos_wheel_w[2]) * 10, -100, 100) * zAxis
-            - vel_wheel_w[2] * 0.10 * zAxis  # Vertical Component Damping
+            - vel_wheel_w[2] * 01.10 * zAxis  # Vertical Component Damping
             - vel_wheel_w[0] * 0.001 * xAxis  # ground damping
             - vel_wheel_w[1] * 0.001 * yAxis,  # ground damping
             ca.vertcat(0, 0, 0),  # Airborne (no ground force effect)
@@ -391,7 +385,6 @@ def derive_model(coeff_data):
             qbar,
             beta,
             elev_rad,
-            ail_rad,
             rud_rad,
             Cndr,
         ],
@@ -410,7 +403,6 @@ def derive_model(coeff_data):
             "qbar",
             "beta",
             "elev",
-            "ail",
             "rud",
             "Cndr",
         ],

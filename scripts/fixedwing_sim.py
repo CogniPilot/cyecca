@@ -105,6 +105,7 @@ class Simulator(Node):
             dtype=float,
         )
         self.u = np.zeros(4, dtype=float)
+
         # start main loop on timer
         self.system_clock = rclpy.clock.Clock(
             clock_type=rclpy.clock.ClockType.SYSTEM_TIME
@@ -171,6 +172,7 @@ class Simulator(Node):
         if self.input_mode == "manual":  # logitech f310
             self.u = ca.vertcat(  # TER mode 3-Channel
                 float(self.input_aetr[2]),
+                float(self.input_aetr[0]),
                 float(self.input_aetr[1]),
                 -1 * float(self.input_aetr[0]),
             )
@@ -180,6 +182,7 @@ class Simulator(Node):
                 float(self.input_auto[0]),
                 float(self.input_auto[1]),
                 float(self.input_auto[2]),
+                float(self.input_auto[3]),  # Rudder directly affects yaw for nvp
             )
             print("auto input", self.u)
         else:

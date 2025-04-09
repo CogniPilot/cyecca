@@ -50,8 +50,8 @@ class Simulator(Node):
             Joy, "/auto_joy", self.auto_joy_callback, 1
         )
 
-        self.input_aetr = ca.vertcat(0.0, 0.0, 0.0, 0.0)
-        self.input_auto = ca.vertcat(0.0, 0.0, 0.0, 0.0)
+        self.input_aetr = ca.vertcat(0.0, 0.0, 0.0)
+        self.input_auto = ca.vertcat(0.0, 0.0, 0.0)
 
         self.t = 0.0
         self.dt = 0.01
@@ -70,7 +70,6 @@ class Simulator(Node):
         self.coeff_data = {
             "CL": 0.0,
             "CD": 0.0,
-            "Cy": 0.0,
             "Cl": 0.0,
             "Cm": 0.0,
             "Cn": 0.0,
@@ -106,6 +105,7 @@ class Simulator(Node):
             dtype=float,
         )
         self.u = np.zeros(4, dtype=float)
+
         # start main loop on timer
         self.system_clock = rclpy.clock.Clock(
             clock_type=rclpy.clock.ClockType.SYSTEM_TIME
@@ -143,10 +143,10 @@ class Simulator(Node):
     def auto_joy_callback(self, msg: Joy):
         self.input_auto = ca.vertcat(
             msg.axes[0],  # thrust
-            msg.axes[1],  # aileron
+            # msg.axes[1],  # aileron
             -msg.axes[2],  # elevator -- positive = elevator down (pitch up)
-            msg.axes[3],  # rudder
-        )  # TAER
+            msg.axes[1],  # rudder
+        )  # TER
 
     def clock_as_msg(self):
         msg = Clock()
@@ -158,21 +158,33 @@ class Simulator(Node):
         # ---------------------------------------------------------------------
         # mode handling
         # ---------------------------------------------------------------------
-        if self.input_mode == "manual":
-            self.u = ca.vertcat(  # TAER mode
+
+        # # 4 Channel Airplane
+        # if self.input_mode == "manual": #logitech f310
+        #     self.u = ca.vertcat(  # TAER mode
+        #         float(self.input_aetr[2]),
+        #         float(self.input_aetr[0]), # Sets aileron into auto or manual
+        #         float(self.input_aetr[1]),
+        #         float(self.input_aetr[3]),
+        #     )
+
+        # NVP Mapped with Roll Control
+        if self.input_mode == "manual":  # logitech f310
+            self.u = ca.vertcat(  # TER mode 3-Channel
                 float(self.input_aetr[2]),
                 float(self.input_aetr[0]),
                 float(self.input_aetr[1]),
-                float(self.input_aetr[3]),
+                -1 * float(self.input_aetr[0]),
             )
-
+            print("manual input", self.u)
         elif self.input_mode == "auto":
-            self.u = ca.vertcat(  # TAER mode
+            self.u = ca.vertcat(  # TER mode 3-Channel
                 float(self.input_auto[0]),
                 float(self.input_auto[1]),
                 float(self.input_auto[2]),
-                float(self.input_auto[3]),
+                float(self.input_auto[3]),  # Rudder directly affects yaw for nvp
             )
+            print("auto input", self.u)
         else:
             self.get_logger().info("unhandled mode: %s" % self.input_mode)
             self.u = ca.vertcat(float(0), float(0), float(0), float(0))
@@ -189,7 +201,7 @@ class Simulator(Node):
                 self.Info = {}
                 self.Info["alpha"] = 0.0
                 self.Info["beta"] = 0.0
-                self.Info["ail"] = 0.0
+                # self.Info["ail"] = 0.0
                 self.Info["elev"] = 0.0
                 self.Info["rud"] = 0.0
 
@@ -207,11 +219,6 @@ class Simulator(Node):
                     self.Info["alpha"] * RAD2DEG,
                     self.Info["beta"] * RAD2DEG,
                     self.Info["elev"] * RAD2DEG,
-                )
-                self.coeff_data["Cy"] = self.lookup_tab["Cy"](
-                    self.Info["beta"] * RAD2DEG,
-                    self.Info["ail"] * RAD2DEG,
-                    self.Info["rud"] * RAD2DEG,
                 )
                 self.coeff_data["Cl"] = -1 * self.lookup_tab["Cl"](
                     self.Info["alpha"] * RAD2DEG, self.Info["beta"] * RAD2DEG
@@ -374,7 +381,7 @@ class Simulator(Node):
         self.pub_vel_b.publish(
             vector(self.Info["v_b"], "vel_b", [0.0, 1.0, 1.0, 1.0], 0.1)
         )
-        print("alpha", self.Info["alpha"], "CL", self.Info["CL"], "CD", self.Info["CD"])
+        # print("alpha", self.Info["alpha"], "CL", self.Info["CL"], "CD", self.Info["CD"])
         # ------------------------------------
         # publish pose with covariance stamped
         # ------------------------------------

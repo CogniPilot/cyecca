@@ -1,7 +1,7 @@
-'''
+"""
 Fixed-Wing Vehicle Dynamics for E-Flite Night Vapor UAV
 3-channel input control: [Throttle, Elevator, Rudder]
-'''
+"""
 
 import casadi as ca
 import cyecca
@@ -218,8 +218,8 @@ def derive_model(coeff_data):
     # Control Surface Defelction
     max_defl = 30  # maximum control surface deflection in deg
     max_defl_elev = 24
-    elev_rad = max_defl_elev * DEG2RAD * u[1] 
-    rud_rad = max_defl * DEG2RAD * u[2] 
+    elev_rad = max_defl_elev * DEG2RAD * u[1]
+    rud_rad = max_defl * DEG2RAD * u[2]
     ##############################################################################################
 
     # Force and Moment Model
@@ -244,9 +244,8 @@ def derive_model(coeff_data):
     CD = CD0 + CDCLS * CL * CL  # Drag Polar
 
     # (Steven pg 91 eqn 2.3-17a) and (Steven Pg 79 eqn 2.3-8b)
-    CC = (
-        -CYb * beta
-        + CYdr * rud_rad / (max_defl * DEG2RAD)
+    CC = -CYb * beta + CYdr * rud_rad / (
+        max_defl * DEG2RAD
     )  # Crosswind Force Coefficient
     CC += (
         CYp * span / (2 * V_b) * P
@@ -258,9 +257,9 @@ def derive_model(coeff_data):
     ### Using Equation to calculate rotational moment coefficent
     Cl = (-1) * Cldr * rud_rad  # roll moment coefficient
     Cm = Cm0 + Cma * alpha + Cmde * elev_rad  # pitch moment coefficient
-    Cn = Cnb * beta + Cndr * rud_rad # yaw moment coefficient
+    Cn = Cnb * beta + Cndr * rud_rad  # yaw moment coefficient
     ### Using Lookup table to obtain rotational moment coefficent
-    # Cl = cl 
+    # Cl = cl
     # Cm = cm
     # Cn = cn + Cndr * rud_rad/(max_defl*DEG2RAD)
 

@@ -168,11 +168,11 @@ class Simulator(Node):
         #     )
 
         # NVP Mapped with Roll Control
-        if self.input_mode == "manual": #logitech f310
+        if self.input_mode == "manual":  # logitech f310
             self.u = ca.vertcat(  # TER mode 3-Channel
                 float(self.input_aetr[2]),
                 float(self.input_aetr[1]),
-                -1*float(self.input_aetr[0]),
+                -1 * float(self.input_aetr[0]),
             )
             print("manual input", self.u)
         elif self.input_mode == "auto":

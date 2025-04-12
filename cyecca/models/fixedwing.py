@@ -32,9 +32,6 @@ def derive_model(coeff_data):
     Jy = ca.SX.sym("Jy")  # Moment of Inertia in y direction
     Jz = ca.SX.sym("Jz")  # Moment of Inertia in z direction
     J = ca.diag(ca.vertcat(Jx, Jy, Jz))  # Moment of Inertia Array
-    Cm_p = ca.SX.sym("Cm_p")  # moment coefficient for roll
-    Cm_q = ca.SX.sym("Cm_q")  # moment coefficient for pitch
-    Cm_r = ca.SX.sym("Cm_r")  # moment coefficent for yaw
     cbar = ca.SX.sym("cbar")  # mean chord (m)
     span = ca.SX.sym("span")  # wing span (m)
 
@@ -78,9 +75,6 @@ def derive_model(coeff_data):
         Jx,
         Jy,
         Jz,
-        Cm_p,
-        Cm_q,
-        Cm_r,
         cbar,
         span,
         Cm0,
@@ -163,7 +157,7 @@ def derive_model(coeff_data):
         "velocity_b_1": 0.0,
         "velocity_b_2": 0.0,
         "quat_wb_0": 0.0,
-        "quat_wb_1": 0.0,
+        "quat_wb_1": 0.09,
         "quat_wb_2": 0.0,
         "quat_wb_3": 1.0,
         "omega_wb_b_0": 0.0,
@@ -173,7 +167,6 @@ def derive_model(coeff_data):
 
     # input
     throttle_cmd = ca.SX.sym("throttle_cmd")
-    ail_cmd = ca.SX.sym("ail_cmd")
     elev_cmd = ca.SX.sym("elev_cmd")
     rud_cmd = ca.SX.sym("rud_cmd")
 
@@ -230,7 +223,6 @@ def derive_model(coeff_data):
     ##############################################################################################
 
     # Force and Moment Model
-    cl = cl0 + cla * (-1 * alpha)  # Lift Coefficient
 
     # ##############################################################################################
     # ## From Look Up table

@@ -630,10 +630,22 @@ def derive_attitude_estimator():
         * att_w_acc
     )
 
-    ## TODO add gyro bias stuff
+    # Gyro bias calculations
+    # gyro_bias_params = {"decimal": 2, "bias_max": 1, "bias_min": 0}
+
+    gyro_bias_input = ca.SX.sym("gyro_bias", 3)
+    gyro_bias_max = 1
+    # gyro_bias_min = 0
+    gyro_bias_decimal = 2
+    gyro_bias = gyro_bias_input
+
+    bias_increment = correction * gyro_bias_decimal * dt
+    gyro_bias = gyro_bias_input + ca.if_else(spin_rate < 0.175, bias_increment, 0)
+    gyro_bias = ca.fmin(gyro_bias, gyro_bias_max)
+    gyro_bias = ca.fmax(gyro_bias, -gyro_bias_max)
 
     # Add gyro to correction
-    correction += gyro
+    correction += gyro + gyro_bias
 
     # Make the correction
     q1 = q * so3.elem(correction * dt).exp(SO3Quat)
@@ -641,9 +653,9 @@ def derive_attitude_estimator():
     # Return estimator
     f_att_estimator = ca.Function(
         "attitude_estimator",
-        [q0, mag, mag_decl, gyro, accel, dt],
+        [q0, mag, mag_decl, gyro, accel, dt, gyro_bias_input],
         [q1.param],
-        ["q", "mag", "mag_decl", "gyro", "accel", "dt"],
+        ["q", "mag", "mag_decl", "gyro", "accel", "dt", "gyro_bias"],
         ["q1"],
     )
 

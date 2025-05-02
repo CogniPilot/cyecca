@@ -37,9 +37,9 @@ z_integral_max = 0  # 5.0
 ki_z = 0.05  # velocity z integral gain
 
 # estimator params
-att_w_acc = 0.2
-att_w_gyro_bias = 0.1
-param_att_w_mag = 0.2
+att_w_acc = 0.4
+att_w_gyro_bias = 0
+param_att_w_mag = 0.4
 
 
 def derive_control_allocation():
@@ -597,10 +597,10 @@ def derive_attitude_estimator():
 
     # Convert vector to world frame and extract xy component
     spin_rate = ca.norm_2(gyro)
-    mag_earth = (q.inverse() * mag1 * q).param[1:]
 
+    mag_earth = q.inverse() @ mag
     mag_err = (
-        ca.fmod(ca.atan2(mag_earth[1], mag_earth[0] - mag_decl) + ca.pi, 2 * ca.pi)
+        ca.fmod(ca.atan2(mag_earth[1], mag_earth[0]) - mag_decl + ca.pi, 2 * ca.pi)
         - ca.pi
     )
 
@@ -610,7 +610,7 @@ def derive_attitude_estimator():
 
     # Move magnetometer correction in body frame
     correction += (
-        (q.inverse() * SO3Quat.elem(ca.vertcat(0, 0, 0, mag_err)) * q).param[1:]
+        q@ca.vertcat(0,0,mag_err)
         * param_att_w_mag
         * gain_mult
     )
@@ -633,7 +633,7 @@ def derive_attitude_estimator():
     ## TODO add gyro bias stuff
 
     # Add gyro to correction
-    correction += gyro
+    # correction += gyro
 
     # Make the correction
     q1 = q * so3.elem(correction * dt).exp(SO3Quat)

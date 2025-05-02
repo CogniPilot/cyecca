@@ -173,15 +173,21 @@ class Simulator(Node):
         )
         self.est_x = np.array(res, dtype=float).reshape(-1)
 
+        self.q = np.array(
+            [self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]],
+            dtype=float,
+        )
+
         X1, P1 = self.eqs["position_correction"](
             self.est_x, self.y_gps_pos, self.dt, self.P_temp
         )
 
         # print(X1)
         # print(P1)
-
+        print(self.est_x)
         self.est_x = np.array(X1, dtype=float).reshape(-1)
         self.P_temp = np.array(P1, dtype=float)
+        print(self.est_x)
 
         # self.P = np.array(
         #     self.eqs["attitude_covariance_propagation"](
@@ -189,13 +195,11 @@ class Simulator(Node):
         #     )
         # ).reshape(-1)
 
-        DECLANATION = 0
-        # IDK what this is
+        DECLANATION_IND = -6.666/180*ca.pi # Declanation of WL Indiana
 
-        # new code
         temp_q = np.array(
             self.eqs["attitude_estimator"](
-                self.q, self.y_mag, DECLANATION, self.y_gyro, self.y_accel, self.dt
+                self.q, self.y_mag, DECLANATION_IND, self.y_gyro, self.y_accel, self.dt
             ),
             dtype=float,
         )
@@ -426,7 +430,6 @@ class Simulator(Node):
         # control allocation
         # ---------------------------------------------------------------------
         self.u, Fp, Fm, Ft, Msat = self.eqs["f_alloc"](F_max, l, CM, CT, thrust, M)
-        self.get_logger().info("Ct: %s" % self.u)
         # self.get_logger().info('u: %s' % self.u)
 
     def joy_callback(self, msg: Joy):
@@ -704,9 +707,9 @@ class Simulator(Node):
         tf.header.frame_id = "map"
         tf.child_frame_id = "base_link_est"
         tf.header.stamp = msg_clock.clock
-        tf.transform.translation.x = self.est_x[0]
-        tf.transform.translation.y = self.est_x[1]
-        tf.transform.translation.z = self.est_x[2]
+        tf.transform.translation.x = self.x[0]#est_x[0]
+        tf.transform.translation.y = self.x[1]#est_x[1]
+        tf.transform.translation.z = self.x[2]#est_x[2]
         tf.transform.rotation.w = self.est_x[6]
         tf.transform.rotation.x = self.est_x[7]
         tf.transform.rotation.y = self.est_x[8]

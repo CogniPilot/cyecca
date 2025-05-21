@@ -93,9 +93,9 @@ def derive_model():
         "noise_power_sqrt_omega_wb_b_0": np.deg2rad(2.8e-3),  # 2.8 milli-dpgs/sqrt(hz)
         "noise_power_sqrt_omega_wb_b_1": np.deg2rad(2.8e-3),
         "noise_power_sqrt_omega_wb_b_2": np.deg2rad(2.8e-3),
-        "noise_power_sqrt_mag_b_0": 1e-6,
-        "noise_power_sqrt_mag_b_1": 1e-6,
-        "noise_power_sqrt_mag_b_2": 1e-6,
+        "noise_power_sqrt_mag_b_0": 1e-3,
+        "noise_power_sqrt_mag_b_1": 1e-3,
+        "noise_power_sqrt_mag_b_2": 1e-3,
         "noise_power_sqrt_gps_pos_0": 1e-8,
         "noise_power_sqrt_gps_pos_1": 1e-8,
         "noise_power_sqrt_gps_pos_2": 1e-8,
@@ -256,11 +256,20 @@ def derive_model():
         ["x", "u", "p", "w", "dt"],
         ["y"],
     )
-    north = cyecca.lie.SO3Quat.elem(ca.vertcat(0, 1, 0, 0))
+
+    STRENGTH = 0.52107
+    IND_DEC = -6.66/180*ca.pi
+    IND_INC = 67.22/180*ca.pi
+    decl_incl = cyecca.lie.SO3EulerB321.elem(ca.vertcat(IND_DEC, IND_INC, 0))
+    
+    north = ca.vertcat(STRENGTH, 0, 0)
+
+    measured_north = decl_incl@north
+
     g_mag = ca.Function(
         "g_mag",
         [x, u, p, w3, dt],
-        [(q_wb * north * q_bw).param[1:] + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
+        [q_wb@measured_north + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
         ["x", "u", "p", "w", "dt"],
         ["y"],
     )

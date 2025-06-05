@@ -184,10 +184,10 @@ class Simulator(Node):
 
         # print(X1)
         # print(P1)
-        print(self.est_x)
+        #print(self.est_x)
         self.est_x = np.array(X1, dtype=float).reshape(-1)
         self.P_temp = np.array(P1, dtype=float)
-        print(self.est_x)
+        #print(self.est_x)
 
         # self.P = np.array(
         #     self.eqs["attitude_covariance_propagation"](
@@ -203,6 +203,7 @@ class Simulator(Node):
             ),
             dtype=float,
         )
+        print(self.y_mag)
 
         self.est_x[6] = temp_q[0]
         self.est_x[7] = temp_q[1]
@@ -373,17 +374,17 @@ class Simulator(Node):
                 )
                 self.qc_sp = self.eqs["eulerB321_to_quat"](psi, 0, 0)
                 self.pw_sp = np.array([x, y, z]).reshape(-1)
-                print(
-                    thrust_trim,
-                    self.pw_sp,
-                    self.vw_sp,
-                    self.aw_sp,
-                    self.qc_sp,
-                    self.pw,
-                    self.vw,
-                    self.z_i,
-                    self.dt,
-                )
+            #    print(
+            #         thrust_trim,
+            #         self.pw_sp,
+            #         self.vw_sp,
+            #         self.aw_sp,
+            #         self.qc_sp,
+            #         self.pw,
+            #         self.vw,
+            #         self.z_i,
+            #         self.dt,
+            #     )
                 [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
                     thrust_trim,
                     self.pw_sp,
@@ -543,7 +544,7 @@ class Simulator(Node):
         except RuntimeError as e:
             print(e)
             xdot = self.model["f"](x=self.x, u=self.u, p=self.p)
-            print(xdot, self.x, self.u, self.p)
+            #print(xdot, self.x, self.u, self.p)
             raise e
 
         x1 = np.array(res["xf"]).reshape(-1)

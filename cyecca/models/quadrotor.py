@@ -266,10 +266,19 @@ def derive_model():
 
     measured_north = decl_incl@north
 
+    # Magnetometer frame transformation: flip y and z axes
+    # Original frame: x=forward, y=left, z=up
+    # Desired frame: x=forward, y=right, z=down
+    mag_frame_transform = ca.vertcat(
+        ca.horzcat(1, 0, 0),    # x stays the same
+        ca.horzcat(0, -1, 0),   # y flipped (left -> right)
+        ca.horzcat(0, 0, -1)    # z flipped (up -> down)
+    )
+
     g_mag = ca.Function(
         "g_mag",
         [x, u, p, w3, dt],
-        [q_wb@measured_north + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
+        [mag_frame_transform @ (q_wb@measured_north) + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
         ["x", "u", "p", "w", "dt"],
         ["y"],
     )

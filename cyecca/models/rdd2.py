@@ -598,7 +598,17 @@ def derive_attitude_estimator():
     # Convert vector to world frame and extract xy component
     spin_rate = ca.norm_2(gyro)
 
-    mag_earth = q.inverse() @ mag
+    # Magnetometer frame transformation: flip y and z axes
+    # Original frame: x=forward, y=right, z=dowm
+    # Desired frame: x=forward, y=left, z=up
+    mag_frame_transform = ca.vertcat(
+        ca.horzcat(1, 0, 0),    # x stays the same
+        ca.horzcat(0, -1, 0),   # y flipped (right -> left)
+        ca.horzcat(0, 0, -1)    # z flipped (down -> up)
+    )
+
+
+    mag_earth = q.inverse() @ (mag_frame_transform @ mag)
     mag_err = (
         ca.fmod(ca.atan2(mag_earth[1], mag_earth[0]) - mag_decl + ca.pi, 2 * ca.pi)
         - ca.pi

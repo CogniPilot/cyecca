@@ -118,7 +118,7 @@ class Simulator(Node):
         self.de0 = np.zeros(3, dtype=float)  # deriv of att error (for lowpass)
 
         # estimator data
-        self.use_estimator = True  # if false, will use sim state instead for control
+        self.use_estimator = False  # if false, will use sim state instead for control
         self.P = 1e-2 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # state covariance
         self.Q = 1e-9 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # process noise
         self.P_temp = 1e-2 * np.eye(6, dtype=float)
@@ -196,7 +196,6 @@ class Simulator(Node):
         # ).reshape(-1)
 
         DECLANATION_IND = -6.666/180*ca.pi # Declanation of WL Indiana
-
         temp_q = np.array(
             self.eqs["attitude_estimator"](
                 self.q, self.y_mag, DECLANATION_IND, self.y_gyro, self.y_accel, self.dt

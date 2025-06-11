@@ -82,8 +82,8 @@ class Simulator(Node):
         self.eqs = {}
         self.eqs.update(rdd2.derive_attitude_rate_control())
         self.eqs.update(rdd2.derive_attitude_control())
+        self.eqs.update(rdd2.derive_velocity_control())
         self.eqs.update(rdd2.derive_position_control())
-        self.eqs.update(rdd2.derive_input_acro())
         self.eqs.update(rdd2.derive_input_auto_level())
         self.eqs.update(rdd2.derive_input_velocity())
         self.eqs.update(rdd2.derive_strapdown_ins_propagation())
@@ -278,20 +278,23 @@ class Simulator(Node):
             omega_sp = self.eqs["attitude_control"](k_p_att, self.q, self.q_sp)
 
         elif self.input_mode == "velocity":
+
+            vb_sp, self.psi_vel_sp = self.eqs["input_velocity"](self.input_aetr)
+
             reset_position = False
             [
                 self.psi_sp,
-                self.psi_vel_sp,
                 self.pw_sp,
                 self.vw_sp,
                 self.aw_sp,
                 self.qc_sp,
-            ] = self.eqs["input_velocity"](
+            ] = self.eqs["velocity_control"](
                 self.dt,
                 self.psi_sp,
                 self.pw_sp,
                 self.pw,
-                self.input_aetr,
+                vb_sp,
+                self.psi_vel_sp,
                 reset_position,
             )
             if self.control_mode == "mellinger":
@@ -426,7 +429,7 @@ class Simulator(Node):
         # control allocation
         # ---------------------------------------------------------------------
         self.u, Fp, Fm, Ft, Msat = self.eqs["f_alloc"](F_max, l, CM, CT, thrust, M)
-        self.get_logger().info("Ct: %s" % self.u)
+        # self.get_logger().info("Ct: %s" % self.u)
         # self.get_logger().info('u: %s' % self.u)
 
     def joy_callback(self, msg: Joy):

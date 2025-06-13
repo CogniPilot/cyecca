@@ -257,30 +257,23 @@ def derive_model():
         ["y"],
     )
 
-    STRENGTH = 0.52107
-    IND_DEC = -6.66/180*ca.pi
-    IND_INC = 67.22/180*ca.pi
-    decl_incl = cyecca.lie.SO3EulerB321.elem(ca.vertcat(IND_DEC, IND_INC, 0))
+    # Magnetic vector calculations fpr West Lafayette, IN
+    # Source: https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml#igrfwmm
+
+    STRENGTH = 0.521113 # magnetic strength
+    IND_DEC = -4.494167/180*ca.pi # magnetic declination
+    IND_INC = 67.358889/180*ca.pi # magnetic inclination
+    decl_incl = cyecca.lie.SO3EulerB321.elem(ca.vertcat(-IND_DEC, -IND_INC, 0))
     
     north = ca.vertcat(STRENGTH, 0, 0)
-
-    measured_north = decl_incl@north
-
-    # Magnetometer frame transformation: flip y and z axes
-    # Original frame: x=forward, y=left, z=up
-    # Desired frame: x=forward, y=right, z=down
-    mag_frame_transform = ca.vertcat(
-        ca.horzcat(1, 0, 0),    # x stays the same
-        ca.horzcat(0, -1, 0),   # y flipped (left -> right)
-        ca.horzcat(0, 0, -1)    # z flipped (up -> down)
-    )
+    measured_north = decl_incl @ north
 
     g_mag = ca.Function(
         "g_mag",
         [x, u, p, w3, dt],
-        [mag_frame_transform @ (q_wb@measured_north) + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
+        [q_bw @ measured_north + w3 * noise_power_sqrt_mag_b * np.sqrt(dt), decl_incl.param],
         ["x", "u", "p", "w", "dt"],
-        ["y"],
+        ["y", "debug"],
     )
     g_gps_pos = ca.Function(
         "g_gps_pos",

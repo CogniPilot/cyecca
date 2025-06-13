@@ -617,30 +617,27 @@ def derive_attitude_estimator():
     accel = ca.SX.sym("accel", 3)
     dt = ca.SX.sym("dt", 1)
 
-    # Convert magnetometer to quat
-    mag1 = SO3Quat.elem(ca.vertcat(0, mag))
-
     # correction angular velocity vector
     correction = ca.SX.zeros(3, 1)
 
-    # Convert vector to world frame and extract xy component
     spin_rate = ca.norm_2(gyro)
 
-    # Magnetometer frame transformation: flip y and z axes
-    # Original frame: x=forward, y=right, z=dowm
-    # Desired frame: x=forward, y=left, z=up
-    mag_frame_transform = ca.vertcat(
-        ca.horzcat(1, 0, 0),    # x stays the same
-        ca.horzcat(0, -1, 0),   # y flipped (right -> left)
-        ca.horzcat(0, 0, -1)    # z flipped (down -> up)
+    # Magnetometer frame is x - forward, y - left, z - down
+    # Converting to match body and world frame definition
+    # x - forward, y - left, z - up
+    mag_transform = ca.vertcat(
+        ca.horzcat(1, 0, 0),    
+        ca.horzcat(0, 1, 0),  
+        ca.horzcat(0, 0, -1)    
     )
 
+    # Transform magnetometer to world frame
+    mag_earth = q @ (mag_transform @ mag)
 
-    mag_earth = q.inverse() @ (mag_frame_transform @ mag)
-    mag_err = (
-        ca.fmod(ca.atan2(mag_earth[1], mag_earth[0]) - mag_decl + ca.pi, 2 * ca.pi)
-        - ca.pi
-    )
+    # Magnetometer error. 
+    # Negative sign because yaw is opposite to positive angle in body frame???
+    mag_err = -(ca.fmod(ca.atan2(mag_earth[1], mag_earth[0])
+                         + mag_decl + ca.pi, 2 * ca.pi) - ca.pi)
 
     # Change gain if spin rate is large
     fifty_dps = 0.873
@@ -648,7 +645,7 @@ def derive_attitude_estimator():
 
     # Move magnetometer correction in body frame
     correction += (
-        q@ca.vertcat(0,0,mag_err)
+        q.inverse() @ ca.vertcat(0,0,mag_err)
         * param_att_w_mag
         * gain_mult
     )
@@ -670,22 +667,22 @@ def derive_attitude_estimator():
 
     ## TODO add gyro bias stuff
 
-    # Add gyro to correction
-    # correction += gyro
-
     # Make the correction
     q1 = q * so3.elem(correction * dt).exp(SO3Quat)
+    debug = mag_earth
 
     # Return estimator
     f_att_estimator = ca.Function(
         "attitude_estimator",
         [q0, mag, mag_decl, gyro, accel, dt],
-        [q1.param],
+        [q1.param, debug],
         ["q", "mag", "mag_decl", "gyro", "accel", "dt"],
-        ["q1"],
+        ["q1", "debug"],
     )
 
     return {"attitude_estimator": f_att_estimator}
+
+
 
 
 def generate_code(eqs: dict, filename, dest_dir: str, **kwargs):

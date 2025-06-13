@@ -182,32 +182,25 @@ class Simulator(Node):
             self.est_x, self.y_gps_pos, self.dt, self.P_temp
         )
 
-        # print(X1)
-        # print(P1)
-        #print(self.est_x)
         self.est_x = np.array(X1, dtype=float).reshape(-1)
         self.P_temp = np.array(P1, dtype=float)
-        #print(self.est_x)
 
         # self.P = np.array(
         #     self.eqs["attitude_covariance_propagation"](
         #         self.P, self.Q, self.y_gyro, self.dt
         #     )
         # ).reshape(-1)
-        DECLANATION_IND = -4.494167/180*ca.pi # Declanation of WL Indiana
-        temp_q, debug = self.eqs["attitude_estimator"](
-                self.q, self.y_mag, DECLANATION_IND, self.y_gyro, self.y_accel, self.dt
-            )
-        print(self.y_mag)
 
-        self.est_x[6] = temp_q[0]
-        self.est_x[7] = temp_q[1]
-        self.est_x[8] = temp_q[2]
-        self.est_x[9] = temp_q[3]
-        self.q = np.array(
-            [self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]],
-            dtype=float,
+        DECLANATION_IND = -4.494167/180*ca.pi # Declanation of WL Indiana
+
+        q = self.eqs["attitude_estimator"](
+                self.q, self.y_mag, DECLANATION_IND, self.y_gyro, self.y_accel, self.dt
         )
+
+        self.est_x[6] = q[0]
+        self.est_x[7] = q[1]
+        self.est_x[8] = q[2]
+        self.est_x[9] = q[3]
 
         self.omega = self.y_gyro
         self.pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]], dtype=float)
@@ -561,10 +554,9 @@ class Simulator(Node):
         res["yf_accel"] = self.model["g_accel"](
             res["xf"], self.u, self.p, np.random.randn(3), self.dt
         )
-        res["yf_mag"], debug = self.model["g_mag"](
+        res["yf_mag"]= self.model["g_mag"](
             res["xf"], self.u, self.p, np.random.randn(3), self.dt
         )
-        #print(res["yf_mag"])
         res["yf_gps_pos"] = self.model["g_gps_pos"](
             res["xf"], self.u, self.p, np.random.randn(3), self.dt
         )

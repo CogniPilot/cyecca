@@ -244,16 +244,40 @@ def derive_model():
     # cyecca.lie.SO3EulerB321.from_Quat(q_wb).param
     g_accel = ca.Function(
         "g_accel",
-        [x, u, p, w3, dt],
+        [
+            x,
+            u,
+            p,
+            w3,
+            dt,
+        ],
         [a_b + w3 * noise_power_sqrt_a_b * np.sqrt(dt)],
-        ["x", "u", "p", "w", "dt"],
+        [
+            "x",
+            "u",
+            "p",
+            "w",
+            "dt",
+        ],
         ["y"],
     )
     g_gyro = ca.Function(
         "g_gyro",
-        [x, u, p, w3, dt],
+        [
+            x,
+            u,
+            p,
+            w3,
+            dt,
+        ],
         [omega_wb_b + w3 * noise_power_sqrt_omega_wb_b * np.sqrt(dt)],
-        ["x", "u", "p", "w", "dt"],
+        [
+            "x",
+            "u",
+            "p",
+            "w",
+            "dt",
+        ],
         ["y"],
     )
 
@@ -270,16 +294,40 @@ def derive_model():
 
     g_mag = ca.Function(
         "g_mag",
-        [x, u, p, w3, dt],
-        [q_bw @ measured_north + w3 * noise_power_sqrt_mag_b * np.sqrt(dt), decl_incl.param],
-        ["x", "u", "p", "w", "dt"],
-        ["y", "debug"],
+        [
+            x,
+            u,
+            p,
+            w3,
+            dt,
+        ],
+        [q_bw @ measured_north + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
+        [
+            "x",
+            "u",
+            "p",
+            "w",
+            "dt",
+        ],
+        ["y"],
     )
     g_gps_pos = ca.Function(
         "g_gps_pos",
-        [x, u, p, w3, dt],
+        [
+            x,
+            u,
+            p,
+            w3,
+            dt,
+        ],
         [position_op_w + w3 * np.sqrt(noise_power_sqrt_gps_pos / dt)],
-        ["x", "u", "p", "w", "dt"],
+        [
+            "x",
+            "u",
+            "p",
+            "w",
+            "dt",
+        ],
         ["y"],
     )
 

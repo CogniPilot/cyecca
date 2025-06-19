@@ -287,7 +287,7 @@ def derive_model():
     STRENGTH = 0.521113 # magnetic strength
     IND_DEC = -4.494167/180*ca.pi # magnetic declination
     IND_INC = 67.358889/180*ca.pi # magnetic inclination
-    decl_incl = cyecca.lie.SO3EulerB321.elem(ca.vertcat(-IND_DEC, -IND_INC, 0))
+    decl_incl = cyecca.lie.SO3EulerB321.elem(ca.vertcat(-IND_DEC, IND_INC, 0))
     
     north = ca.vertcat(STRENGTH, 0, 0)
     measured_north = decl_incl @ north

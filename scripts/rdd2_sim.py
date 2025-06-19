@@ -193,9 +193,12 @@ class Simulator(Node):
 
         DECLANATION_IND = -4.494167/180*ca.pi # Declanation of WL Indiana
 
-        q = self.eqs["attitude_estimator"](
+        q, debug2 = self.eqs["attitude_estimator"](
                 self.q, self.y_mag, DECLANATION_IND, self.y_gyro, self.y_accel, self.dt
         )
+        #print(self.y_mag)
+        #print(debug)
+        print(debug2)
 
         self.est_x[6] = q[0]
         self.est_x[7] = q[1]

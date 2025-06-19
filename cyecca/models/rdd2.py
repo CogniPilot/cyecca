@@ -759,8 +759,6 @@ def derive_attitude_estimator():
     # Make the correction
     q1 = so3.elem(correction_w * dt).exp(SO3Quat) * q_wb
 
-    debug2 = accel_w
-
     # Return estimator
     f_att_estimator = ca.Function(
         "attitude_estimator",
@@ -772,7 +770,7 @@ def derive_attitude_estimator():
             accel_b,
             dt,
         ],
-        [q1.param, debug2],
+        [q1.param],
         [
             "q",
             "mag_b",
@@ -781,7 +779,7 @@ def derive_attitude_estimator():
             "accel_b",
             "dt",
         ],
-        ["q1", "debug2"],
+        ["q1"],
     )
 
     return {"attitude_estimator": f_att_estimator}

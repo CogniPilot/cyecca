@@ -39,7 +39,7 @@ ki_z = 0.05  # velocity z integral gain
 # estimator params
 att_w_acc = 0.4
 att_w_gyro_bias = 0
-param_att_w_mag = 0.4
+param_att_w_mag = 0.2
 
 
 def derive_control_allocation():
@@ -718,17 +718,10 @@ def derive_attitude_estimator():
     mag_err = -(ca.fmod(ca.atan2(mag_earth[1], mag_earth[0])
                          + mag_decl + ca.pi, 2 * ca.pi) - ca.pi)
 
-    # Change gain if spin rate is large
-    #spin_rate = ca.norm_2(gyro_b)
-    #fifty_dps = 0.873
-    #gain_mult = ca.if_else(spin_rate > fifty_dps, ca.fmin(spin_rate / fifty_dps, 10), 1)
-    gain_mult = 1
-
     # Move magnetometer correction in body frame
     correction_w += (
         ca.vertcat(0,0,mag_err)
         * param_att_w_mag
-        * gain_mult
     )
 
     # --- Correction from accelerometer (roll/pitch) ---

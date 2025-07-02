@@ -1,9 +1,6 @@
 import argparse
 import os
-import sys
-import math
 import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
 import casadi as ca
 import cyecca.lie as lie
@@ -41,6 +38,16 @@ att_w_acc = 0.4
 att_w_gyro_bias = 0
 param_att_w_mag = 0.2
 
+def angle_wrap(angle):
+    """
+    Wrap angle to [-pi, pi]
+    """
+    # First ensure we're in [0, 2*pi) range, then shift to [-pi, pi]
+    wrapped = ca.fmod(angle, 2 * ca.pi)
+    # Handle negative angles
+    wrapped = ca.if_else(wrapped < 0, wrapped + 2 * ca.pi, wrapped)
+    # Shift to [-pi, pi] range
+    return ca.if_else(wrapped > ca.pi, wrapped - 2 * ca.pi, wrapped)
 
 def derive_control_allocation():
     """
@@ -119,7 +126,7 @@ def derive_control_allocation():
             T,
             M,
         ],
-        [omega, Fp_sum, F_moment, F_thrust, M_sat],
+        [omega],
         [
             "F_max",
             "l",
@@ -128,7 +135,7 @@ def derive_control_allocation():
             "T",
             "M",
         ],
-        ["omega", "Fp_sum", "F_moment", "F_thrust", "M_sat"],
+        ["omega"],
     )
     return {"f_alloc": f_alloc}
 
@@ -696,6 +703,85 @@ def derive_position_correction():
     return {"position_correction": f_pos_estimator}
 
 
+def derive_attitude_init_from_mag():
+    """
+    Initialize attitude quaternion from accelerometer and magnetometer readings.
+    First calculates pitch and roll from accelerometer, then uses these to 
+    convert magnetometer to world frame and calculate yaw.
+    """
+    mag_b = ca.SX.sym("mag_b", 3)
+    accel_b = ca.SX.sym("accel_b", 3)  
+    mag_decl = ca.SX.sym("mag_decl", 1)
+    
+    # Step 1: Calculate pitch and roll from accelerometer
+    # Assuming gravity vector is [0, 0, g] in world frame
+    # In body frame: x=forward, y=left, z=up
+    
+    # Normalize accelerometer reading
+    accel_norm = ca.norm_2(accel_b)
+    accel_n = accel_b / accel_norm
+    
+    # Calculate pitch (rotation about y-axis)
+    # pitch = atan2(accel_x, sqrt(accel_y^2 + accel_z^2))
+    pitch = angle_wrap(ca.atan2(ca.sqrt(accel_n[1]**2 + accel_n[2]**2), accel_n[0]) - ca.pi / 2)
+
+    debug = ca.atan2(ca.sqrt(accel_n[1]**2 + accel_n[2]**2), accel_n[0]) - ca.pi / 2
+    
+    # Calculate roll (rotation about x-axis)  
+    # roll = atan2(accel_z, accel_y)
+    roll = -angle_wrap(ca.atan2(accel_n[2], accel_n[1]) - ca.pi / 2)
+    
+    # Step 2: Create partial rotation matrix from pitch and roll only
+    # This represents R_y(pitch) * R_x(roll) - rotation about pitch then roll
+    # This transforms from tilted body frame to a level frame (but still unknown yaw)
+    cos_roll = ca.cos(roll)
+    sin_roll = ca.sin(roll)
+    cos_pitch = ca.cos(pitch)
+    sin_pitch = ca.sin(pitch)
+    
+    # Partial rotation matrix: R_pitch * R_roll
+    # This removes the tilt component, leaving only yaw unknown
+    R_level_from_body = ca.vertcat(
+        ca.horzcat(cos_pitch, sin_pitch*sin_roll, sin_pitch*cos_roll),
+        ca.horzcat(0, cos_roll, -sin_roll),
+        ca.horzcat(-sin_pitch, cos_pitch*sin_roll, cos_pitch*cos_roll)
+    )
+    
+    # Step 3: Transform magnetometer to level frame (removes pitch/roll tilt)
+    mag_level = R_level_from_body @ mag_b
+    
+    # Step 4: Calculate yaw from level-frame magnetometer
+    # In level frame: x=east, y=north, z=up (but rotated by unknown yaw)
+    # The magnetometer now points in the correct direction relative to magnetic north
+    # Magnetic declination correction: true_north = mag_north + declination
+    yaw = -angle_wrap(ca.atan2(mag_level[1], mag_level[0]) + mag_decl - ca.pi / 2)
+
+    debug  = ca.atan2(mag_level[1], mag_level[0]) + mag_decl - ca.pi / 2 + ca.pi
+
+    # Step 5: Create final quaternion from roll, pitch, yaw
+    euler = SO3EulerB321.elem(ca.vertcat(yaw, pitch, roll))
+    q_init = SO3Quat.from_Euler(euler)
+    
+    # Also return the individual angles for debugging
+    f_attitude_init = ca.Function(
+        "attitude_init_from_mag",
+        [
+            mag_b,
+            accel_b,
+            mag_decl,
+        ],
+        [q_init.param, pitch, roll, yaw, debug],
+        [
+            "mag_b",
+            "accel_b", 
+            "mag_decl",
+        ],
+        ["q_init", "pitch", "roll", "yaw", "debug"],
+    )
+    
+    return {"attitude_init_from_mag": f_attitude_init}
+
+
 def derive_attitude_estimator():
     # Define Casadi variables
     q0 = ca.SX.sym("q", 4)
@@ -706,6 +792,11 @@ def derive_attitude_estimator():
     accel_b = ca.SX.sym("accel", 3)
     dt = ca.SX.sym("dt", 1)
 
+    # Note:
+    # Magnetometer frame: x is east, y is north, z is up
+    # Body frame: x is forward, y is left, z is down
+    # World frame: x is east, y is north, z is up
+
     # Correction angular velocity vector
     correction_w = ca.SX.zeros(3, 1)
 
@@ -715,8 +806,7 @@ def derive_attitude_estimator():
     mag_earth = q_wb @ mag_b
 
     # Magnetometer error calculation
-    mag_err = -(ca.fmod(ca.atan2(mag_earth[1], mag_earth[0])
-                         + mag_decl + ca.pi, 2 * ca.pi) - ca.pi)
+    mag_err = -angle_wrap(ca.atan2(mag_earth[1], mag_earth[0]) + mag_decl - ca.pi / 2) # the magnetic north is at (90 degrees - mag_decl) yaw
 
     # Move magnetometer correction in body frame
     correction_w += (
@@ -825,6 +915,7 @@ if __name__ == "__main__":
     eqs.update(derive_control_allocation())
     eqs.update(derive_common())
     eqs.update(derive_attitude_estimator())
+    eqs.update(derive_attitude_init_from_mag())
     eqs.update(derive_position_correction())
 
     for name, eq in eqs.items():

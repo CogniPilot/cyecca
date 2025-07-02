@@ -421,7 +421,7 @@ class Simulator(Node):
         # ---------------------------------------------------------------------
         # control allocation
         # ---------------------------------------------------------------------
-        self.u, Fp, Fm, Ft, Msat = self.eqs["f_alloc"](F_max, l, CM, CT, thrust, M)
+        self.u= self.eqs["f_alloc"](F_max, l, CM, CT, thrust, M)
         # self.get_logger().info("Ct: %s" % self.u)
         # self.get_logger().info('u: %s' % self.u)
 

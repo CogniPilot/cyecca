@@ -18,6 +18,9 @@ from rosgraph_msgs.msg import Clock
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import Joy, Imu
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
+from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321
+
+DECLANATION_IND = -4.494167/180*ca.pi # Declanation of WL Indiana   
 
 
 class Simulator(Node):
@@ -89,6 +92,7 @@ class Simulator(Node):
         self.eqs.update(rdd2.derive_strapdown_ins_propagation())
         self.eqs.update(rdd2.derive_control_allocation())
         self.eqs.update(rdd2.derive_attitude_estimator())
+        self.eqs.update(rdd2.derive_attitude_init())
         self.eqs.update(rdd2.derive_position_correction())
         self.eqs.update(rdd2.derive_common())
         self.eqs.update(rdd2_loglinear.derive_se23_error())
@@ -123,15 +127,24 @@ class Simulator(Node):
         self.Q = 1e-9 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # process noise
         self.P_temp = 1e-2 * np.eye(6, dtype=float)
 
-        # velocity control data
-        self.psi_sp = 0.0  # world yaw orientation set point
-        self.psi_vel_sp = 0.0  # " velocity
-        self.psi_acc_sp = 0.0  # " accel
-
         # control state (from estimator if use_estimator = True, else from sim)
         self.vb = np.zeros(3, dtype=float)  # velocity in body frame
         self.vw = np.zeros(3, dtype=float)  # velocity in world frame
-        self.q = np.array([1, 0, 0, 0], dtype=float)  # quaternion
+
+        #Derive initial quaternion based on mag and accel
+        self.y_mag = np.array(self.model["g_mag"](self.x, self.u, self.p, np.random.randn(3), self.dt)).reshape(-1)
+        self.y_accel = np.array(self.model["g_accel"](self.x, self.u, self.p, np.random.randn(3), self.dt)).reshape(-1)
+        self.q = np.array(self.eqs["attitude_init"](self.y_mag, self.y_accel, DECLANATION_IND), dtype=float) # quaternion
+        self.est_x[6] = self.q[0]
+        self.est_x[7] = self.q[1]
+        self.est_x[8] = self.q[2] 
+        self.est_x[9] = self.q[3]
+
+        # velocity control data
+        euler = SO3EulerB321.from_Quat(SO3Quat.elem(ca.DM(self.q)))
+        self.psi_sp = float(euler.param[0])  # yaw angle from quaternion
+        self.psi_vel_sp = 0.0  # " velocity
+        self.psi_acc_sp = 0.0  # " accel
 
         # diff flat trajectory points
         self.pw_sp = np.zeros(3, dtype=float)  # pos in world sp
@@ -141,10 +154,8 @@ class Simulator(Node):
         self.sw_sp = np.zeros(3, dtype=float)  # snap "
 
         # setpoints
-        self.q_sp = np.array([1, 0, 0, 0], dtype=float)  # quaternion setpoint
-        self.qc_sp = np.array(
-            [1, 0, 0, 0], dtype=float
-        )  # quaternion camera setpoint (based on psi)
+        self.q_sp = self.q  # quaternion setpoint
+        self.qc_sp = self.q   # quaternion camera setpoint (based on psi)
         self.z_i = 0  # z error integrator
 
         # start main loop on timer
@@ -173,12 +184,14 @@ class Simulator(Node):
         )
         self.est_x = np.array(res, dtype=float).reshape(-1)
 
+        self.q = np.array(
+            [self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]],
+            dtype=float,
+        )
+
         X1, P1 = self.eqs["position_correction"](
             self.est_x, self.y_gps_pos, self.dt, self.P_temp
         )
-
-        # print(X1)
-        # print(P1)
 
         self.est_x = np.array(X1, dtype=float).reshape(-1)
         self.P_temp = np.array(P1, dtype=float)
@@ -189,25 +202,14 @@ class Simulator(Node):
         #     )
         # ).reshape(-1)
 
-        DECLANATION = 0
-        # IDK what this is
-
-        # new code
-        temp_q = np.array(
-            self.eqs["attitude_estimator"](
-                self.q, self.y_mag, DECLANATION, self.y_gyro, self.y_accel, self.dt
-            ),
-            dtype=float,
+        q = self.eqs["attitude_estimator"](
+                self.q, self.y_mag, DECLANATION_IND, self.y_gyro, self.y_accel, self.dt
         )
 
-        self.est_x[6] = temp_q[0]
-        self.est_x[7] = temp_q[1]
-        self.est_x[8] = temp_q[2]
-        self.est_x[9] = temp_q[3]
-        self.q = np.array(
-            [self.est_x[6], self.est_x[7], self.est_x[8], self.est_x[9]],
-            dtype=float,
-        )
+        self.est_x[6] = q[0]
+        self.est_x[7] = q[1]
+        self.est_x[8] = q[2]
+        self.est_x[9] = q[3]
 
         self.omega = self.y_gyro
         self.pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]], dtype=float)
@@ -372,17 +374,17 @@ class Simulator(Node):
                 )
                 self.qc_sp = self.eqs["eulerB321_to_quat"](psi, 0, 0)
                 self.pw_sp = np.array([x, y, z]).reshape(-1)
-                print(
-                    thrust_trim,
-                    self.pw_sp,
-                    self.vw_sp,
-                    self.aw_sp,
-                    self.qc_sp,
-                    self.pw,
-                    self.vw,
-                    self.z_i,
-                    self.dt,
-                )
+            #    print(
+            #         thrust_trim,
+            #         self.pw_sp,
+            #         self.vw_sp,
+            #         self.aw_sp,
+            #         self.qc_sp,
+            #         self.pw,
+            #         self.vw,
+            #         self.z_i,
+            #         self.dt,
+            #     )
                 [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
                     thrust_trim,
                     self.pw_sp,
@@ -428,7 +430,7 @@ class Simulator(Node):
         # ---------------------------------------------------------------------
         # control allocation
         # ---------------------------------------------------------------------
-        self.u, Fp, Fm, Ft, Msat = self.eqs["f_alloc"](F_max, l, CM, CT, thrust, M)
+        self.u= self.eqs["f_alloc"](F_max, l, CM, CT, thrust, M)
         # self.get_logger().info("Ct: %s" % self.u)
         # self.get_logger().info('u: %s' % self.u)
 
@@ -455,6 +457,12 @@ class Simulator(Node):
                 "mode changed from: %s to %s" % (self.input_mode, new_mode)
             )
             self.input_mode = new_mode
+            if new_mode == "velocity":
+                # Extract psi_sp from current attitude quaternion
+                euler = SO3EulerB321.from_Quat(SO3Quat.elem(ca.DM(self.q)))
+                self.psi_sp = float(euler.param[0])  # yaw angle from quaternion
+                self.pw_sp = self.pw
+                self.psi_vel_sp = 0
         if msg.buttons[4] == 1:
             new_control_mode = "loglinear"
         elif msg.buttons[5] == 1:
@@ -543,7 +551,7 @@ class Simulator(Node):
         except RuntimeError as e:
             print(e)
             xdot = self.model["f"](x=self.x, u=self.u, p=self.p)
-            print(xdot, self.x, self.u, self.p)
+            #print(xdot, self.x, self.u, self.p)
             raise e
 
         x1 = np.array(res["xf"]).reshape(-1)
@@ -613,7 +621,7 @@ class Simulator(Node):
         self.integrate_simulation()
         self.publish_state()
         if self.use_estimator:
-            # print("updating")
+            #print("updating")
             self.update_estimator()
         else:
             self.update_fake_estimator()
@@ -707,9 +715,9 @@ class Simulator(Node):
         tf.header.frame_id = "map"
         tf.child_frame_id = "base_link_est"
         tf.header.stamp = msg_clock.clock
-        tf.transform.translation.x = self.est_x[0]
-        tf.transform.translation.y = self.est_x[1]
-        tf.transform.translation.z = self.est_x[2]
+        tf.transform.translation.x = self.x[0]#est_x[0]
+        tf.transform.translation.y = self.x[1]#est_x[1]
+        tf.transform.translation.z = self.x[2]#est_x[2]
         tf.transform.rotation.w = self.est_x[6]
         tf.transform.rotation.x = self.est_x[7]
         tf.transform.rotation.y = self.est_x[8]

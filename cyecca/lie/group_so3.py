@@ -24,12 +24,6 @@ __all__ = [
     "SO3LieGroup",
 ]
 
-
-@beartype
-def angle_wrap(theta: ca.SX):
-    return ca.remainder(theta, 2 * ca.pi)
-
-
 @beartype
 class SO3LieAlgebra(LieAlgebra):
     def __init__(self):
@@ -461,7 +455,7 @@ class SO3QuatLieGroup(SO3LieGroup):
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         q = arg.param
         q = q / ca.norm_2(q)
-        theta = angle_wrap(2 * ca.acos(q[0]))
+        theta = ca.remainder(2 * ca.acos(q[0]), 2 * ca.pi)
         A = SERIES["x/sin(x)"](theta / 2)
         omega = q[1:4] * A * 2 * ca.sign(theta)
         return self.algebra.elem(omega)

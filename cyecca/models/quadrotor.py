@@ -93,9 +93,9 @@ def derive_model():
         "noise_power_sqrt_omega_wb_b_0": np.deg2rad(2.8e-3),  # 2.8 milli-dpgs/sqrt(hz)
         "noise_power_sqrt_omega_wb_b_1": np.deg2rad(2.8e-3),
         "noise_power_sqrt_omega_wb_b_2": np.deg2rad(2.8e-3),
-        "noise_power_sqrt_mag_b_0": 1e-6,
-        "noise_power_sqrt_mag_b_1": 1e-6,
-        "noise_power_sqrt_mag_b_2": 1e-6,
+        "noise_power_sqrt_mag_b_0": 1e-3,
+        "noise_power_sqrt_mag_b_1": 1e-3,
+        "noise_power_sqrt_mag_b_2": 1e-3,
         "noise_power_sqrt_gps_pos_0": 1e-8,
         "noise_power_sqrt_gps_pos_1": 1e-8,
         "noise_power_sqrt_gps_pos_2": 1e-8,
@@ -130,10 +130,10 @@ def derive_model():
         "omega_wb_b_0": 0,
         "omega_wb_b_1": 0,
         "omega_wb_b_2": 0,
-        "omega_motor_0": 0,
-        "omega_motor_1": 0,
-        "omega_motor_2": 0,
-        "omega_motor_3": 0,
+        "omega_motor_0": 757.5,  # hover speed: sqrt(m*g/(4*CT))
+        "omega_motor_1": 757.5,  # hover speed: sqrt(m*g/(4*CT))
+        "omega_motor_2": 757.5,  # hover speed: sqrt(m*g/(4*CT))
+        "omega_motor_3": 757.5,  # hover speed: sqrt(m*g/(4*CT))
     }
 
     # u, input
@@ -244,31 +244,90 @@ def derive_model():
     # cyecca.lie.SO3EulerB321.from_Quat(q_wb).param
     g_accel = ca.Function(
         "g_accel",
-        [x, u, p, w3, dt],
+        [
+            x,
+            u,
+            p,
+            w3,
+            dt,
+        ],
         [a_b + w3 * noise_power_sqrt_a_b * np.sqrt(dt)],
-        ["x", "u", "p", "w", "dt"],
+        [
+            "x",
+            "u",
+            "p",
+            "w",
+            "dt",
+        ],
         ["y"],
     )
     g_gyro = ca.Function(
         "g_gyro",
-        [x, u, p, w3, dt],
+        [
+            x,
+            u,
+            p,
+            w3,
+            dt,
+        ],
         [omega_wb_b + w3 * noise_power_sqrt_omega_wb_b * np.sqrt(dt)],
-        ["x", "u", "p", "w", "dt"],
+        [
+            "x",
+            "u",
+            "p",
+            "w",
+            "dt",
+        ],
         ["y"],
     )
-    north = cyecca.lie.SO3Quat.elem(ca.vertcat(0, 1, 0, 0))
+
+    # Magnetic vector calculations fpr West Lafayette, IN
+    # Source: https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml#igrfwmm
+
+    STRENGTH = 0.521113 # magnetic strength
+    IND_DEC = -4.494167/180*ca.pi # magnetic declination
+    IND_INC = 67.358889/180*ca.pi # magnetic inclination
+    decl_incl = cyecca.lie.SO3EulerB321.elem(ca.vertcat(-IND_DEC + ca.pi / 2, IND_INC, 0))
+    
+    north = ca.vertcat(STRENGTH, 0, 0)
+    measured_north = decl_incl @ north
+
     g_mag = ca.Function(
         "g_mag",
-        [x, u, p, w3, dt],
-        [(q_wb * north * q_bw).param[1:] + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
-        ["x", "u", "p", "w", "dt"],
+        [
+            x,
+            u,
+            p,
+            w3,
+            dt,
+        ],
+        [q_bw @ measured_north + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
+        [
+            "x",
+            "u",
+            "p",
+            "w",
+            "dt",
+        ],
         ["y"],
     )
     g_gps_pos = ca.Function(
         "g_gps_pos",
-        [x, u, p, w3, dt],
+        [
+            x,
+            u,
+            p,
+            w3,
+            dt,
+        ],
         [position_op_w + w3 * np.sqrt(noise_power_sqrt_gps_pos / dt)],
-        ["x", "u", "p", "w", "dt"],
+        [
+            "x",
+            "u",
+            "p",
+            "w",
+            "dt",
+        ],
         ["y"],
     )
 

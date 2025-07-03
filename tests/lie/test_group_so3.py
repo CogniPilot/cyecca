@@ -9,7 +9,7 @@ from cyecca.lie.group_so3 import so3, SO3EulerB321, SO3Quat, SO3Mrp
 
 
 @beartype
-class Test_LieAlgebraSO3(ProfiledTestCase):
+class Test_LieAlgebraSO3_Basic(ProfiledTestCase):
     def setUp(self):
         super().setUp()
         self.v1 = ca.DM([1.0, 2.0, 3.0])
@@ -119,6 +119,51 @@ class Test_LieAlgebraSO3(ProfiledTestCase):
 
         self.assertTrue(SX_close(Jr_inv, scipy.linalg.expm(ca.DM(omega.ad())) @ Jl_inv))
 
+
+class Test_LieAlgebraSO3_Advanced(ProfiledTestCase):
+    def test_to_Matrix(self):
+        v0 = ca.DM([0.0, 0.0, 0.0])
+        v1 = ca.DM([1.0, 0.0, 0.0])
+        v2 = ca.DM([0.0, 1.0, 0.0])
+        v3 = ca.DM([0.0, 0.0, 1.0])
+        v4 = ca.DM([1.0, 1.0, 1.0])
+        v5 = ca.DM([1.0, 2.0, 3.0])
+        v6 = ca.DM([3.0, 2.0, 1.0])
+        v7 = ca.DM([2.0, 3.0, 1.0])
+        v8 = ca.DM([-1.0, -2.0, -3.0])
+        v9 = ca.DM([-3.0, -2.0, -1.0])
+        v10 = ca.DM([-2.0, -3.0, -1.0])
+        v11 = ca.DM([1, 2, 3])
+
+        e0 = so3.elem(v0)
+        e1 = so3.elem(v1)
+        e2 = so3.elem(v2)
+        e3 = so3.elem(v3)
+        e4 = so3.elem(v4)
+        e5 = so3.elem(v5)
+        e6 = so3.elem(v6)
+        e7 = so3.elem(v7)
+        e8 = so3.elem(v8)
+        e9 = so3.elem(v9)
+        e10 = so3.elem(v10)
+        e11 = so3.elem(v11)
+
+        self.assertTrue(SX_close(e0.to_Matrix(), ca.DM.zeros(3, 3)))
+        self.assertTrue(SX_close(e1.to_Matrix(), ca.DM([[0, 0, 0], [0, 0, -1], [0, 1, 0]])))
+        self.assertTrue(SX_close(e2.to_Matrix(), ca.DM([[0, 0, 1], [0, 0, 0], [-1, 0, 0]])))
+        self.assertTrue(SX_close(e3.to_Matrix(), ca.DM([[0, -1, 0], [1, 0, 0], [0, 0, 0]])))
+        self.assertTrue(SX_close(e4.to_Matrix(), ca.DM([[0, -1, 1], [1, 0, -1], [-1, 1, 0]])))
+        self.assertTrue(SX_close(e5.to_Matrix(), ca.DM([[0, -3, 2], [3, 0, -1], [-2, 1, 0]])))
+        self.assertTrue(SX_close(e6.to_Matrix(), ca.DM([[0, -1, 2], [1, 0, -3], [-2, 3, 0]])))
+        self.assertTrue(SX_close(e7.to_Matrix(), ca.DM([[0, -1, 3], [1, 0, -2], [-3, 2, 0]])))
+        self.assertTrue(SX_close(e8.to_Matrix(), ca.DM([[0, 3, -2], [-3, 0, 1], [2, -1, 0]])))
+        self.assertTrue(SX_close(e9.to_Matrix(), ca.DM([[0, 1, -2], [-1, 0, 3], [2, -3, 0]])))
+        self.assertTrue(SX_close(e10.to_Matrix(), ca.DM([[0, 1, -3], [-1, 0, 2], [3, -2, 0]])))
+        self.assertTrue(SX_close(e11.to_Matrix(), ca.DM([[0, -3, 2], [3, 0, -1], [-2, 1, 0]])))
+
+        self.assertFalse(SX_close(e0.to_Matrix(), ca.DM([[1, 0, 0], [0, 0, 0], [0, 0, 0]])))
+        self.assertFalse(SX_close(e0.to_Matrix(), ca.DM([[0, 0, 0], [0, 0, 0], [0, 1, 0]])))
+        self.assertFalse(SX_close(e0.to_Matrix(), ca.DM([[1, 1, 1], [1, 1, 1], [1, 1, 1]])))
 
 class Test_LieGroupSO3Euler(ProfiledTestCase):
     def setUp(self):

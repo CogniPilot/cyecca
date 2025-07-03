@@ -130,10 +130,10 @@ def derive_model():
         "omega_wb_b_0": 0,
         "omega_wb_b_1": 0,
         "omega_wb_b_2": 0,
-        "omega_motor_0": 0,
-        "omega_motor_1": 0,
-        "omega_motor_2": 0,
-        "omega_motor_3": 0,
+        "omega_motor_0": 757.5,  # hover speed: sqrt(m*g/(4*CT))
+        "omega_motor_1": 757.5,  # hover speed: sqrt(m*g/(4*CT))
+        "omega_motor_2": 757.5,  # hover speed: sqrt(m*g/(4*CT))
+        "omega_motor_3": 757.5,  # hover speed: sqrt(m*g/(4*CT))
     }
 
     # u, input
@@ -287,7 +287,7 @@ def derive_model():
     STRENGTH = 0.521113 # magnetic strength
     IND_DEC = -4.494167/180*ca.pi # magnetic declination
     IND_INC = 67.358889/180*ca.pi # magnetic inclination
-    decl_incl = cyecca.lie.SO3EulerB321.elem(ca.vertcat(-IND_DEC, IND_INC, 0))
+    decl_incl = cyecca.lie.SO3EulerB321.elem(ca.vertcat(-IND_DEC + ca.pi / 2, IND_INC, 0))
     
     north = ca.vertcat(STRENGTH, 0, 0)
     measured_north = decl_incl @ north

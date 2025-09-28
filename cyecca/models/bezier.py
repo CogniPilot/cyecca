@@ -187,7 +187,7 @@ def derive_ref():
     # Solve for C_be
 
     # acceleration
-    thrust_e = m * (g * zh - a_e)
+    thrust_e = m * (g * zh + a_e)
 
     T = ca.norm_2(thrust_e)
     T = ca.if_else(T > tol, T, tol)  # can have singularity when T = 0, this prevents it
@@ -206,70 +206,29 @@ def derive_ref():
 
     # T_dot = ca.dot(m*s_e, zb_e)
     C_be = ca.hcat([xb_e, yb_e, zb_e])
+    C_eb = C_be.T
+    C_dot_be = (ca.jacobian(C_be, a_e) @ j_e).reshape((3, 3)) + (
+        ca.jacobian(C_be, psi) * psi_dot
+    ).reshape((3, 3))
+    omega_skew = C_eb @ C_dot_be
+    p = omega_skew[2, 1]
+    q = omega_skew[0, 2]
+    r = omega_skew[1, 0]
+    omega_eb_b = ca.vertcat(p, q, r)
+    C_ddot_be = (
+        (ca.jacobian(C_dot_be, a_e) @ j_e).reshape((3, 3))
+        + (ca.jacobian(C_dot_be, j_e) @ s_e).reshape((3, 3))
+        + (ca.jacobian(C_dot_be, psi) * psi_dot).reshape((3, 3))
+        + (ca.jacobian(C_dot_be, psi_dot) * psi_ddot).reshape((3, 3))
+    )
+    omega_dot_skew = C_eb @ (C_ddot_be - C_dot_be @ omega_skew)
+    p_dot = omega_dot_skew[2, 1]
+    q_dot = omega_dot_skew[0, 2]
+    r_dot = omega_dot_skew[1, 0]
+    omega_dot_eb_b = ca.vertcat(p_dot, q_dot, r_dot)
 
     dcm_quat = derive_dcm_to_quat()
     quat = dcm_quat["dcm_to_quat"](SO3Dcm.from_Matrix(C_be).param)
-
-    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Solve for omega_eb_b
-
-    # note h_omega z_b component can be ignored with dot product below
-    t2_e = m / T * j_e
-    p = ca.dot(t2_e, yb_e)
-    q = -ca.dot(t2_e, xb_e)
-
-    C_eb = C_be.T
-
-    # solve for euler angles based on DCM
-    theta = ca.asin(-C_eb[2, 0])  # check if transpose
-    phi = ca.if_else(
-        ca.fabs(ca.fabs(theta) - ca.pi / 2) < tol, 0, ca.atan2(C_eb[2, 1], C_eb[2, 2])
-    )
-
-    # solve for r
-    cos_phi = ca.cos(phi)
-    cos_phi = ca.if_else(ca.fabs(cos_phi) > tol, cos_phi, 0)
-    r = (
-        -q * ca.tan(phi) + ca.cos(theta) * psi_dot / cos_phi
-    )  # from R_solve below, singularity at phi=pi
-
-    T_dot = -ca.dot(m * j_e, zb_e)
-
-    # Mellinger approach
-    # yc_e = ca.cross(xc_e, zh)
-    # R_sol = ca.inv(ca.horzcat(xb_e, yc_e, zh))@C_be
-    # R_sol[2, 0]*p + R_sol[2, 1]*q + R_sol[2, 0]*r = psi_dot
-    # r2 = (psi_dot - R_sol[2, 0]*p + R_sol[2, 1]*q)/R_sol[2, 0]
-
-    omega_eb_b = p * xh + q * yh + r * zh
-
-    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Solve for omega_dot_eb_b
-
-    omega_eb_b_cross_zh = ca.cross(omega_eb_b, zh)
-
-    coriolis_b = 2 * T_dot / T * omega_eb_b_cross_zh
-    centrip_b = ca.cross(omega_eb_b, omega_eb_b_cross_zh)
-
-    q_dot = -m / T * ca.dot(s_e, xb_e) - ca.dot(coriolis_b, xh) - ca.dot(centrip_b, xh)
-    p_dot = m / T * ca.dot(s_e, yb_e) + ca.dot(coriolis_b, yh) + ca.dot(centrip_b, yh)
-
-    omega_eb_e = C_be @ omega_eb_b
-    omega_ec_e = psi_dot * zh
-
-    theta_dot = (q - ca.sin(phi) * ca.cos(theta) * psi_dot) / ca.cos(phi)
-    phi_dot = p + ca.sin(theta) * psi_dot
-
-    zc_e = zh  # c frame rotates about ze so zc_c = zc_e = zh
-    yc_e = ca.cross(zc_e, xc_e)
-    T1 = ca.inv(ca.horzcat(xb_e, yc_e, zh))
-    A = T1 @ C_be
-    b = -T1 @ (
-        ca.cross(omega_eb_e, phi_dot * xb_e) + ca.cross(omega_ec_e, theta_dot * yc_e)
-    )
-    r_dot = (psi_ddot - A[2, 0] * p_dot - A[2, 1] * q_dot - b[2]) / A[2, 2]
-
-    omega_dot_eb_b = p_dot * xh + q_dot * yh + r_dot * zh
 
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Solve for Inputs

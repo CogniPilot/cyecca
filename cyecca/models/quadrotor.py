@@ -179,7 +179,7 @@ def derive_model():
     # position_od_w = position_op_w + q_bw @ ca.vertcat(-0.17, 0.17, -0.1)
 
     # Fa_w = ca.if_else(position_oa_w[2] < 0, -1000*position_oa_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
-    # Fb_w = caposition_op_w.if_else(position_ob_w[2] < 0, -1000*position_ob_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
+    # Fb_w = ca.if_else(position_ob_w[2] < 0, -1000*position_ob_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
     # Fc_w = ca.if_else(position_oc_w[2] < 0, -1000*position_oc_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
     # Fd_w = ca.if_else(position_od_w[2] < 0, -1000*position_od_w[2] * zAxis - 100 * velocity_w_p_w, ca.vertcat(0, 0, 0))
 

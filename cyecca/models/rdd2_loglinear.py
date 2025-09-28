@@ -146,7 +146,7 @@ def se23_solve_control():
     A = -ca.DM(se23.elem(ca.vertcat(0, 0, 0, 0, 0, 9.8, 0, 0, 0)).ad() + adC_matrix())
     B = ca.DM.eye(9)
     # B = np.array(
-    #     [   
+    #     [
     #         [0, 0, 0, 0, 0, 0],  # vx
     #         [0, 0, 0, 0, 0, 0],  # vy
     #         [0, 0, 0, 0, 0, 0],  # vz

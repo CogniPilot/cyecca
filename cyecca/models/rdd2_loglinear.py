@@ -18,7 +18,7 @@ from cyecca.lie.group_se23 import (
 )
 from cyecca.symbolic import SERIES
 
-print("python: ", sys.executable)
+# print("python: ", sys.executable)
 
 # parameters
 g = 9.8  # grav accel m/s^2

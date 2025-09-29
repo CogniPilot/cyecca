@@ -9,7 +9,7 @@ import casadi as ca
 import cyecca.lie as lie
 from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321, SO3Dcm
 
-print("python: ", sys.executable)
+# print("python: ", sys.executable)
 
 g = 9.8  # grav accel m/s^2
 m = 2.0  # mass of vehicle

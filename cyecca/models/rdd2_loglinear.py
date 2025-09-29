@@ -3,7 +3,7 @@ import os
 import sys
 import math
 import numpy as np
-import control
+import scipy.signal
 import matplotlib.pyplot as plt
 from pathlib import Path
 import casadi as ca
@@ -142,6 +142,31 @@ def adC_matrix():
     return adC
 
 
+import numpy as np
+from scipy.linalg import solve_continuous_are
+
+
+def lqr(A, B, Q, R):
+    """
+    Solve the continuous time LQR controller for a system dx/dt = A x + B u.
+
+    Returns K, X, eigVals
+    - K: state feedback gain
+    - X: solution to Riccati equation
+    - eigVals: closed loop eigenvalues
+    """
+    # Solve the continuous-time Algebraic Riccati Equation (ARE)
+    X = solve_continuous_are(A, B, Q, R)
+
+    # Compute the LQR gain
+    K = np.linalg.inv(R) @ B.T @ X
+
+    # Closed loop eigenvalues
+    eigVals = np.linalg.eigvals(A - B @ K)
+
+    return K, X, eigVals
+
+
 def se23_solve_control():
     A = -ca.DM(se23.elem(ca.vertcat(0, 0, 0, 0, 0, 9.8, 0, 0, 0)).ad() + adC_matrix())
     B = ca.DM.eye(9)
@@ -161,7 +186,7 @@ def se23_solve_control():
     # Q = 100*ca.diag(ca.vertcat(10, 10, 10, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5))  # penalize state
     Q = 8 * np.eye(9)  # penalize state
     R = 1 * ca.DM.eye(9)  # penalize input
-    K, _, _ = control.lqr(A, B, Q, R)
+    K, _, _ = lqr(A, B, Q, R)
     K = -K
     BK = B @ K
     return A, K, BK, A + B @ K

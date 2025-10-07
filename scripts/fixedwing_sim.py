@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-from cyecca.models import fixedwing, lookupTableFixedwing
+from cyecca.models import fixedwing_4ch
 
-# from cyecca.models.lookupTableFixedwing import build_tables
 import casadi as ca
 import numpy as np
 
@@ -50,8 +49,8 @@ class Simulator(Node):
             Joy, "/auto_joy", self.auto_joy_callback, 1
         )
 
-        self.input_aetr = ca.vertcat(0.0, 0.0, 0.0)
-        self.input_auto = ca.vertcat(0.0, 0.0, 0.0)
+        self.input_aetr = ca.DM.zeros(4)  # aileron, elevator, thrust, rudder
+        self.input_auto = ca.DM.zeros(4)  # aileron, elevator, thrust, rudder
 
         self.t = 0.0
         self.dt = 0.01
@@ -63,24 +62,9 @@ class Simulator(Node):
         self.input_mode = "auto"
 
         # -------------------------------------------------------
-        #  Lookup Table
-        # -------------------------------------------------------
-
-        self.lookup_tab = lookupTableFixedwing.build_tables()
-        self.coeff_data = {
-            "CL": 0.0,
-            "CD": 0.0,
-            "Cl": 0.0,
-            "Cm": 0.0,
-            "Cn": 0.0,
-            "Cmdr": 0.0,
-            "Cmda": 0.0,
-        }
-        # -------------------------------------------------------
         # Dynamics
         # ----------------------------------------------
-        dynamics = fixedwing
-        self.model = dynamics.derive_model(coeff_data=self.coeff_data)
+        self.model = fixedwing_4ch.derive_model()
         self.x0_dict = self.model["x0_defaults"]
         if x0 is not None:
             for k in x0.keys():
@@ -142,7 +126,7 @@ class Simulator(Node):
     def auto_joy_callback(self, msg: Joy):
         self.input_auto = ca.vertcat(
             msg.axes[0],  # thrust
-            # msg.axes[1],  # aileron
+            msg.axes[1],  # aileron
             -msg.axes[2],  # elevator -- positive = elevator down (pitch up)
             msg.axes[1],  # rudder
         )  # TER
@@ -158,33 +142,22 @@ class Simulator(Node):
         # mode handling
         # ---------------------------------------------------------------------
 
-        # # 4 Channel Airplane
-        # if self.input_mode == "manual": #logitech f310
-        #     self.u = ca.vertcat(  # TAER mode
-        #         float(self.input_aetr[2]),
-        #         float(self.input_aetr[0]), # Sets aileron into auto or manual
-        #         float(self.input_aetr[1]),
-        #         float(self.input_aetr[3]),
-        #     )
+        # 4 Channel Airplane
 
-        # NVP Mapped with Roll Control
-        if self.input_mode == "manual":  # logitech f310
-            self.u = ca.vertcat(  # TER mode 3-Channel
-                float(self.input_aetr[2]),
-                float(self.input_aetr[1]),
-                -1 * float(self.input_aetr[0]),
-            )
-            print("manual input", self.u)
+        if self.input_mode == "manual":
+            input = self.input_aetr
         elif self.input_mode == "auto":
-            self.u = ca.vertcat(  # TER mode 3-Channel
-                float(self.input_auto[0]),
-                float(self.input_auto[1]),
-                float(self.input_auto[2]),
-            )
-            print("auto input", self.u)
+            input = self.input_auto
         else:
             self.get_logger().info("unhandled mode: %s" % self.input_mode)
-            self.u = ca.vertcat(float(0), float(0), float(0), float(0))
+            input = ca.vertcat(float(0), float(0), float(0), float(0))
+
+        self.u = ca.vertcat(  # TAER mode
+            float(input[2]),
+            float(input[0]),  # Sets aileron into auto or manual
+            float(input[1]),
+            float(input[3]),
+        )
 
     def integrate_simulation(self):
         """
@@ -193,63 +166,29 @@ class Simulator(Node):
         RAD2DEG = 180 / ca.pi
 
         try:
-            # Grab from Look Up Table
-            if self.Info == None:
-                self.Info = {}
-                self.Info["alpha"] = 0.0
-                self.Info["beta"] = 0.0
-                # self.Info["ail"] = 0.0
-                self.Info["elev"] = 0.0
-                self.Info["rud"] = 0.0
 
-            else:
-                self.coeff_data["CD"] = -1 * self.lookup_tab["Cx"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["elev"] * RAD2DEG
-                )
-                self.coeff_data["Cmdr"] = -1 * self.lookup_tab["DnDr"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["beta"] * RAD2DEG / 2
-                )
-                self.coeff_data["Cmda"] = -1 * self.lookup_tab["DlDa"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["beta"] * RAD2DEG / 2
-                )
-                self.coeff_data["CL"] = self.lookup_tab["Cz"](
-                    self.Info["alpha"] * RAD2DEG,
-                    self.Info["beta"] * RAD2DEG,
-                    self.Info["elev"] * RAD2DEG,
-                )
-                self.coeff_data["Cl"] = -1 * self.lookup_tab["Cl"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["beta"] * RAD2DEG
-                )
-                self.coeff_data["Cm"] = -1 * self.lookup_tab["Cm"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["elev"] * RAD2DEG
-                )
-                self.coeff_data["Cn"] = -1 * self.lookup_tab["Cn"](
-                    self.Info["alpha"] * RAD2DEG, self.Info["beta"] * RAD2DEG
-                )
-
-                dynamics = fixedwing
-                # print("Cm", self.coeff_data["Cm"])
-                self.model = dynamics.derive_model(coeff_data=self.coeff_data)
-
-            # opts = {"abstol": 1e-9,"reltol":1e-9,"fsens_err_con": True,"calc_ic":True,"calc_icB":True}
-            opts = {"abstol": 1e-2, "reltol": 1e-6, "fsens_err_con": True}
+            opts = {}
             xdot = self.model["f"](self.state, self.u, self.p)
 
-            # RK4
-            # f_int = ca.integrator(
-            #     "test", "rk", self.model["dae"], {"t0": self.t, "tf": self.t + self.dt}
-            # )
-            # res = f_int(x0=self.state, z0=ca.DM.zeros(self.model["z"].size1()), p=self.p, u=self.u)
+            method = "cvodes"
 
-            # IDAS
-            # f_int = ca.integrator(
-            #     "test", "idas", self.model["dae"], {"t0": self.t, "tf": self.t + self.dt, **opts}
-            # )
-            # res = f_int(x0=self.state, z0=ca.DM.zeros(self.model["z"].size1()), p=self.p, u=self.u)
+            if method == "rk":
+                opts = {}
+            elif method == "idas":
+                opts = {
+                    "abstol": 1e-9,
+                    "reltol": 1e-9,
+                    "fsens_err_con": True,
+                    "calc_ic": True,
+                    "calc_icB": True,
+                }
+            elif method == "cvodes":
+                opts = {"abstol": 1e-2, "reltol": 1e-6, "fsens_err_con": True}
+            else:
+                raise ValueError("unknown integration method: %s" % method)
 
-            # #CVODES
             f_int = ca.integrator(
-                "test", "cvodes", self.model["dae"], self.t, self.t + self.dt, opts
+                "test", method, self.model["dae"], self.t, self.t + self.dt, opts
             )
             res = f_int(x0=self.state, z0=0.0, p=self.p, u=self.u)
 
@@ -366,13 +305,13 @@ class Simulator(Node):
             vector(self.Info["D_b"], "drag", [0.0, 0.0, 1.0, 1.0], 1.0)
         )
         self.pub_weight.publish(
-            vector(self.Info["W_b"], "weight", [0.0, 1.0, 0.0, 1.0], 1.0)
+            vector(self.Info["FW_b"], "weight", [0.0, 1.0, 0.0, 1.0], 1.0)
         )
         self.pub_thrust.publish(
-            vector(self.Info["T_b"], "thrust", [1.0, 0.0, 1.0, 1.0], 1.0)
+            vector(self.Info["FT_b"], "thrust", [1.0, 0.0, 1.0, 1.0], 1.0)
         )
         self.pub_side_force.publish(
-            vector(self.Info["S_b"], "side_force", [1.0, 1.0, 0.0, 1.0], 1.0)
+            vector(self.Info["C_b"], "side_force", [1.0, 1.0, 0.0, 1.0], 1.0)
         )
 
         self.pub_vel_b.publish(

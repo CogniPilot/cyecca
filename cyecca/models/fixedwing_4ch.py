@@ -165,7 +165,7 @@ def derive_model():
     max_defl_elev = 24  # maximum elevator deflection in deg
     max_defl_rud = 20  # maximum rudder deflection in deg
     alpha_stall = 20 * DEG2RAD  # stall angle of attack in rad
-    tol_v = 1e-3  # 1e-1 # Aerodynamic Tolerance for Velocity
+    tol_v = 1e-3  # Aerodynamic Tolerance for Velocity
     xAxis = ca.vertcat(1, 0, 0)
     yAxis = ca.vertcat(0, 1, 0)
     zAxis = ca.vertcat(0, 0, 1)
@@ -208,17 +208,19 @@ def derive_model():
 
     ##############################################################################################
     # Input
-    throttle_cmd = ca.SX.sym("throttle_cmd")
-    ail_cmd = ca.SX.sym("ail_cmd")
-    elev_cmd = ca.SX.sym("elev_cmd")
-    rud_cmd = ca.SX.sym("rud_cmd")
+    throttle_cmd = ca.SX.sym("throttle_cmd")  # Throttle
+    ail_cmd = ca.SX.sym("ail_cmd")  # Aileron
+    elev_cmd = ca.SX.sym("elev_cmd")  # Elevator
+    rud_cmd = ca.SX.sym("rud_cmd")  # Rudder
     u = ca.vertcat(throttle_cmd, ail_cmd, elev_cmd, rud_cmd)
 
     ##############################################################################################
     # Velocities and Aerodynamic Angles
-    V_b = ca.norm_2(velocity_b)  # true airspeed
-    V_b = ca.if_else(ca.fabs(V_b) < tol_v, tol_v, V_b)  # sideslip angle
-    alpha = ca.atan2(-velocity_b[2], velocity_b[0])  # normalized velocity componenet
+    V_b = ca.norm_2(velocity_b)  # body-frame speed
+    V_b = ca.if_else(
+        ca.fabs(V_b) < tol_v, tol_v, V_b
+    )  # avoid singularities at low airspeed
+    alpha = ca.atan2(-velocity_b[2], velocity_b[0])  # angle-of-attack
     beta = ca.asin(velocity_b[1] / V_b)  # sideslip angle
 
     # rotation from body to wind frame
@@ -235,7 +237,7 @@ def derive_model():
     q_wb = lie.SO3Quat.elem(quat_wb)
     q_bw = q_wb.inverse()
 
-    # Euler elements for body frame
+    # Euler Angular rates for body frame
     P = omega_wb_b[0]
     Q = omega_wb_b[1]
     R = omega_wb_b[2]

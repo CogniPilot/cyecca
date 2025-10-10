@@ -207,12 +207,12 @@ def derive_model():
     }
 
     ##############################################################################################
-    # Input
-    throttle_cmd = ca.SX.sym("throttle_cmd")  # Throttle
+    # Input AETR
     ail_cmd = ca.SX.sym("ail_cmd")  # Aileron
     elev_cmd = ca.SX.sym("elev_cmd")  # Elevator
+    throttle_cmd = ca.SX.sym("throttle_cmd")  # Throttle
     rud_cmd = ca.SX.sym("rud_cmd")  # Rudder
-    u = ca.vertcat(throttle_cmd, ail_cmd, elev_cmd, rud_cmd)
+    u = ca.vertcat(ail_cmd, elev_cmd, throttle_cmd, rud_cmd)  # input aetr
 
     ##############################################################################################
     # Velocities and Aerodynamic Angles
@@ -248,8 +248,8 @@ def derive_model():
     ##############################################################################################
     # Control Surface Defelction
 
-    ail_rad = max_defl_ail * DEG2RAD * u[1] * 1  # mapped for HH Sport Cub 2
-    elev_rad = max_defl_elev * DEG2RAD * u[2] * 1  # mapped for HH Sport Cub 2
+    ail_rad = max_defl_ail * DEG2RAD * u[0] * 1  # mapped for HH Sport Cub 2
+    elev_rad = max_defl_elev * DEG2RAD * u[1] * 1  # mapped for HH Sport Cub 2
     rud_rad = max_defl_rud * DEG2RAD * u[3] * -1  # mapped for HH Sport Cub 2
 
     ##############################################################################################
@@ -327,7 +327,8 @@ def derive_model():
         vel_wheel_w = q_wb @ vel_wheel_b
         force_w = ca.if_else(
             pos_wheel_w[2] < 0.0,
-            saturate(-(pos_wheel_w[2]) * 10, -100, 100) * zAxis
+            saturate(-(pos_wheel_w[2]) * 10, -100, 100)
+            * zAxis  # vertical ground spring force
             - vel_wheel_w[2] * 01.10 * zAxis  # Vertical Component Damping
             - vel_wheel_w[0] * 0.001 * xAxis  # ground damping
             - vel_wheel_w[1] * 0.001 * yAxis,  # ground damping
@@ -341,7 +342,7 @@ def derive_model():
 
     ###############################################################################################
     # Thrust Force
-    throttle = ca.if_else(u[0] > 1e-3, u[0], 1e-3)
+    throttle = ca.if_else(u[2] > 1e-3, u[2], 1e-3)
     FT_b = (
         thr_max * throttle
     ) * xAxis  # Longitudinal Force assume thrust is directly on the x axis

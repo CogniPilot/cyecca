@@ -165,5 +165,3 @@ cython_debug/
 notebook/gen
 notebook/Untitled*
 source.dot
-
-poetry.lock

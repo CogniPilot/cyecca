@@ -4,4 +4,4 @@ create = true
 prompt = "cyecca"
 
 [virtualenvs.options]
-system-site-packages = true
+system-site-packages = false

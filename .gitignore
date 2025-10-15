@@ -159,8 +159,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-.vscode/
 .profile/
+.vscode/ros_path
 
 notebook/gen
 notebook/Untitled*

@@ -305,7 +305,7 @@ def derive_model():
     MA_b += (Clp * span / (2 * V_b) * P) * xAxis  # Roll Damping
     MA_b += (Clr * span / (2 * V_b) * R) * xAxis  # Roll damping due to yaw rate
     MA_b += (Cmq * cbar / (2 * V_b) * Q) * yAxis  # Pitch Damping
-    MA_b += (Cnp * span / (2 * V_b) * P) * zAxis  # # Yaw damping due to roll rate
+    MA_b += (Cnp * span / (2 * V_b) * P) * zAxis  # Yaw damping due to roll rate
     MA_b += (Cnr * span / (2 * V_b) * R) * zAxis  # Yaw Damping
 
     ###############################################################################################

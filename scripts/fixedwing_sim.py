@@ -114,7 +114,7 @@ class Simulator(Node):
         )
 
         self.input_aetr = ca.DM.zeros(4)  # aileron, elevator, thrust, rudder
-        self.input_auto = ca.DM.zeros(4)  # thrust, aileron, elevator, rudder
+        self.input_auto = ca.DM.zeros(4)  # aileron, elevator, thrust, rudder
 
         self.t = 0.0
         self.dt = 0.01
@@ -197,15 +197,6 @@ class Simulator(Node):
                 "mode changed from: %s to %s" % (self.input_mode, new_mode)
             )
             self.input_mode = new_mode
-
-    # # Auto Joy accepts TAER and remap to AETR here
-    # def auto_joy_callback(self, msg: Joy):
-    #     self.input_auto = ca.vertcat(
-    #         msg.axes[1],  # aileron
-    #         -msg.axes[2],  # elevator
-    #         msg.axes[0],  # thrust
-    #         msg.axes[3],  # rudder
-    #     )
 
     # Auto joy commands accepts AETR
     def auto_joy_callback(self, msg: Joy):

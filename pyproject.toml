@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cyecca"
-version = "0.2.3"
+version = "0.2.4"
 description = ""
 authors = ["James Goppert <james.goppert@gmail.com>"]
 readme = "README.md"

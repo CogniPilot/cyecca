@@ -165,7 +165,7 @@ def derive_model():
     max_defl_elev = 24  # maximum elevator deflection in deg
     max_defl_rud = 20  # maximum rudder deflection in deg
     alpha_stall = 20 * DEG2RAD  # stall angle of attack in rad
-    tol_v = 1e-3  # 1e-1 # Aerodynamic Tolerance for Velocity
+    tol_v = 1e-3  # Aerodynamic Tolerance for Velocity
     xAxis = ca.vertcat(1, 0, 0)
     yAxis = ca.vertcat(0, 1, 0)
     zAxis = ca.vertcat(0, 0, 1)
@@ -207,18 +207,20 @@ def derive_model():
     }
 
     ##############################################################################################
-    # Input
-    throttle_cmd = ca.SX.sym("throttle_cmd")
-    ail_cmd = ca.SX.sym("ail_cmd")
-    elev_cmd = ca.SX.sym("elev_cmd")
-    rud_cmd = ca.SX.sym("rud_cmd")
-    u = ca.vertcat(throttle_cmd, ail_cmd, elev_cmd, rud_cmd)
+    # Input AETR
+    ail_cmd = ca.SX.sym("ail_cmd")  # Aileron
+    elev_cmd = ca.SX.sym("elev_cmd")  # Elevator
+    throttle_cmd = ca.SX.sym("throttle_cmd")  # Throttle
+    rud_cmd = ca.SX.sym("rud_cmd")  # Rudder
+    u = ca.vertcat(ail_cmd, elev_cmd, throttle_cmd, rud_cmd)  # input aetr
 
     ##############################################################################################
     # Velocities and Aerodynamic Angles
-    V_b = ca.norm_2(velocity_b)  # true airspeed
-    V_b = ca.if_else(ca.fabs(V_b) < tol_v, tol_v, V_b)  # sideslip angle
-    alpha = ca.atan2(-velocity_b[2], velocity_b[0])  # normalized velocity componenet
+    V_b = ca.norm_2(velocity_b)  # body-frame speed
+    V_b = ca.if_else(
+        ca.fabs(V_b) < tol_v, tol_v, V_b
+    )  # avoid singularities at low airspeed
+    alpha = ca.atan2(-velocity_b[2], velocity_b[0])  # angle-of-attack
     beta = ca.asin(velocity_b[1] / V_b)  # sideslip angle
 
     # rotation from body to wind frame
@@ -235,7 +237,7 @@ def derive_model():
     q_wb = lie.SO3Quat.elem(quat_wb)
     q_bw = q_wb.inverse()
 
-    # Euler elements for body frame
+    # Euler Angular rates for body frame
     P = omega_wb_b[0]
     Q = omega_wb_b[1]
     R = omega_wb_b[2]
@@ -246,8 +248,8 @@ def derive_model():
     ##############################################################################################
     # Control Surface Defelction
 
-    ail_rad = max_defl_ail * DEG2RAD * u[1] * 1  # mapped for HH Sport Cub 2
-    elev_rad = max_defl_elev * DEG2RAD * u[2] * 1  # mapped for HH Sport Cub 2
+    ail_rad = max_defl_ail * DEG2RAD * u[0] * 1  # mapped for HH Sport Cub 2
+    elev_rad = max_defl_elev * DEG2RAD * u[1] * 1  # mapped for HH Sport Cub 2
     rud_rad = max_defl_rud * DEG2RAD * u[3] * -1  # mapped for HH Sport Cub 2
 
     ##############################################################################################
@@ -303,7 +305,7 @@ def derive_model():
     MA_b += (Clp * span / (2 * V_b) * P) * xAxis  # Roll Damping
     MA_b += (Clr * span / (2 * V_b) * R) * xAxis  # Roll damping due to yaw rate
     MA_b += (Cmq * cbar / (2 * V_b) * Q) * yAxis  # Pitch Damping
-    MA_b += (Cnp * span / (2 * V_b) * P) * zAxis  # # Yaw damping due to roll rate
+    MA_b += (Cnp * span / (2 * V_b) * P) * zAxis  # Yaw damping due to roll rate
     MA_b += (Cnr * span / (2 * V_b) * R) * zAxis  # Yaw Damping
 
     ###############################################################################################
@@ -325,7 +327,8 @@ def derive_model():
         vel_wheel_w = q_wb @ vel_wheel_b
         force_w = ca.if_else(
             pos_wheel_w[2] < 0.0,
-            saturate(-(pos_wheel_w[2]) * 10, -100, 100) * zAxis
+            saturate(-(pos_wheel_w[2]) * 10, -100, 100)
+            * zAxis  # vertical ground spring force
             - vel_wheel_w[2] * 01.10 * zAxis  # Vertical Component Damping
             - vel_wheel_w[0] * 0.001 * xAxis  # ground damping
             - vel_wheel_w[1] * 0.001 * yAxis,  # ground damping
@@ -339,7 +342,7 @@ def derive_model():
 
     ###############################################################################################
     # Thrust Force
-    throttle = ca.if_else(u[0] > 1e-3, u[0], 1e-3)
+    throttle = ca.if_else(u[2] > 1e-3, u[2], 1e-3)
     FT_b = (
         thr_max * throttle
     ) * xAxis  # Longitudinal Force assume thrust is directly on the x axis

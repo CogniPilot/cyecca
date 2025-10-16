@@ -1,7 +1,12 @@
 <launch>
-    <node pkg="cyecca" exec="fixedwing_sim.py" output="screen"/>
-    <node pkg="joy" exec="joy_node"/>
-	<node pkg="rviz2" exec="rviz2" args="-d $(find-pkg-share cyecca)/config/nvp_sim.config.rviz">
+  	<arg name="mocap_vehicle_id" default="sim"/>
+  	<arg name="frame_id"         default="map"/>
+    <node pkg="cyecca" exec="fixedwing_sim.py" output="screen">
+	    <param name="mocap_vehicle_id" value="$(var mocap_vehicle_id)"/>
+    	<param name="frame_id"         value="$(var frame_id)"/>
+	</node>
+	<node pkg="joy" exec="joy_node" namespace="$(var mocap_vehicle_id)"/>
+	<node pkg="rviz2" exec="rviz2" args="-d $(find-pkg-share cyecca)/config/cub_sim.config.rviz">
 		<param name="use_sim_time" value="true"/>
 	</node>
 </launch>

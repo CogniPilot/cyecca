@@ -239,7 +239,7 @@ def derive_outerloop_control():
     # F = - m * Kp' ep - m * Kv' * ev + mg zW + m at_w
     # Force is normalized by the weight (mg)
 
-    # normalized thrust vectorthrust
+    # normalized thrust vector
     p_norm_max = 0.3 * m * g
     uv_w = q_wb @ uv
     ua_w = q_wb @ ua
@@ -261,7 +261,7 @@ def derive_outerloop_control():
     zB = ca.if_else(nT > 1e-3, T / nT, zW)
 
     # point y using desired camera direction
-    ec = SO3EulerB321.from_Quat(qc_wb)
+    ec = SO3EulerB321.from_Quat(q_wb)
     yt = ec.param[0]
     xC = ca.vertcat(ca.cos(yt), ca.sin(yt), 0)
     yB = ca.cross(zB, xC)

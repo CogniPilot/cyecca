@@ -28,13 +28,22 @@ rollpitch_rate_max = 60  # deg/s
 yaw_rate_max = 60  # deg/s
 rollpitch_max = 30  # deg
 
+# inertia
+Jx = 0.02166666666666667
+Jy = 0.02166666666666667
+Jz = 0.04000000000000001
+
 # position loop
 kp_pos = 2.0  # position proportional gain
 kp_vel = 4.0  # velocity proportional gain
 # pos_sp_dist_max = 2 # position setpoint max distance
 # vel_max = 2.0 # max velocity command
-z_integral_max = 0  # 5.0
-ki_z = 0.05  # velocity z integral gain
+x_integral_max = 0.10  # 25% throttle
+y_integral_max = 0.10  # 25% throttle
+z_integral_max = 0.10  # 25% throttle
+ki_x = 0.1  # time constant in second
+ki_y = 0.1
+ki_z = 0.1  # velocity z integral gain
 
 
 def angle_wrap(angle):
@@ -400,8 +409,8 @@ def derive_attitude_rate_control():
 
     # integral action helps balance distrubance moments (e.g. center of gravity offset)
     i1 = saturatem(i0 + e1 * dt, -i_max, i_max)
-
-    M = kp * e1 + ki * i1 + kd * de1
+    J = ca.diag(ca.vertcat(Jx, Jy, Jz))
+    M = J @ (kp * e1 + ki * i1 + kd * de1)
 
     # FUNCTION
     # -------------------------------
@@ -463,7 +472,7 @@ def derive_position_control():
     qc_wb = SO3Quat.elem(ca.SX.sym("qc_wb", 4))  # camera orientation
     p_w = ca.SX.sym("p_w", 3)  # position in world frame
     v_w = ca.SX.sym("v_w", 3)  # velocity in world frame
-    z_i = ca.SX.sym("z_i")  # z velocity error integral
+    z_i = ca.SX.sym("z_i", 3)  # velocity error integral
     dt = ca.SX.sym("dt")  # time step
 
     # CALC
@@ -485,12 +494,22 @@ def derive_position_control():
     p_norm = ca.norm_2(p_term)
     p_term = ca.if_else(p_norm > p_norm_max, p_norm_max * p_term / p_norm, p_term)
 
-    # throttle integral
-    z_i_2 = z_i - e_p[2] * dt
-    z_i_2 = saturatem(z_i_2, -ca.vertcat(z_integral_max), ca.vertcat(z_integral_max))
+    # throttle integral -> make this as a vector version, with x y z
+    z_i_2 = z_i - e_p * dt
+    z_i_2 = saturatem(
+        z_i_2,
+        -thrust_trim
+        * ca.vertcat(
+            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
+        ),
+        thrust_trim
+        * ca.vertcat(
+            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
+        ),
+    )
 
     # trim throttle
-    T = p_term + thrust_trim * zW + ki_z * z_i * zW
+    T = p_term + thrust_trim * zW + ca.diag(ca.vertcat(ki_x, ki_y, ki_z)) @ z_i
 
     # thrust
     nT = ca.norm_2(T)
@@ -781,7 +800,7 @@ def derive_attitude_estimator():
     accel_gain = ca.SX.sym("accel_gain", 1)
     mag_gain = ca.SX.sym("mag_gain", 1)
     dt = ca.SX.sym("dt", 1)
-    P_att = ca.SX.sym("P_att", 36)
+    P_att = ca.SX.sym("P_att", 6)
 
     # Convert quaternion to SO3Quat object
     q_wb = SO3Quat.elem(param=q)

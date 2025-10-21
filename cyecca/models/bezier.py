@@ -12,10 +12,10 @@ from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321, SO3Dcm
 # print("python: ", sys.executable)
 
 g = 9.8  # grav accel m/s^2
-m = 2.0  # mass of vehicle
-J_xx = 0.0216666
-J_yy = 0.0216666
-J_zz = 0.04
+m = 2.24  # mass of vehicle
+J_xx = 0.02166666666666667
+J_yy = 0.02166666666666667
+J_zz = 0.04000000000000001
 J_xz = 0
 
 

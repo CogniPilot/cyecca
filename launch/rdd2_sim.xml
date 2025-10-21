@@ -1,5 +1,9 @@
 <launch>
 	<node pkg="cyecca" exec="rdd2_sim.py" output="screen"/>
 	<node pkg="joy" exec="joy_node"/>
+	<node pkg="tf2_ros" exec="static_transform_publisher" args="0 0 0 0 0 0 base_link base_footprint"/>
+	<node pkg="tf2_ros" exec="static_transform_publisher" args="0 0 0 0 0 0 base_link camera_link"/>
+	<node pkg="tf2_ros" exec="static_transform_publisher" args="0 0 0 0 0 0 base_link camera_link_optical"/>
+	<node pkg="tf2_ros" exec="static_transform_publisher" args="0 0 0 0 0 0 base_link lidar_link"/>
 </launch>	
 <!-- vi: ts=4 sw=4 et-->

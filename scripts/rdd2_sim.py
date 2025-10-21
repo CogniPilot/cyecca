@@ -39,7 +39,7 @@ class Simulator(Node):
             TwistWithCovarianceStamped, "twist_cov", 1
         )
         self.pub_twist = self.create_publisher(TwistStamped, "twist", 1)
-        self.pub_path = self.create_publisher(Path, "path", 1)
+        self.pub_path = self.create_publisher(Path, "pose_history", 1)
         self.pub_imu = self.create_publisher(Imu, "imu", 1)
         self.tf_broadcaster = TransformBroadcaster(self)
         self.tf_static_broadcaster = StaticTransformBroadcaster(self)
@@ -118,7 +118,7 @@ class Simulator(Node):
         self.de0 = np.zeros(3, dtype=float)  # deriv of att error (for lowpass)
 
         # estimator data
-        self.use_estimator = True  # if false, will use sim state instead for control
+        self.use_estimator = False  # if false, will use sim state instead for control
         self.P = 1e-2 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # state covariance
         self.Q = 1e-9 * np.array([1, 0, 0, 1, 0, 1], dtype=float)  # process noise
         self.P_temp = 1e-2 * np.eye(6, dtype=float)
@@ -190,15 +190,22 @@ class Simulator(Node):
         # ).reshape(-1)
 
         DECLANATION = 0
-        # IDK what this is
-
+        accel_gain = 0.04
+        mag_gain = 0.04
         # new code
-        temp_q = np.array(
-            self.eqs["attitude_estimator"](
-                self.q, self.y_mag, DECLANATION, self.y_gyro, self.y_accel, self.dt
-            ),
-            dtype=float,
+        temp_q, P_new = self.eqs["attitude_estimator"](
+            self.q,
+            self.y_mag,
+            DECLANATION,
+            self.y_gyro,
+            self.y_accel,
+            accel_gain,
+            mag_gain,
+            self.dt,
+            self.P,
         )
+        temp_q = np.array(temp_q, dtype=float)
+        # self.P = np.array(P_new, dtype=float)
 
         self.est_x[6] = temp_q[0]
         self.est_x[7] = temp_q[1]
@@ -233,9 +240,9 @@ class Simulator(Node):
         k_p_att = np.array([5, 5, 2], dtype=float)
 
         # attitude rate
-        kp = np.array([0.3, 0.3, 0.05], dtype=float)
-        ki = np.array([0, 0, 0], dtype=float)
-        kd = np.array([0.1, 0.1, 0], dtype=float)
+        kp = 20 * np.array([0.3, 0.3, 0.05], dtype=float)
+        ki = 20 * np.array([0, 0, 0], dtype=float)
+        kd = 20 * np.array([0.1, 0.1, 0], dtype=float)
         f_cut = 10.0
         i_max = np.array([0, 0, 0], dtype=float)
 
@@ -342,6 +349,7 @@ class Simulator(Node):
             time_nsec = sec * 1e9 + nanosec
             curve_idx = 0
 
+            # find current curve
             while True:
                 curve = self.bezier_msg.curves[curve_idx]
                 curve_prev = self.bezier_msg.curves[curve_idx - 1]
@@ -355,7 +363,13 @@ class Simulator(Node):
                         time_start_nsec = curve_prev_stop_nsec
                     break
                 curve_idx += 1
-            if curve_idx < len(self.bezier_msg.curves):
+                if curve_idx >= len(self.bezier_msg.curves):
+                    curve_idx = -1
+                    break
+
+            # update sp if curve valid
+            if curve_idx != -1:
+                # get bz data for current curve
                 T = (time_stop_nsec - time_start_nsec) * 1e-9
                 t = (time_nsec - time_start_nsec) * 1e-9
                 for i in range(8):
@@ -383,18 +397,20 @@ class Simulator(Node):
                     self.z_i,
                     self.dt,
                 )
-                [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
-                    thrust_trim,
-                    self.pw_sp,
-                    self.vw_sp,
-                    self.aw_sp,
-                    self.qc_sp,
-                    self.pw,
-                    self.vw,
-                    self.z_i,
-                    self.dt,
-                )
-                omega_sp = self.eqs["attitude_control"](k_p_att, self.q, self.q_sp)
+
+            # running control
+            [thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
+                thrust_trim,
+                self.pw_sp,
+                self.vw_sp,
+                self.aw_sp,
+                self.qc_sp,
+                self.pw,
+                self.vw,
+                self.z_i,
+                self.dt,
+            )
+            omega_sp = self.eqs["attitude_control"](k_p_att, self.q, self.q_sp)
 
         else:
             self.get_logger().info("unhandled mode: %s" % self.input_mode)
@@ -449,7 +465,10 @@ class Simulator(Node):
             # self.get_logger().info(
             #     "bezier mode not yet supported, reverted to %s" % self.input_mode
             # )
-            new_mode = "bezier"
+            if self.bezier_msg is None:
+                self.get_logger().warn("No bezier traj sent, mode change ignored")
+            else:
+                new_mode = "bezier"
         if new_mode != self.input_mode:
             self.get_logger().info(
                 "mode changed from: %s to %s" % (self.input_mode, new_mode)
@@ -770,7 +789,7 @@ class Simulator(Node):
         msg_odom.header.stamp = msg_clock.clock
         msg_odom.header.frame_id = "map"
         msg_odom.child_frame_id = "base_link"
-        msg_odom.pose.covariance = P_full.reshape(-1)
+        # msg_odom.pose.covariance = P_full.reshape(-1)
         msg_odom.pose.pose.position.x = self.est_x[0]
         msg_odom.pose.pose.position.y = self.est_x[1]
         msg_odom.pose.pose.position.z = self.est_x[2]

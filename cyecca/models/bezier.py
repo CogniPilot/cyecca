@@ -1,22 +1,8 @@
 import argparse
 import os
-import sys
-import math
-import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
 import casadi as ca
-import cyecca.lie as lie
 from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321, SO3Dcm
-
-# print("python: ", sys.executable)
-
-g = 9.8  # grav accel m/s^2
-m = 2.24  # mass of vehicle
-J_xx = 0.02166666666666667
-J_yy = 0.02166666666666667
-J_zz = 0.04000000000000001
-J_xz = 0
 
 
 class Bezier:
@@ -165,6 +151,14 @@ def derive_ref():
 
     tol = 1e-6  # tolerance for singularities
 
+    # parameters
+    g = ca.SX.sym("g")
+    m = ca.SX.sym("m")
+    Jx = ca.SX.sym("Jx")
+    Jy = ca.SX.sym("Jy")
+    Jz = ca.SX.sym("Jz")
+    Jxz = ca.SX.sym("Jxz")
+
     # flat output (input variables from trajectory planner)
     p_e = ca.SX.sym("p_e", 3)  # position
     v_e = ca.SX.sym("v_e", 3)  # velocity
@@ -232,10 +226,10 @@ def derive_ref():
     # Solve for Inputs
 
     J = ca.SX(3, 3)
-    J[0, 0] = J_xx
-    J[1, 1] = J_yy
-    J[2, 2] = J_zz
-    J[0, 2] = J[2, 0] = J_xz
+    J[0, 0] = Jx
+    J[1, 1] = Jy
+    J[2, 2] = Jz
+    J[0, 2] = J[2, 0] = Jxz
 
     M_b = J @ omega_dot_eb_b + ca.cross(omega_eb_b, J @ omega_eb_b)
 
@@ -246,7 +240,7 @@ def derive_ref():
     functions = [
         ca.Function(
             "f_ref",
-            [psi, psi_dot, psi_ddot, v_e, a_e, j_e, s_e],
+            [psi, psi_dot, psi_ddot, v_e, a_e, j_e, s_e, m, g, Jx, Jy, Jz, Jxz],
             [v_b, quat, omega_eb_b, omega_dot_eb_b, M_b, T],
             [
                 "psi",
@@ -256,6 +250,12 @@ def derive_ref():
                 "a_e",
                 "j_e",
                 "s_e",
+                "m",
+                "g",
+                "Jx",
+                "Jy",
+                "Jz",
+                "Jxz",
             ],
             ["v_b", "quat", "omega_eb_b", "omega_dot_eb_b", "M_b", "T"],
         )

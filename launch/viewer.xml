@@ -1,6 +1,49 @@
 <launch>
-	<node pkg="rviz2" exec="rviz2" args="-d $(find-pkg-share cyecca)/config/rdd2.config.rviz">
-		<param name="use_sim_time" value="true"/>
-	</node>
-</launch>	
-<!-- vi: ts=4 sw=4 et-->
+  <!-- ==================== -->
+  <!-- Launch configuration -->
+  <!-- ==================== -->
+
+  <arg name="use_sim_time" default="true" description="Use simulated (Gazebo or sim) time if true"/>
+  <arg name="log_level" default="WARN" description="Logging level (DEBUG, INFO, WARN, ERROR, FATAL)"/>
+
+  <arg name="rviz_config"
+       default="$(find-pkg-share cyecca)/config/rdd2.config.rviz"
+       description="Path to the RViz2 configuration file"/>
+
+  <arg name="urdf_file"
+       default="$(find-pkg-share rdd2_description)/urdf/rdd2.urdf"
+       description="Path to the robot URDF file"/>
+
+  <!-- ==================== -->
+  <!-- Robot State Publisher -->
+  <!-- ==================== -->
+  <node
+    pkg="robot_state_publisher"
+    exec="robot_state_publisher"
+    name="robot_state_publisher"
+    output="screen"
+    emulate_tty="true">
+    <param name="robot_description"
+          value="$(command '$(find-exec xacro) $(var urdf_file)')"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+
+  <!-- ==================== -->
+  <!-- RViz2 Visualization -->
+  <!-- ==================== -->
+  <node
+    pkg="rviz2"
+    exec="rviz2"
+    name="rviz2"
+    output="screen"
+    emulate_tty="true"
+    args="-d $(var rviz_config)
+          --ros-args
+          --log-level $(var log_level)">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="tf_buffer_length" value="0.01"/>
+    <param name="transform_tolerance" value="0.0"/>
+  </node>
+</launch>
+<!-- vi: ts=4 sw=4 et -->

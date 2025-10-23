@@ -1,21 +1,12 @@
 import argparse
 import os
-import sys
-import math
 import numpy as np
-import scipy.signal
-import matplotlib.pyplot as plt
 from pathlib import Path
 import casadi as ca
 import cyecca.lie as lie
 from cyecca.lie.group_so3 import so3, SO3Quat, SO3EulerB321, SO3Dcm
 from cyecca.models.bezier import derive_dcm_to_quat
-from cyecca.lie.group_se23 import (
-    SE23Quat,
-    se23,
-    SE23LieGroupElement,
-    SE23LieAlgebraElement,
-)
+from cyecca.lie.group_se23 import SE23Quat, se23
 from cyecca.symbolic import SERIES
 
 # print("python: ", sys.executable)

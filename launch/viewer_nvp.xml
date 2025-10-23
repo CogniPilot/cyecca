@@ -1,6 +1,31 @@
 <launch>
-	<node pkg="rviz2" exec="rviz2" args="-d $(find-pkg-share cyecca)/config/nvp_sim.config.rviz">
-		<param name="use_sim_time" value="true"/>
-	</node>
-</launch>	
-<!-- vi: ts=4 sw=4 et-->
+  <!-- ==================== -->
+  <!-- Launch configuration -->
+  <!-- ==================== -->
+
+  <!-- Whether to use simulation time -->
+  <arg name="use_sim_time" default="true" description="Use simulated time if true"/>
+
+  <!-- Logging level -->
+  <arg name="log_level" default="WARN" description="Logging level for RViz2 (DEBUG, INFO, WARN, ERROR, FATAL)"/>
+
+  <!-- Path to RViz configuration file -->
+  <arg name="rviz_config"
+       default="$(find-pkg-share cyecca)/config/nvp_sim.config.rviz"
+       description="Path to the RViz2 configuration file"/>
+
+  <!-- ==================== -->
+  <!-- Launch RViz2 -->
+  <!-- ==================== -->
+  <node
+    pkg="rviz2"
+    exec="rviz2"
+    output="screen"
+    emulate_tty="true"
+    args="-d $(arg rviz_config) --ros-args --log-level $(arg log_level)">
+    <param name="use_sim_time" value="$(arg use_sim_time)"/>
+    <!-- eliminate TF interpolation delay -->
+    <param name="tf_buffer_length" value="0.0"/>
+  </node>
+</launch>
+<!-- vi: ts=4 sw=4 et -->

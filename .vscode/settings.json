@@ -1,15 +1,11 @@
 {
   "cmake.configureOnOpen": false,
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
-  "python.terminal.activateEnvironment": true,
+  "python.terminal.activateEnvironment": false,
   "jupyter.defaultKernel": "cyecca",
   "python.analysis.extraPaths": [
     "${workspaceFolder}/.vscode/ros_path"
   ],
   "python.envFile": "${workspaceFolder}/.vscode/env",
-  "terminal.integrated.env.linux": {
-    "VIRTUAL_ENV": "${workspaceFolder}/.venv",
-    "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}"
-  },
   "terminal.integrated.defaultProfile.linux": "bash"
 }

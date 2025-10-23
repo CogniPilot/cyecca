@@ -5,8 +5,6 @@ Fixed-Wing Vehicle Dynamics for HH Sport Cub S2
 
 import casadi as ca
 import numpy as np
-import matplotlib.pyplot as plt
-from pathlib import Path
 from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321
 import cyecca.lie as lie
 

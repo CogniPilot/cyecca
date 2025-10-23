@@ -1,12 +1,56 @@
 <launch>
-  	<arg name="mocap_vehicle_id" default="sim"/>
-  	<arg name="frame_id"         default="map"/>
-    <node pkg="cyecca" exec="fixedwing_sim.py" output="screen">
-	    <param name="mocap_vehicle_id" value="$(var mocap_vehicle_id)"/>
-    	<param name="frame_id"         value="$(var frame_id)"/>
-	</node>
-	<node pkg="joy" exec="joy_node" namespace="$(var mocap_vehicle_id)"/>
-	<node pkg="rviz2" exec="rviz2" args="-d $(find-pkg-share cyecca)/config/cub_sim.config.rviz">
-		<param name="use_sim_time" value="true"/>
-	</node>
+  <!-- ==================== -->
+  <!-- Launch configuration -->
+  <!-- ==================== -->
+
+  <!-- Vehicle namespace and reference frame -->
+  <arg name="mocap_vehicle_id" default="sim" description="Vehicle namespace or motion capture ID"/>
+  <arg name="frame_id" default="map" description="Global reference frame for simulation"/>
+
+  <!-- Simulation and visualization settings -->
+  <arg name="use_sim_time" default="true" description="Use simulated (ROS clock) time if true"/>
+  <arg name="log_level" default="WARN" description="Logging level for all nodes (DEBUG, INFO, WARN, ERROR, FATAL)"/>
+
+  <!-- RViz configuration -->
+  <arg name="rviz_config"
+       default="$(find-pkg-share cyecca)/config/cub_sim.config.rviz"
+       description="Path to RViz2 configuration file"/>
+
+  <!-- ==================== -->
+  <!-- Fixed-wing simulator -->
+  <!-- ==================== -->
+  <node
+    pkg="cyecca"
+    exec="fixedwing_sim.py"
+    output="screen"
+    emulate_tty="true"
+    args="--ros-args --log-level $(var log_level)">
+    <param name="mocap_vehicle_id" value="$(var mocap_vehicle_id)"/>
+    <param name="frame_id" value="$(var frame_id)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <!-- ==================== -->
+  <!-- Joystick driver -->
+  <!-- ==================== -->
+  <node
+    pkg="joy"
+    exec="joy_node"
+    namespace="$(var mocap_vehicle_id)"
+    output="screen"
+    emulate_tty="true"
+    args="--ros-args --log-level $(var log_level)"/>
+
+  <!-- ==================== -->
+  <!-- Visualization (RViz) -->
+  <!-- ==================== -->
+  <node
+    pkg="rviz2"
+    exec="rviz2"
+    output="screen"
+    emulate_tty="true"
+    args="-d $(var rviz_config) --ros-args --log-level $(var log_level)">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
 </launch>
+<!-- vi: ts=4 sw=4 et -->

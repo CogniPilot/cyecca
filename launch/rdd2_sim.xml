@@ -1,9 +1,52 @@
 <launch>
-	<node pkg="cyecca" exec="rdd2_sim.py" output="screen"/>
-	<node pkg="joy" exec="joy_node"/>
-	<node pkg="tf2_ros" exec="static_transform_publisher" args="0 0 0 0 0 0 base_link base_footprint"/>
-	<node pkg="tf2_ros" exec="static_transform_publisher" args="0 0 0 0 0 0 base_link camera_link"/>
-	<node pkg="tf2_ros" exec="static_transform_publisher" args="0 0 0 0 0 0 base_link camera_link_optical"/>
-	<node pkg="tf2_ros" exec="static_transform_publisher" args="0 0 0 0 0 0 base_link lidar_link"/>
-</launch>	
-<!-- vi: ts=4 sw=4 et-->
+  <!-- ==================== -->
+  <!-- Launch configuration -->
+  <!-- ==================== -->
+
+  <!-- Default and per-node log levels -->
+  <arg name="default_log_level" default="WARN" description="Default logging level for all nodes"/>
+  <arg name="sim_log_level" default="INFO" description="Logging level for rdd2_sim.py"/>
+  <arg name="joy_log_level" default="$(var default_log_level)" description="Logging level for joy_node"/>
+  <arg name="tf_log_level" default="$(var default_log_level)" description="Logging level for TF static publishers"/>
+
+  <!-- Simulation time toggle -->
+  <arg name="use_sim_time" default="true" description="Use simulated (ROS) time if true"/>
+
+  <!-- ==================== -->
+  <!-- Core Simulation Node -->
+  <!-- ==================== -->
+  <node
+    pkg="cyecca"
+    exec="rdd2_sim.py"
+    output="screen"
+    emulate_tty="true"
+    args="--ros-args --log-level $(var sim_log_level)">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <!-- ==================== -->
+  <!-- Input Devices -->
+  <!-- ==================== -->
+  <node
+    pkg="joy"
+    exec="joy_node"
+    output="screen"
+    emulate_tty="true"
+    args="--ros-args --log-level $(var joy_log_level)">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <!-- ==================== -->
+  <!-- Static TF Publishers -->
+  <!-- ==================== -->
+  <node
+    pkg="tf2_ros"
+    exec="static_transform_publisher"
+    output="log"
+    args="--x 0 --y 0 --z 0
+          --roll 0 --pitch 0 --yaw 0
+          --frame-id base_link
+          --child-frame-id camera_link
+          --ros-args --log-level $(var tf_log_level)"/>
+</launch>
+<!-- vi: ts=4 sw=4 et -->

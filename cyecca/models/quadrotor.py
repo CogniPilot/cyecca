@@ -1,10 +1,7 @@
 import casadi as ca
-import cyecca
 import numpy as np
-import matplotlib.pyplot as plt
-from pathlib import Path
 
-import cyecca.lie
+import cyecca
 
 
 def derive_model():
@@ -30,7 +27,12 @@ def derive_model():
     Jx = ca.SX.sym("Jx")
     Jy = ca.SX.sym("Jy")
     Jz = ca.SX.sym("Jz")
-    J = ca.diag(ca.vertcat(Jx, Jy, Jz))
+    Jxz = ca.SX.sym("Jxz")
+    J = ca.vertcat(
+        ca.horzcat(Jx, 0, Jxz),
+        ca.horzcat(0, Jy, 0),
+        ca.horzcat(Jxz, 0, Jz),
+    )
     noise_power_sqrt_a_b = ca.SX.sym("noise_power_sqrt_a_b", 3)
     noise_power_sqrt_omega_wb_b = ca.SX.sym("noise_power_sqrt_omega_wb_b", 3)
     noise_power_sqrt_mag_b = ca.SX.sym("noise_power_sqrt_mag_b", 3)
@@ -54,6 +56,7 @@ def derive_model():
         Jx,
         Jy,
         Jz,
+        Jxz,
         noise_power_sqrt_a_b,
         noise_power_sqrt_omega_wb_b,
         noise_power_sqrt_mag_b,
@@ -87,6 +90,7 @@ def derive_model():
         "Jx": 0.02166666666666667,
         "Jy": 0.02166666666666667,
         "Jz": 0.04000000000000001,
+        "Jxz": 0.0,
         "noise_power_sqrt_a_b_0": 70e-3 * g0,  # micro-g/sqrt(hz)
         "noise_power_sqrt_a_b_1": 70e-3 * g0,
         "noise_power_sqrt_a_b_2": 70e-3 * g0,

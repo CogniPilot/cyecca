@@ -4,10 +4,7 @@ Fixed-Wing Vehicle Dynamics for E-Flite Night Vapor UAV
 """
 
 import casadi as ca
-import cyecca
 import numpy as np
-import matplotlib.pyplot as plt
-from pathlib import Path
 from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321
 import cyecca.lie as lie
 

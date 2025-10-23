@@ -8,6 +8,7 @@ from cyecca.lie.group_so3 import so3, SO3Quat, SO3EulerB321, SO3Dcm
 from cyecca.models.bezier import derive_dcm_to_quat
 from cyecca.lie.group_se23 import SE23Quat, se23
 from cyecca.symbolic import SERIES
+from cyecca.models.rdd2 import saturatem
 
 # print("python: ", sys.executable)
 
@@ -36,12 +37,14 @@ rollpitch_max = 20  # deg
 # kp_yaw = 1
 
 # position loop
-kp_pos = 0.5  # position proportional gain
-kp_vel = 2.0  # velocity proportional gain
 # pos_sp_dist_max = 2 # position setpoint max distance
 # vel_max = 2.0 # max velocity command
-z_integral_max = 0  # 5.0
-ki_z = 0.05  # velocity z integral gain
+x_integral_max = 0.25  # 10% trim throttle
+y_integral_max = 0.25  # 10% trim throttle
+z_integral_max = 0.25  # 10% trim throttle
+ki_x = 0.1  # 1/ integrator time constant in 1/seconds
+ki_y = 0.1  # 1/ integrator time constant in 1/seconds
+ki_z = 0.1  # 1/ integrator time constant in 1/seconds
 
 
 def saturate(x, x_min, x_max):
@@ -175,8 +178,8 @@ def se23_solve_control():
     #     ]
     # )  # omega3 # control omega1,2,3, and az
     # Q = 100*ca.diag(ca.vertcat(10, 10, 10, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5))  # penalize state
-    Q = 8 * np.eye(9)  # penalize state
-    R = 1 * ca.DM.eye(9)  # penalize input
+    Q = 100 * np.eye(9)  # penalize state
+    R = 2e-1 * ca.DM.eye(9)  # penalize input
     K, _, _ = lqr(A, B, Q, R)
     K = -K
     BK = B @ K
@@ -203,7 +206,7 @@ def derive_outerloop_control():
     zeta = ca.SX.sym("zeta", 9)
     at_w = ca.SX.sym("at_w", 3)
     q_wb = SO3Quat.elem(ca.SX.sym("q_wb", 4))  # orientation
-    z_i = ca.SX.sym("z_i")  # z velocity error integral
+    z_i = ca.SX.sym("z_i", 3)  # z velocity error integral
     dt = ca.SX.sym("dt")  # time step
 
     # CALC
@@ -239,8 +242,18 @@ def derive_outerloop_control():
     p_term = ca.if_else(p_norm > p_norm_max, p_norm_max * p_term / p_norm, p_term)
 
     # throttle integral
-    z_i_2 = z_i + zeta[2] * dt
-    z_i_2 = saturate(z_i_2, -ca.vertcat(z_integral_max), ca.vertcat(z_integral_max))
+    z_i_2 = z_i + zeta[0:3] * dt
+    z_i_2 = saturatem(
+        z_i_2,
+        -thrust_trim
+        * ca.vertcat(
+            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
+        ),
+        thrust_trim
+        * ca.vertcat(
+            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
+        ),
+    )
 
     # trim throttle
     T = p_term + thrust_trim * zW + ki_z * z_i * zW

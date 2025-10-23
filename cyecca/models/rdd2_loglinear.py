@@ -178,8 +178,8 @@ def se23_solve_control():
     #     ]
     # )  # omega3 # control omega1,2,3, and az
     # Q = 100*ca.diag(ca.vertcat(10, 10, 10, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5))  # penalize state
-    Q = 100 * np.eye(9)  # penalize state
-    R = 2e-1 * ca.DM.eye(9)  # penalize input
+    Q = 8 * np.eye(9)  # penalize state
+    R = 1 * ca.DM.eye(9)  # penalize input
     K, _, _ = lqr(A, B, Q, R)
     K = -K
     BK = B @ K

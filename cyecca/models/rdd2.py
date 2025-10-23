@@ -24,19 +24,18 @@ rollpitch_max = 30  # deg
 Jx = 0.02166666666666667
 Jy = 0.02166666666666667
 Jz = 0.04000000000000001
-Jxz = 0.0
 
 # position loop
 kp_pos = 2.0  # position proportional gain
-kp_vel = 4.0  # velocity proportional gain
+kp_vel = 6.0  # velocity proportional gain
 # pos_sp_dist_max = 2 # position setpoint max distance
 # vel_max = 2.0 # max velocity command
-x_integral_max = 0.25  # 10% trim throttle
-y_integral_max = 0.25  # 10% trim throttle
-z_integral_max = 0.25  # 10% trim throttle
-ki_x = 0.1  # 1/ integrator time constant in 1/seconds
-ki_y = 0.1  # 1/ integrator time constant in 1/seconds
-ki_z = 0.1  # 1/ integrator time constant in 1/seconds
+x_integral_max = 0.10  # 25% throttle
+y_integral_max = 0.10  # 25% throttle
+z_integral_max = 0.10  # 25% throttle
+ki_x = 0.1  # time constant in second
+ki_y = 0.1
+ki_z = 0.1  # velocity z integral gain
 
 
 def angle_wrap(angle):

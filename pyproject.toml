@@ -11,7 +11,6 @@ ipykernel = "~6.29"
 numpy = "~1.26"
 casadi = {version = "^3.6.5"}
 control = "0.10.1"
-slycot = "~0.6.0"
 scipy = "~1.11"
 sympy = "~1.12"
 beartype = "^0.19.0"
@@ -28,6 +27,7 @@ jupyter = "^1.1.1"
 nbmake = "^1.5.4"
 black = "24.10.0"
 pytest = "^8.3.4"
+slycot = "^0.6.0"
 
 [tool.poetry.group.dev.dependencies]
 black = {extras = ["jupyter"], version = "^24.10.0"}

@@ -1,18 +1,18 @@
 [tool.poetry]
 name = "cyecca"
-version = "0.2.4"
+version = "0.2.5"
 description = ""
 authors = ["James Goppert <james.goppert@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "~3.12"
-ipykernel = "~6.29"
+python = "^3.12"
+ipykernel = "^6.29"
 numpy = "~1.26"
 casadi = {version = "^3.6.5"}
 control = "0.10.1"
-scipy = "~1.11"
-sympy = "~1.12"
+scipy = "^1.11"
+sympy = "^1.12"
 beartype = "^0.19.0"
 pydot = "^3.0.3"
 simpy = "^4.1.1"

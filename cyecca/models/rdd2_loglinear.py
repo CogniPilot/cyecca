@@ -19,33 +19,6 @@ m = 2.0  # mass of vehicle
 # thrust_trim = m*g # thrust trim
 deg2rad = np.pi / 180  # degree to radian
 
-# attitude rate loop
-rollpitch_rate_max = 30  # deg/s
-yaw_rate_max = 60  # deg/s
-
-# done kp_rollpitch_rate = 0.3
-# done ki_rollpitch_rate = 0.05
-# done rollpitch_rate_integral_max = 1.0
-
-# done kp_yaw_rate = 0.3
-# done ki_yaw_rate = 0.05
-# done yaw_rate_integral_max = 1.0
-
-# attitude loop
-rollpitch_max = 20  # deg
-# kp_rollpitch = 2
-# kp_yaw = 1
-
-# position loop
-# pos_sp_dist_max = 2 # position setpoint max distance
-# vel_max = 2.0 # max velocity command
-x_integral_max = 0.25  # 10% trim throttle
-y_integral_max = 0.25  # 10% trim throttle
-z_integral_max = 0.25  # 10% trim throttle
-ki_x = 0.1  # 1/ integrator time constant in 1/seconds
-ki_y = 0.1  # 1/ integrator time constant in 1/seconds
-ki_z = 0.1  # 1/ integrator time constant in 1/seconds
-
 
 def saturate(x, x_min, x_max):
     """
@@ -178,7 +151,7 @@ def se23_solve_control():
     #     ]
     # )  # omega3 # control omega1,2,3, and az
     # Q = 100*ca.diag(ca.vertcat(10, 10, 10, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5))  # penalize state
-    Q = 8 * np.eye(9)  # penalize state
+    Q = 20 * np.eye(9)  # penalize state
     R = 1 * ca.DM.eye(9)  # penalize input
     K, _, _ = lqr(A, B, Q, R)
     K = -K
@@ -195,7 +168,9 @@ def derive_outerloop_control():
     # INPUT CONSTANTS
     # -------------------------------
     thrust_trim = ca.SX.sym("thrust_trim")
-    kp = ca.SX.sym("kp", 3)
+    BK = ca.SX.sym("BK", 9, 9)
+    ki = ca.SX.sym("ki", 3)
+    integral_max = ca.SX.sym("integral_max", 3)
 
     # INPUT VARIABLES
     # -------------------------------
@@ -212,10 +187,6 @@ def derive_outerloop_control():
     # CALC
     # -------------------------------
     # get control input
-    B, K_se23, BK, _ = se23_solve_control()
-    # BK = ca.diag(ca.vertcat(0.5, 0.5, 0.5, 2.0, 2.0, 2.0, kp)) # gain used in mellinger control
-    # K_se23 = ca.diag(ca.vertcat(0, 0, 0, 0, 0, 0, 0, 0, 0))
-    # u_zeta = K_se23 @ zeta
     u_zeta = -se23.elem(zeta).left_jacobian() @ BK @ zeta
 
     # attitude control
@@ -228,10 +199,6 @@ def derive_outerloop_control():
     xW = ca.SX([1, 0, 0])
     yW = ca.SX([0, 1, 0])
     zW = ca.SX([0, 0, 1])
-
-    # F = - Kp ep - Kv ev + mg zW + m at_w
-    # F = - m * Kp' ep - m * Kv' * ev + mg zW + m at_w
-    # Force is normalized by the weight (mg)
 
     # normalized thrust vector
     p_norm_max = 0.3 * m * g
@@ -247,16 +214,16 @@ def derive_outerloop_control():
         z_i_2,
         -thrust_trim
         * ca.vertcat(
-            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
+            integral_max[0] / ki[0], integral_max[1] / ki[1], integral_max[2] / ki[2]
         ),
         thrust_trim
         * ca.vertcat(
-            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
+            integral_max[0] / ki[0], integral_max[1] / ki[1], integral_max[2] / ki[2]
         ),
     )
 
     # trim throttle
-    T = p_term + thrust_trim * zW + ki_z * z_i * zW
+    T = p_term + thrust_trim * zW + ca.diag(ca.vertcat(ki[0], ki[1], ki[2])) @ z_i
 
     # thrust
     nT = ca.norm_2(T)
@@ -290,14 +257,24 @@ def derive_outerloop_control():
     # -------------------------------
     f_get_u = ca.Function(
         "se23_control",
-        [thrust_trim, kp, zeta, at_w, q_wb.param, z_i, dt],
-        [nT, z_i_2, u_omega, q_sp.param],
-        ["thrust_trim", "kp", "zeta", "at_w", "q_wb", "z_i", "dt"],
-        ["nT", "z_i_2", "u_omega", "q_sp"],
+        [thrust_trim, BK, ki, integral_max, zeta, at_w, q_wb.param, z_i, dt],
+        [nT, z_i_2, q_sp.param],
+        [
+            "thrust_trim",
+            "BK",
+            "ki",
+            "integral_max",
+            "zeta",
+            "at_w",
+            "q_wb",
+            "z_i",
+            "dt",
+        ],
+        ["nT", "z_i_2", "q_sp"],
     )
 
     f_se23_attitude_control = ca.Function(
-        "se23_attitude_control", [kp, zeta], [u_omega], ["kp", "zeta"], ["omega"]
+        "se23_attitude_control", [BK, zeta], [u_omega], ["BK", "zeta"], ["omega"]
     )
 
     return {

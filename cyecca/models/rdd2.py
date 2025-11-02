@@ -25,18 +25,6 @@ Jx = 0.02166666666666667
 Jy = 0.02166666666666667
 Jz = 0.04000000000000001
 
-# position loop
-kp_pos = 2.0  # position proportional gain
-kp_vel = 4.0  # velocity proportional gain
-# pos_sp_dist_max = 2 # position setpoint max distance
-# vel_max = 2.0 # max velocity command
-x_integral_max = 0.10  # 25% throttle
-y_integral_max = 0.10  # 25% throttle
-z_integral_max = 0.10  # 25% throttle
-ki_x = 0.1  # time constant in second
-ki_y = 0.1
-ki_z = 0.1  # velocity z integral gain
-
 
 def angle_wrap(angle):
     """
@@ -450,6 +438,9 @@ def derive_position_control():
     # INPUT CONSTANTS
     # -------------------------------
     thrust_trim = ca.SX.sym("thrust_trim")
+    kp = ca.SX.sym("kp", 2)
+    ki = ca.SX.sym("ki", 3)
+    integral_max = ca.SX.sym("integral_max", 3)
 
     # INPUT VARIABLES
     # -------------------------------
@@ -482,7 +473,7 @@ def derive_position_control():
 
     # normalized thrust vector
     p_norm_max = 0.3 * m * g
-    p_term = -kp_pos * e_p - kp_vel * e_v + m * at_w
+    p_term = -kp[0] * e_p - kp[1] * e_v + m * at_w
     p_norm = ca.norm_2(p_term)
     p_term = ca.if_else(p_norm > p_norm_max, p_norm_max * p_term / p_norm, p_term)
 
@@ -492,16 +483,16 @@ def derive_position_control():
         z_i_2,
         -thrust_trim
         * ca.vertcat(
-            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
+            integral_max[0] / ki[0], integral_max[1] / ki[1], integral_max[2] / ki[2]
         ),
         thrust_trim
         * ca.vertcat(
-            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
+            integral_max[0] / ki[0], integral_max[1] / ki[1], integral_max[2] / ki[2]
         ),
     )
 
     # trim throttle
-    T = p_term + thrust_trim * zW + ca.diag(ca.vertcat(ki_x, ki_y, ki_z)) @ z_i
+    T = p_term + thrust_trim * zW + ca.diag(ca.vertcat(ki[0], ki[1], ki[2])) @ z_i
 
     # thrust
     nT = ca.norm_2(T)
@@ -537,6 +528,9 @@ def derive_position_control():
         "position_control",
         [
             thrust_trim,
+            kp,
+            ki,
+            integral_max,
             pt_w,
             vt_w,
             at_w,
@@ -549,6 +543,9 @@ def derive_position_control():
         [nT, qr_wb.param, z_i_2],
         [
             "thrust_trim",
+            "kp",
+            "ki",
+            "integra_max",
             "pt_w",
             "vt_w",
             "at_w",

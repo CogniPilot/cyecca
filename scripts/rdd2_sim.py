@@ -127,7 +127,24 @@ class Simulator(Node):
         self.Jz = self.get_param_by_name("Jz")
         self.Jxz = self.get_param_by_name("Jxz")
         # self.k_p_att = np.array([5, 5, 2], dtype=float)
+        self.kp_pos = np.array([5.0, 4.0], dtype=float)
         self.k_p_att = np.array([10, 10, 4], dtype=float)
+        self.BK = np.array(
+            [
+                [-2.77504, 0, 0, 0.42856, 0, 0, 0, 0.339818, 0],
+                [0, -2.77504, 0, 0, 0.42856, 0, -0.339818, 0, 0],
+                [0, 0, -2.78649, 0, 0, 0.485281, 0, 0, 0],
+                [0.42856, 0, 0, -1.95071, 0, 0, 0, -2.2064, 0],
+                [0, 0.42856, 0, 0, -1.95071, 0, 2.2064, 0, 0],
+                [0, 0, 0.485281, 0, 0, -2.95551, 0, 0, 0],
+                [0, -0.339818, 0, 0, 2.2064, 0, -6.8016, 0, 0],
+                [0.339818, 0, 0, -2.2064, 0, 0, 0, -6.8016, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, -2.82843],
+            ],
+            dtype=float,
+        )
+        self.ki = np.array([0.1, 0.1, 0.1], dtype=float)
+        self.integral_max = np.array([0.25, 0.25, 0.25], dtype=float)
 
         # attitude rate
         self.attr_kp = 20 * np.array([0.3, 0.3, 0.05], dtype=float)
@@ -265,6 +282,9 @@ class Simulator(Node):
         if self.control_mode == "mellinger":
             [self.thrust, self.q_sp, self.z_i] = self.eqs["position_control"](
                 self.thrust_trim,
+                self.kp_pos,
+                self.ki,
+                self.integral_max,
                 self.pw_sp,
                 self.vw_sp,
                 self.aw_sp,
@@ -285,7 +305,9 @@ class Simulator(Node):
             )
             [self.thrust, self.z_i, omega, self.q_sp] = self.eqs["se23_control"](
                 self.thrust_trim,
-                self.k_p_att,
+                self.BK,
+                self.ki,
+                self.integral_max,
                 zeta,
                 self.aw_sp,
                 self.qc_sp,

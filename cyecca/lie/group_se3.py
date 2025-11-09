@@ -196,7 +196,17 @@ class SE3LieGroup(LieGroup):
 
     def log(self, arg: SE3LieGroupElement) -> SE3LieAlgebraElement:
         Omega = arg.R.log()
-        u = Omega.left_jacobian_inv() @ arg.p.param
+        theta_sq = ca.dot(Omega.param, Omega.param)
+
+        # Check if near identity to avoid singularity in symbolic differentiation
+        eps_identity = 1e-8
+        near_identity = theta_sq < eps_identity
+
+        # Near identity: left_jacobian_inv = I, so u = p
+        # Far from identity: use standard formula
+        u_normal = Omega.left_jacobian_inv() @ arg.p.param
+        u = ca.if_else(near_identity, arg.p.param, u_normal)
+
         return self.algebra.elem(ca.vertcat(u, Omega.param))
 
     def to_Matrix(self, arg: SE3LieGroupElement) -> ca.SX:

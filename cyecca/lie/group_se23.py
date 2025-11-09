@@ -235,12 +235,26 @@ class SE23LieGroup(LieGroup):
         omega = arg.R.log()
         o = omega.param
         theta_sq = ca.dot(o, o)
+
+        # Check if near identity to avoid singularity in symbolic differentiation
+        eps_identity = 1e-8
+        near_identity = theta_sq < eps_identity
+
+        # Near identity: log(Identity) = 0, so eta = [p, v, 0]
+        # Far from identity: use standard formula
         Omega = omega.to_Matrix()
         A = SQUARED_SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](theta_sq)
         B = SQUARED_SERIES["1/x^2"](theta_sq)
         V_inv = ca.SX.eye(3) - Omega / 2 + A * (Omega @ Omega)
-        u = V_inv @ arg.p.param
-        a = V_inv @ arg.v.param
+
+        # Use if_else for symbolic branching
+        u_normal = V_inv @ arg.p.param
+        a_normal = V_inv @ arg.v.param
+
+        # Near identity: just use p and v directly (since R = I, V_inv = I)
+        u = ca.if_else(near_identity, arg.p.param, u_normal)
+        a = ca.if_else(near_identity, arg.v.param, a_normal)
+
         return self.algebra.elem(ca.vertcat(u, a, omega.param))
 
     def to_Matrix(self, arg: SE23LieGroupElement) -> ca.SX:

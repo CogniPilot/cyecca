@@ -368,7 +368,7 @@ class SO3EulerLieGroup(SO3LieGroup):
             Axis.y,
             Axis.x,
         ]:
-            theta = ca.asin(-arg[2, 0])
+            theta = ca.asin(ca.fmin(ca.fmax(-arg[2, 0], -1.0), 1.0))
 
             cond1 = ca.fabs(theta - ca.pi / 2) < 1e-3
             phi1 = 0

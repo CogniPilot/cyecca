@@ -810,7 +810,7 @@ def derive_attitude_estimator():
     )
 
     # Check if magnetic heading is not too vertical
-    gamma = ca.acos(mag_b[2] / ca.norm_2(mag_b))
+    gamma = ca.acos(ca.fmin(ca.fmax(mag_b[2] / ca.norm_2(mag_b), -1.0), 1.0))
     mag_error_w = ca.if_else(ca.sin(gamma) > 0.1, mag_error_w, 0)
 
     # Apply magnetometer correction
@@ -835,9 +835,8 @@ def derive_attitude_estimator():
     )
 
     accel_cross = ca.cross(ca.vertcat(0, 0, 1), accel_w_normed)
-    accel_error_w = (
-        ca.asin(ca.norm_2(accel_cross)) * accel_cross / ca.norm_2(accel_cross)
-    )
+    accel_cross_norm = ca.fmin(ca.fmax(ca.norm_2(accel_cross), -1.0), 1.0)
+    accel_error_w = ca.asin(accel_cross_norm) * accel_cross / ca.norm_2(accel_cross)
 
     # Calculate correction
     accel_correction = -(

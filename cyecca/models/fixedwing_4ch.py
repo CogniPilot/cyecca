@@ -219,7 +219,7 @@ def derive_model():
         ca.fabs(V_b) < tol_v, tol_v, V_b
     )  # avoid singularities at low airspeed
     alpha = ca.atan2(-velocity_b[2], velocity_b[0])  # angle-of-attack
-    beta = ca.asin(velocity_b[1] / V_b)  # sideslip angle
+    beta = ca.asin(ca.fmin(ca.fmax(velocity_b[1] / V_b, -1.0), 1.0))  # sideslip angle
 
     # rotation from body to wind frame
     euler_bn = lie.SO3EulerB321.elem(

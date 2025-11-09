@@ -46,7 +46,7 @@ def initialize(**kwargs):
 
     n2_dir = ca.cross(n3_b, Bh_b)
     n2_dir_norm = ca.norm_2(n2_dir)
-    theta = ca.asin(n2_dir_norm)
+    theta = ca.asin(ca.fmin(ca.fmax(n2_dir_norm, -1.0), 1.0))
 
     # require
     # * g_norm > 5
@@ -148,7 +148,7 @@ def correct_mag(**kwargs):
     )
 
     yh_mag = h_mag(x, 1, mag_decl, 0, 0, 0)
-    gamma = ca.acos(yh_mag[2] / ca.norm_2(yh_mag))
+    gamma = ca.acos(ca.fmin(ca.fmax(yh_mag[2] / ca.norm_2(yh_mag), -1.0), 1.0))
     h = ca.fmax(ca.sin(gamma), 1e-3)
 
     y_mag = ca.SX.sym("y_mag", 3, 1)

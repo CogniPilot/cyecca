@@ -188,7 +188,7 @@ def derive_model(coeff_data):
     )
 
     alpha = ca.atan2(-velocity_b[2], v_bx)  # normalized velocity componenet
-    beta = ca.asin(velocity_b[1] / (V_b))
+    beta = ca.asin(ca.fmin(ca.fmax(velocity_b[1] / (V_b), -1.0), 1.0))
 
     # Angle Saturation
     alpha = saturate(alpha, -30 * DEG2RAD, 45 * DEG2RAD)

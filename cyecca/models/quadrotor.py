@@ -162,7 +162,7 @@ def derive_model():
     q_wb = cyecca.lie.SO3Quat.elem(quaternion_wb)
     q_bw = q_wb.inverse()
     V = ca.norm_2(velocity_w_p_b)
-    wX = ca.if_else(ca.fabs(V) > 1e-5, velocity_w_p_b / V, ca.vertcat(1, 0, 0))
+    wX = ca.if_else(V > 1e-6, velocity_w_p_b / V, ca.vertcat(1, 0, 0))
     qbar = 0.5 * rho * V**2
     P = omega_wb_b[0]
     Q = omega_wb_b[1]

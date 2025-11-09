@@ -460,8 +460,15 @@ class SO3QuatLieGroup(SO3LieGroup):
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
         q = arg.param
-        q = q / ca.norm_2(q)
-        theta = angle_wrap(2 * ca.acos(q[0]))
+
+        # Protect against division by zero in normalization
+        eps = 1e-10
+        q_norm = ca.norm_2(q)
+        q = q / ca.fmax(q_norm, eps)
+
+        # Protect acos from numerical errors (requires input in [-1, 1])
+        q0_clamped = ca.fmin(ca.fmax(q[0], -1.0), 1.0)
+        theta = angle_wrap(2 * ca.acos(q0_clamped))
         A = SERIES["x/sin(x)"](theta / 2)
         omega = q[1:4] * A * 2 * ca.sign(theta)
         return self.algebra.elem(omega)
@@ -509,33 +516,37 @@ class SO3QuatLieGroup(SO3LieGroup):
     def from_Matrix(self, arg: ca.SX) -> SO3QuatLieGroupElement:
         assert arg.shape == (3, 3)
         R = arg
-        b1 = 0.5 * ca.sqrt(1 + R[0, 0] + R[1, 1] + R[2, 2])
-        b2 = 0.5 * ca.sqrt(1 + R[0, 0] - R[1, 1] - R[2, 2])
-        b3 = 0.5 * ca.sqrt(1 - R[0, 0] + R[1, 1] - R[2, 2])
-        b4 = 0.5 * ca.sqrt(1 - R[0, 0] - R[1, 1] + R[2, 2])
+
+        # Add small epsilon to prevent sqrt of negative due to numerical errors
+        # and protect divisions from zero denominators
+        eps = 1e-10
+        b1 = 0.5 * ca.sqrt(ca.fmax(1 + R[0, 0] + R[1, 1] + R[2, 2], eps))
+        b2 = 0.5 * ca.sqrt(ca.fmax(1 + R[0, 0] - R[1, 1] - R[2, 2], eps))
+        b3 = 0.5 * ca.sqrt(ca.fmax(1 - R[0, 0] + R[1, 1] - R[2, 2], eps))
+        b4 = 0.5 * ca.sqrt(ca.fmax(1 - R[0, 0] - R[1, 1] + R[2, 2], eps))
 
         q1 = ca.SX(4, 1)
         q1[0] = b1
-        q1[1] = (R[2, 1] - R[1, 2]) / (4 * b1)
-        q1[2] = (R[0, 2] - R[2, 0]) / (4 * b1)
-        q1[3] = (R[1, 0] - R[0, 1]) / (4 * b1)
+        q1[1] = (R[2, 1] - R[1, 2]) / (4 * ca.fmax(b1, eps))
+        q1[2] = (R[0, 2] - R[2, 0]) / (4 * ca.fmax(b1, eps))
+        q1[3] = (R[1, 0] - R[0, 1]) / (4 * ca.fmax(b1, eps))
 
         q2 = ca.SX(4, 1)
-        q2[0] = (R[2, 1] - R[1, 2]) / (4 * b2)
+        q2[0] = (R[2, 1] - R[1, 2]) / (4 * ca.fmax(b2, eps))
         q2[1] = b2
-        q2[2] = (R[0, 1] + R[1, 0]) / (4 * b2)
-        q2[3] = (R[0, 2] + R[2, 0]) / (4 * b2)
+        q2[2] = (R[0, 1] + R[1, 0]) / (4 * ca.fmax(b2, eps))
+        q2[3] = (R[0, 2] + R[2, 0]) / (4 * ca.fmax(b2, eps))
 
         q3 = ca.SX(4, 1)
-        q3[0] = (R[0, 2] - R[2, 0]) / (4 * b3)
-        q3[1] = (R[0, 1] + R[1, 0]) / (4 * b3)
+        q3[0] = (R[0, 2] - R[2, 0]) / (4 * ca.fmax(b3, eps))
+        q3[1] = (R[0, 1] + R[1, 0]) / (4 * ca.fmax(b3, eps))
         q3[2] = b3
-        q3[3] = (R[1, 2] + R[2, 1]) / (4 * b3)
+        q3[3] = (R[1, 2] + R[2, 1]) / (4 * ca.fmax(b3, eps))
 
         q4 = ca.SX(4, 1)
-        q4[0] = (R[1, 0] - R[0, 1]) / (4 * b4)
-        q4[1] = (R[0, 2] + R[2, 0]) / (4 * b4)
-        q4[2] = (R[1, 2] + R[2, 1]) / (4 * b4)
+        q4[0] = (R[1, 0] - R[0, 1]) / (4 * ca.fmax(b4, eps))
+        q4[1] = (R[0, 2] + R[2, 0]) / (4 * ca.fmax(b4, eps))
+        q4[2] = (R[1, 2] + R[2, 1]) / (4 * ca.fmax(b4, eps))
         q4[3] = b4
 
         q = ca.if_else(
@@ -597,7 +608,11 @@ class SO3MrpLieGroup(SO3LieGroup):
         na_sq = ca.dot(a, a)
         nb_sq = ca.dot(b, b)
         den = 1 + na_sq * nb_sq - 2 * ca.dot(b, a)
-        res = ((1 - na_sq) * b + (1 - nb_sq) * a - 2 * ca.cross(b, a)) / den
+
+        # Protect against singularity when denominator becomes zero
+        eps = 1e-10
+        den_safe = ca.if_else(ca.fabs(den) < eps, ca.sign(den) * eps, den)
+        res = ((1 - na_sq) * b + (1 - nb_sq) * a - 2 * ca.cross(b, a)) / den_safe
         return self.elem(param=res)
 
     def inverse(self, arg: SO3MrpLieGroupElement) -> SO3MrpLieGroupElement:
@@ -657,7 +672,12 @@ class SO3MrpLieGroup(SO3LieGroup):
 
     def from_Quat(self, arg: SO3QuatLieGroupElement) -> SO3MrpLieGroupElement:
         x = ca.SX(3, 1)
-        den = 1 + arg.param[0]
+
+        # CRITICAL: Protect against singularity at q0 = -1 (180° rotation)
+        # This is a known singularity of MRP representation
+        eps = 1e-10
+        den = ca.fmax(1 + arg.param[0], eps)
+
         x[0] = arg.param[1] / den
         x[1] = arg.param[2] / den
         x[2] = arg.param[3] / den

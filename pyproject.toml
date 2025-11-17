@@ -7,7 +7,6 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "~3.12"
-ipykernel = "~6.29"
 numpy = "~1.26"
 casadi = {version = "^3.6.5"}
 control = "0.10.1"
@@ -23,19 +22,16 @@ protobuf = "^3.20.3"
 synapse-pb = "^0.2.10"
 delimited-protobuf = "^1.0.0"
 pandas = "^2.2.2"
-jupyter = "^1.1.1"
-nbmake = "^1.5.4"
-black = "24.10.0"
 pytest = "^8.3.4"
-slycot = "^0.6.0"
 
 [tool.poetry.group.dev.dependencies]
+slycot = "^0.6.0"
 black = {extras = ["jupyter"], version = "^24.10.0"}
 coverage = {extras = ["toml"], version = "^7.1.0"}
 flake8 = "^7.1.1"
 flake8-pyproject = "^1.2.2"
 ipykernel = "^6.21.1"
-jupyter = "^1.0.0"
+jupyter = "^1.1.1"
 jupyter-client = "^8.3.0"
 jupyter-console = "^6.6.3"
 jupyter-core = "^5.3.1"

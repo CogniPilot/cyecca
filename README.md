@@ -62,12 +62,21 @@ result = model.simulate(0.0, 10.0, 0.01)
 
 ## Documentation
 
-📚 **[Full Documentation](https://cyecca.readthedocs.io/)** (or build locally with `cd docs && make html`)
+📚 **Full documentation:** Build locally with HTML output
+```bash
+cd docs && poetry run make html
+# Open docs/_build/html/index.html in your browser
+```
 
-**Quick Links:**
-- **[User Guide](docs/user_guide/index.rst)** - Installation, tutorials, concepts
-- **[API Reference](docs/api/index.rst)** - Complete API documentation with doctests
-- **[Jupyter Notebooks](notebook/)** - Interactive examples and applications
+**Browse source files:**
+- [Installation Guide](docs/user_guide/installation.rst)
+- [Quick Start Tutorial](docs/user_guide/quickstart.rst)
+- [Lie Groups Guide](docs/user_guide/lie_groups.rst)
+- [Modeling Framework Guide](docs/user_guide/modeling.rst)
+- [API Reference](docs/api/) (auto-generated from docstrings)
+- [Jupyter Notebooks](notebook/) - Interactive examples
+
+> **Note:** Documentation is written in reStructuredText for Sphinx. For best viewing, build the HTML docs locally.
 
 ## Modules
 
@@ -75,13 +84,13 @@ result = model.simulate(0.0, 10.0, 0.01)
 Complete implementations of SO(2), SO(3), SE(2), SE(3), SE_2(3), and R^n with multiple parameterizations.
 
 **Key features:** Group operations, Lie algebra, Jacobians, conversions  
-**Docs:** [API Reference](docs/api/lie.rst) | [User Guide](docs/user_guide/lie_groups.rst)
+**Learn more:** [Lie Groups Guide](docs/user_guide/lie_groups.rst)
 
 ### Modeling Framework (`cyecca.model`)
 Type-safe declarative API for building hybrid dynamical systems with IDE autocomplete.
 
 **Key features:** Continuous/discrete states, events, DAE, composition, linearization  
-**Docs:** [API Reference](docs/api/model.rst) | [User Guide](docs/user_guide/modeling.rst)
+**Learn more:** [Modeling Guide](docs/user_guide/modeling.rst)
 
 ### Pre-Built Models (`cyecca.models`)
 Ready-to-use dynamics models: quadrotor, fixed-wing aircraft, RDD2 controller, Bezier trajectories

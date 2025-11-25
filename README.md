@@ -62,21 +62,20 @@ result = model.simulate(0.0, 10.0, 0.01)
 
 ## Documentation
 
-📚 **Full documentation:** Build locally with HTML output
+📚 **[Read the documentation on GitHub Pages](https://cognipilot.github.io/cyecca/)**
+
+The full documentation includes:
+- Installation guide and quick start tutorial
+- Comprehensive Lie groups guide with examples
+- Modeling framework guide (hybrid systems, DAE, composition)
+- Complete API reference (auto-generated from docstrings)
+- [Jupyter Notebooks](notebook/) - Interactive examples in this repo
+
+**Build locally:**
 ```bash
 cd docs && poetry run make html
 # Open docs/_build/html/index.html in your browser
 ```
-
-**Browse source files:**
-- [Installation Guide](docs/user_guide/installation.rst)
-- [Quick Start Tutorial](docs/user_guide/quickstart.rst)
-- [Lie Groups Guide](docs/user_guide/lie_groups.rst)
-- [Modeling Framework Guide](docs/user_guide/modeling.rst)
-- [API Reference](docs/api/) (auto-generated from docstrings)
-- [Jupyter Notebooks](notebook/) - Interactive examples
-
-> **Note:** Documentation is written in reStructuredText for Sphinx. For best viewing, build the HTML docs locally.
 
 ## Modules
 

@@ -20,10 +20,10 @@ A lightweight Python library for robotics and control systems using Lie groups a
 ## Installation
 
 ```bash
-git clone git@github.com:CogniPilot/cyecca.git
+git clone https://github.com/CogniPilot/cyecca.git
 cd cyecca
 poetry install
-poetry shell
+poetry run ./tools/test.sh   # optional: run tests
 ```
 
 ## Quick Start
@@ -31,17 +31,27 @@ poetry shell
 ```python
 # Lie groups for 3D transformations
 import cyecca.lie as lie
-X = lie.SE3Quat.elem([1, 2, 3, 1, 0, 0, 0])  # position + quaternion
+import casadi as ca
+
+X = lie.SE3Quat.elem(ca.DM([1, 2, 3, 1, 0, 0, 0]))  # position + quaternion
 X_inv = X.inverse()
 
 # Type-safe modeling with full autocomplete
 from cyecca.model import ModelSX, state, input_var, param, symbolic
-import casadi as ca
 
 @symbolic
 class States:
     x: ca.SX = state(1, 0.0, "position")
     v: ca.SX = state(1, 0.0, "velocity")
+
+@symbolic
+class Inputs:
+    F: ca.SX = input_var(desc="force")
+
+@symbolic
+class Params:
+    m: ca.SX = param(1.0, "mass")
+    c: ca.SX = param(0.1, "damping")
 
 model = ModelSX.create(States, Inputs, Params)
 x, u, p = model.x, model.u, model.p

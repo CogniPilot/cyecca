@@ -24,18 +24,33 @@ __all__ = [
 def state(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
     """Create a continuous state variable field (dx/dt in equations).
 
-    Args:
-        dim: Dimension (1 for scalar, >1 for vector)
-        default: Default value (scalar or list)
-        desc: Description string
+    Parameters
+    ----------
+    dim : int, optional
+        Dimension (1 for scalar, >1 for vector), default=1
+    default : float, list, or None, optional
+        Default initial value (scalar or list)
+    desc : str, optional
+        Human-readable description
 
-    Returns:
-        dataclass field with metadata
+    Returns
+    -------
+    field
+        Dataclass field with state metadata
 
-    Example:
-        p: ca.SX = state(3, [0, 0, 10], "position (m)")
-        v: ca.SX = state(1, 0.0, "velocity (m/s)")
-        w: ca.SX = state(3, desc="angular velocity")  # defaults to zeros
+    Examples
+    --------
+    >>> import casadi as ca
+    >>> from cyecca.model import state, symbolic
+    >>> @symbolic
+    ... class States:
+    ...     x: ca.SX = state(1, 0.0, "position (m)")
+    ...     v: ca.SX = state(1, 1.0, "velocity (m/s)")
+    >>> s = States.numeric()
+    >>> s.x
+    0.0
+    >>> s.v
+    1.0
     """
     if default is None:
         default = 0.0 if dim == 1 else [0.0] * dim

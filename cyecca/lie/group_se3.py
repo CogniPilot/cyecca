@@ -223,7 +223,24 @@ class SE3LieGroup(LieGroup):
 @beartype
 class SE3LieGroupElement(LieGroupElement):
     """
-    This is an SE3 Lie group elem
+    SE(3) Lie group element representing rigid body transformations.
+
+    Combines 3D position and rotation (via SO3 representation).
+
+    Examples
+    --------
+    >>> import casadi as ca
+    >>> import cyecca.lie as lie
+    >>> # Create SE(3) element with position and quaternion
+    >>> position = ca.DM([1, 2, 3])
+    >>> quaternion = ca.DM([1, 0, 0, 0])  # Identity rotation
+    >>> X = lie.SE3Quat.elem(ca.vertcat(position, quaternion))
+    >>> # Access position
+    >>> X.p.param.shape
+    (3, 1)
+    >>> # Access rotation
+    >>> X.R.param.shape
+    (4, 1)
     """
 
     def __init__(self, group: SE3LieGroup, param: PARAM_TYPE):
@@ -231,10 +248,12 @@ class SE3LieGroupElement(LieGroupElement):
 
     @property
     def p(self) -> R3LieAlgebraElement:
+        """Position component (translation vector)."""
         return r3.elem(self.param[:3])
 
     @property
     def R(self) -> SO3LieGroupElement:
+        """Rotation component (SO3 element)."""
         return self.group.SO3.elem(self.param[3:])
 
 

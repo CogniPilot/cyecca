@@ -26,12 +26,15 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 - **Integrators:** RK4, Euler (working), IDAS (stub)
 - **Usage:**
   ```python
+  import casadi as ca
+  from cyecca.model import state, symbolic
+  
   @symbolic
   class States:
       x: ca.SX = state(1, 0.0, "position (m)")
       v: ca.SX = state(1, 0.0, "velocity (m/s)")
   
-  model.build(f_x=ca.vertcat(x.v, (u.F - p.c * x.v) / p.m))
+  # model.build(f_x=ca.vertcat(x.v, (u.F - p.c * x.v) / p.m))
   ```
 
 #### Inputs (u)
@@ -40,6 +43,9 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 - **API:** `input_var()` field creator
 - **Usage:**
   ```python
+  import casadi as ca
+  from cyecca.model import input_var, symbolic
+  
   @symbolic
   class Inputs:
       F: ca.SX = input_var(desc="force (N)")
@@ -51,6 +57,9 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 - **API:** `param()` field creator
 - **Usage:**
   ```python
+  import casadi as ca
+  from cyecca.model import param, symbolic
+  
   @symbolic
   class Params:
       m: float = param(default=1.0, desc="mass (kg)")
@@ -63,11 +72,14 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 - **API:** `output_var()` field creator, `f_y` in `build()`
 - **Usage:**
   ```python
+  import casadi as ca
+  from cyecca.model import output_var, symbolic
+  
   @symbolic
   class Outputs:
       energy: ca.SX = output_var(desc="total energy (J)")
   
-  model.build(f_x=f_x, f_y=0.5 * p.m * x.v**2)
+  # model.build(f_x=f_x, f_y=0.5 * p.m * x.v**2)
   ```
 
 #### Quadrature States (q)
@@ -77,11 +89,14 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 - **Integration:** RK4/Euler during `simulate()`
 - **Usage:**
   ```python
+  import casadi as ca
+  from cyecca.model import quadrature_var, symbolic
+  
   @symbolic
   class Quadratures:
       cost: ca.SX = quadrature_var(desc="accumulated cost")
   
-  model.build(f_x=f_x, f_q=u.F**2)  # Minimize control effort
+  # model.build(f_x=f_x, f_q=u.F**2)  # Minimize control effort
   ```
 
 #### Discrete States (z)
@@ -91,12 +106,15 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 - **Event Detection:** Via `detect_events=True` in `simulate()`
 - **Usage:**
   ```python
+  import casadi as ca
+  from cyecca.model import discrete_state, symbolic
+  
   @symbolic
   class DiscreteStates:
       mode: ca.SX = discrete_state(default=0, desc="flight mode")
   
-  model.build(f_x=f_x, f_z=new_mode, f_c=height_indicator)
-  result = model.simulate(t0, tf, dt, detect_events=True)
+  # model.build(f_x=f_x, f_z=new_mode, f_c=height_indicator)
+  # result = model.simulate(t0, tf, dt, detect_events=True)
   ```
 
 #### Event Indicators (c)
@@ -106,11 +124,14 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 - **Detection:** Zero-crossing during integration
 - **Usage:**
   ```python
+  import casadi as ca
+  from cyecca.model import event_indicator, symbolic
+  
   @symbolic
   class EventIndicators:
       ground_contact: ca.SX = event_indicator(desc="z=0 detector")
   
-  model.build(f_x=f_x, f_c=x.z)  # Trigger when z crosses 0
+  # model.build(f_x=f_x, f_c=x.z)  # Trigger when z crosses 0
   ```
 
 #### Discrete Variables (m)
@@ -120,15 +141,18 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 - **Dual Purpose:** Can reset discrete vars OR continuous states based on output dimension
 - **Usage:**
   ```python
+  import casadi as ca
+  from cyecca.model import discrete_var, symbolic
+  
   @symbolic
   class DiscreteVars:
       bounce_count: ca.SX = discrete_var(default=0, desc="bounces")
   
-  # Update discrete variable at event
-  model.build(f_x=f_x, f_m=m.bounce_count + 1, f_c=height)
-  
-  # OR reset continuous states (bouncing ball)
-  model.build(f_x=f_x, f_m=ca.vertcat(x.h, -0.8*x.v), f_c=height)
+  # # Update discrete variable at event
+  # model.build(f_x=f_x, f_m=m.bounce_count + 1, f_c=height)
+  # 
+  # # OR reset continuous states (bouncing ball)
+  # model.build(f_x=f_x, f_m=ca.vertcat(x.h, -0.8*x.v), f_c=height)
   ```
 
 #### Hierarchical Composition
@@ -137,9 +161,11 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 - **API:** `add_submodel()`, `connect()`, `build_composed()`
 - **Usage:**
   ```python
-  parent = ModelSX.compose({"plant": plant_model, "ctrl": controller})
-  parent.connect(parent.ctrl.outputs.u, parent.plant.inputs.thrust)
-  parent.build_composed(f_x_composed, integrator='rk4')
+  from cyecca.model import ModelSX
+  
+  # parent = ModelSX.compose({"plant": plant_model, "ctrl": controller})
+  # parent.connect(parent.ctrl.outputs.u, parent.plant.inputs.thrust)
+  # parent.build_composed(f_x_composed, integrator='rk4')
   ```
 
 ### ⚠️ Partially Implemented
@@ -174,12 +200,15 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
   - No algebraic equation solver integrated
 - **Limitation:**
   ```python
+  import casadi as ca
+  from cyecca.model import algebraic_var, symbolic
+  
   # This API works but doesn't solve the constraint:
   @symbolic
   class Algebraic:
       lambda_constraint: ca.SX = algebraic_var(desc="Lagrange multiplier")
   
-  model.build(f_x=f_x, f_alg=constraint_residual, integrator='idas')
+  # model.build(f_x=f_x, f_alg=constraint_residual, integrator='idas')
   # Falls back to RK4, z_alg not solved!
   ```
 - **Roadmap:** Needs IDAS/SUNDIALS integration for proper DAE solving
@@ -220,9 +249,10 @@ This section tracks the implementation status of DAE (Differential-Algebraic Equ
 |--------|--------|----------|
 | **RK4** | ✅ Complete | General purpose, good accuracy |
 | **Euler** | ✅ Complete | Simple systems, fast prototyping |
-| **IDAS** | ❌ Stub only | DAE systems (planned) |
+| **IDAS** | ✅ Complete (ODEs only) | Adaptive timestep ODEs with tight tolerances |
 | **RK8** | ✅ Complete | High-precision trajectories |
 | **Implicit** | ❌ Not implemented | Stiff systems (planned) |
+| **IDAS (DAE)** | ⚠️ Partial | Full DAE support needs f_x refactoring |
 
 ### Recommended Usage Patterns
 
@@ -435,9 +465,13 @@ class Params:
     L: ca.SX = param(1.0, "pendulum length")
     g: ca.SX = param(9.81, "gravity")
 
+@symbolic
+class Inputs:
+    pass  # No inputs for this example
+
 model = ModelSX.create(
-    States, None, Params,
-    algebraic_var_type=AlgebraicVars
+    States, Inputs, Params,
+    algebraic_type=AlgebraicVars
 )
 
 x = model.x

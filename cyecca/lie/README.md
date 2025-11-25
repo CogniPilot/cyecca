@@ -20,7 +20,8 @@ Complete implementations of common Lie groups for robotics and control with mult
 ## Features
 
 All groups support:
-- **Group operations**: Composition (`@`), inverse, identity
+- **Group operations**: Composition (`*`), inverse, identity
+- **Group actions**: Transform vectors/points (`@`)
 - **Lie algebra operations**: exp, log, adjoint
 - **Jacobians**: Left and right Jacobians for integration
 - **Conversions**: Between different parameterizations (e.g., quaternion ↔ Euler)
@@ -43,15 +44,15 @@ X = lie.SE3Quat.elem(ca.vertcat(position, quaternion))
 X_inv = X.inverse()
 
 # Compose transformations
-X2 = lie.SE3Quat.from_components(
-    p=ca.DM([0.5, 0, 0]),
-    q=ca.DM([0.9239, 0, 0, 0.3827])  # 45° about z-axis
-)
-X_composed = X @ X2
+X2 = lie.SE3Quat.elem(ca.vertcat(
+    ca.DM([0.5, 0, 0]),  # position
+    ca.DM([0.9239, 0, 0, 0.3827])  # 45° about z-axis (quaternion)
+))
+X_composed = X * X2
 
 # Extract components
 print(f"Position: {X_composed.p.param.T}")
-print(f"Quaternion: {X_composed.q.param.T}")
+print(f"Rotation (quaternion): {X_composed.R.param.T}")
 ```
 
 ### SO(3): 3D Rotations
@@ -72,10 +73,10 @@ mrp = lie.SO3Mrp.from_Quat(q)
 
 # Compute Lie algebra element (angular velocity)
 omega = ca.DM([0.1, 0.2, 0.3])  # rad/s
-omega_lie = q.alg.elem(omega)
+omega_lie = lie.so3.elem(omega)
 
 # Integrate rotation (exponential map)
-q_updated = q @ omega_lie.exp()
+q_updated = q * omega_lie.exp(lie.SO3Quat)
 ```
 
 ### SO(2): 2D Rotations
@@ -90,7 +91,7 @@ R = lie.SO2.elem(theta)
 
 # Compose rotations
 R2 = lie.SO2.elem(ca.DM([ca.pi / 6]))
-R_composed = R @ R2
+R_composed = R * R2
 
 # Extract angle
 print(f"Angle: {R_composed.param}")  # pi/4 + pi/6 = 5*pi/12
@@ -103,16 +104,15 @@ import cyecca.lie as lie
 import casadi as ca
 
 # Create SE(2) transformation for mobile robot
-x = ca.DM([1.0])    # x position
-y = ca.DM([2.0])    # y position
-theta = ca.DM([0.5])  # heading
+x = ca.SX([1.0])    # x position
+y = ca.SX([2.0])    # y position
+theta = ca.SX([0.5])  # heading
 X = lie.SE2.elem(ca.vertcat(x, y, theta))
 
 # Transform point from local to global frame
-point_local = ca.DM([1, 0])  # 1m ahead of robot
-point_global = X @ point_local
-
-print(f"Global position: {point_global.T}")
+# point_local = ca.SX([1, 0])  # 1m ahead of robot
+# point_global = X @ point_local  # Note: @ operator not implemented for SE2 yet
+# print(f"Global position: {point_global.T}")
 ```
 
 ### SE_2(3): Extended Pose (IMU Preintegration)
@@ -125,16 +125,16 @@ import casadi as ca
 p = ca.DM([0, 0, 0])           # position
 v = ca.DM([1, 0, 0])           # velocity
 q = ca.DM([1, 0, 0, 0])        # orientation (quaternion)
-X = lie.SE23.elem(ca.vertcat(p, v, q))
+X = lie.SE_2_3.elem(ca.vertcat(p, v, q))
 
-# Update with IMU measurements
-dt = 0.01
-accel = ca.DM([0, 0, -9.81])  # acceleration
-omega = ca.DM([0, 0, 0.1])    # angular velocity
-
-# Propagate state (simplified)
-dX = X.alg.elem(ca.vertcat(v, accel, omega))
-X_updated = X @ (dX * dt).exp()
+# Update with IMU measurements (example commented out)
+# dt = 0.01
+# accel = ca.DM([0, 0, -9.81])  # acceleration
+# omega = ca.DM([0, 0, 0.1])    # angular velocity
+# 
+# # Propagate state (simplified)
+# dX = X.alg.elem(ca.vertcat(v, accel, omega))
+# X_updated = X * (dX * dt).exp()
 ```
 
 ## Jacobians
@@ -156,7 +156,7 @@ omega_lie = q.alg.elem(omega)
 Jr = q.alg.right_jacobian(omega)
 
 # Integrate: q_new = q * exp(omega)
-q_new = q @ omega_lie.exp()
+q_new = q * omega_lie.exp()
 
 # Left Jacobian (for derivatives)
 Jl = q.alg.left_jacobian(omega)

@@ -21,6 +21,14 @@ nbmake = "^1.4.1"
 pytest-cov = "^6.0.0"
 pytest-xdist = "^3.6.0"
 matplotlib = "^3.10.7"
+sphinx = "^7.0.0"
+sphinx-rtd-theme = "^2.0.0"
+sphinx-autodoc-typehints = "^2.0.0"
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules --doctest-continue-on-failure"
+doctest_optionflags = "NORMALIZE_WHITESPACE ELLIPSIS"
+testpaths = ["cyecca", "tests"]
 
 [build-system]
 requires = ["poetry-core"]

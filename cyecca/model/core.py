@@ -266,10 +266,10 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
             Parent model with submodels attached as attributes
 
         Example:
-            >>> plant = sportcub()
-            >>> controller = autolevel_controller()
-            >>> parent = ModelSX.compose({"plant": plant, "controller": controller})
-            >>> parent.connect(controller.u.q, plant.x.r)
+            >>> plant = sportcub()  # doctest: +SKIP
+            >>> controller = autolevel_controller()  # doctest: +SKIP
+            >>> parent = ModelSX.compose({"plant": plant, "controller": controller})  # doctest: +SKIP
+            >>> parent.connect(controller.u.q, plant.x.r)  # doctest: +SKIP
         """
         # Auto-compose state type if not provided
         if state_type is None:
@@ -467,28 +467,74 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
 
     def _build_rk4_integrator(self, options: dict):
         """Build RK4 integrator."""
-        from . import integrators
-
         dt_sym = ca.SX.sym("dt")
         N = options.get("N", 10)
 
-        rk4_step = integrators.rk4(self.f_x, dt_sym, name="rk4", N=N)
-
-        # Extract inputs to handle SX vs MX
-        if rk4_step.is_a("SXFunction"):
-            xin = rk4_step.sx_in(0)
-            uin = rk4_step.sx_in(1)
-            pin = rk4_step.sx_in(2)
+        # For composed models, use the combined state size
+        if hasattr(self, "_composed") and self._composed:
+            x_sym = ca.SX.sym("x", self._total_composed_states)
         else:
-            xin = rk4_step.mx_in(0)
-            uin = rk4_step.mx_in(1)
-            pin = rk4_step.mx_in(2)
+            x_sym = self.x.as_vec()
 
+        u_sym = self.u.as_vec()
+        p_sym = self.p.as_vec()
+
+        # Handle discrete states/vars if present (constant during integration)
+        z_sym = ca.SX.sym("z", self.z.size1()) if self.z is not None else None
+        m_sym = ca.SX.sym("m", self.m.size1()) if self.m is not None else None
+
+        # Build wrapper function for RK4 that matches f(x, u, p) signature
+        def build_f_wrapper():
+            x_in = ca.SX.sym("x", x_sym.size1())
+            u_in = ca.SX.sym("u", u_sym.size1())
+            p_in = ca.SX.sym("p", p_sym.size1())
+
+            # Build argument list matching f_x signature
+            f_x_args = [x_in]
+
+            # Add dependent variables if present (use defaults)
+            if hasattr(self, "dep") and self.dep is not None:
+                f_x_args.append(self.dep0.as_vec())
+
+            # Add discrete states/vars (use symbols that will be bound later)
+            if z_sym is not None:
+                f_x_args.append(z_sym)
+            if m_sym is not None:
+                f_x_args.append(m_sym)
+
+            f_x_args.extend([u_in, p_in])
+
+            # Evaluate dynamics
+            dx_dt = self.f_x(*f_x_args)
+            return ca.Function(
+                "f_wrapped", [x_in, u_in, p_in], [dx_dt], ["x", "u", "p"], ["dx_dt"]
+            )
+
+        from . import integrators
+
+        f_wrapped = build_f_wrapper()
+        rk4_step = integrators.rk4(f_wrapped, dt_sym, name="rk4", N=N)
+
+        # Build f_step with appropriate inputs
+        step_inputs = [x_sym]
+        step_names = ["x"]
+
+        if z_sym is not None:
+            step_inputs.append(z_sym)
+            step_names.append("z")
+        if m_sym is not None:
+            step_inputs.append(m_sym)
+            step_names.append("m")
+
+        step_inputs.extend([u_sym, p_sym, dt_sym])
+        step_names.extend(["u", "p", "dt"])
+
+        # Call RK4 with just x, u, p (discrete states already bound in wrapper)
         self.f_step = ca.Function(
             "f_step",
-            [xin, uin, pin, dt_sym],
-            [rk4_step(xin, uin, pin, dt_sym)],
-            ["x", "u", "p", "dt"],
+            step_inputs,
+            [rk4_step(x_sym, u_sym, p_sym, dt_sym)],
+            step_names,
             ["x_next"],
         )
 
@@ -553,10 +599,210 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         )
 
     def _build_idas_integrator(self, options: dict):
-        """Build IDAS DAE integrator."""
-        # TODO: Implement IDAS for DAE systems with algebraic constraints
-        print("Warning: IDAS not yet implemented, falling back to RK4")
-        self._build_rk4_integrator(options)
+        """Build IDAS DAE integrator using CasADi's integrator interface.
+
+        IDAS can handle:
+        - Pure ODEs: dx/dt = f(x, u, p)
+        - DAEs with algebraic constraints:
+            dx/dt = f(x, z_alg, u, p)
+            0 = g(x, z_alg, u, p)
+
+        Options can include:
+        - abstol: absolute tolerance (default 1e-8)
+        - reltol: relative tolerance (default 1e-6)
+        - max_num_steps: maximum number of steps (default 10000)
+
+        Note: Since CasADi's integrator requires numeric t0/tf at creation,
+        we create the integrator for unit time [0, 1] and scale by dt.
+        """
+        # Get symbolic type (SX or MX)
+        sym = ca.SX if self._sym == ca.SX else ca.MX
+
+        # Create symbolic variables for the DAE
+        t_sym = sym.sym("t")  # Time variable (for time-varying systems)
+        x_dae = sym.sym("x", self.x.as_vec().size1())
+        u_dae = sym.sym("u", self.u.as_vec().size1())
+        p_dae = sym.sym("p", self.p.as_vec().size1())
+
+        # Handle discrete states/vars (constant during continuous integration)
+        # These will be parameters to the integrator
+        z_disc_sym = sym.sym("z", self.z.size1()) if self.z is not None else None
+        m_sym = sym.sym("m", self.m.size1()) if self.m is not None else None
+
+        # dt will be a parameter for time scaling
+        dt_param = sym.sym("dt")
+
+        # Build combined parameter vector for integrator
+        p_combined = [u_dae, p_dae]
+        if z_disc_sym is not None:
+            p_combined.append(z_disc_sym)
+        if m_sym is not None:
+            p_combined.append(m_sym)
+        p_combined.append(dt_param)  # Add dt as parameter
+        p_vec = ca.vertcat(*p_combined)
+
+        # Build ODE right-hand side using original f_x function
+        # We need to unpack the combined parameter vector
+        idx = 0
+        u_extract = p_vec[idx : idx + u_dae.size1()]
+        idx += u_dae.size1()
+        p_extract = p_vec[idx : idx + p_dae.size1()]
+        idx += p_dae.size1()
+
+        f_x_args = [x_dae]
+
+        # Add dependent variables if present (use defaults for now)
+        if hasattr(self, "dep") and self.dep is not None:
+            f_x_args.append(self.dep0.as_vec())
+
+        # Add discrete states/vars if present
+        if z_disc_sym is not None:
+            z_extract = p_vec[idx : idx + z_disc_sym.size1()]
+            idx += z_disc_sym.size1()
+            f_x_args.append(z_extract)
+        if m_sym is not None:
+            m_extract = p_vec[idx : idx + m_sym.size1()]
+            idx += m_sym.size1()
+            f_x_args.append(m_extract)
+
+        # Extract dt from parameter vector
+        dt_extract = p_vec[idx]
+
+        f_x_args.extend([u_extract, p_extract])
+
+        # Check if we have algebraic constraints
+        has_alg = hasattr(self, "f_alg") and self.z_alg is not None
+
+        if has_alg:
+            # DAE mode: include algebraic variables
+            z_alg_dae = sym.sym("z_alg", self.z_alg.as_vec().size1())
+
+            # ODE: dx/dt = f(x, u, p, ...)
+            ode_rhs = self.f_x(*f_x_args)
+
+            # Algebraic equation: 0 = g(x, z_alg, u, p)
+            alg_rhs = self.f_alg(x_dae, z_alg_dae, u_extract, p_extract)
+
+            # Build DAE dictionary for CasADi integrator
+            dae = {
+                "t": t_sym,
+                "x": x_dae,
+                "z": z_alg_dae,
+                "p": p_vec,
+                "ode": ode_rhs,
+                "alg": alg_rhs,
+            }
+        else:
+            # Pure ODE mode: dx/dt = f(x, u, p, ...)
+            ode_rhs = self.f_x(*f_x_args)
+
+            # Build ODE dictionary for CasADi integrator
+            dae = {
+                "t": t_sym,
+                "x": x_dae,
+                "p": p_vec,
+                "ode": ode_rhs,
+            }
+
+        # Set up integrator options
+        integrator_opts = {
+            "abstol": options.get("abstol", 1e-8),
+            "reltol": options.get("reltol", 1e-6),
+            "max_num_steps": options.get("max_num_steps", 10000),
+        }
+
+        # Additional IDAS-specific options
+        for key in [
+            "max_step_size",
+            "min_step_size",
+            "init_step_size",
+            "exact_jacobian",
+            "linear_solver",
+            "max_krylov",
+            "sensitivity_method",
+        ]:
+            if key in options:
+                integrator_opts[key] = options[key]
+
+        # Create IDAS integrator for [0, 1] interval
+        # We'll scale by dt when calling it
+        integrator_unit = ca.integrator(
+            "idas_unit", "idas", dae, 0.0, 1.0, integrator_opts
+        )
+
+        # Now build f_step that takes dt as input and scales appropriately
+        x_sym = sym.sym("x", x_dae.size1())
+        u_sym = sym.sym("u", u_dae.size1())
+        p_sym = sym.sym("p", p_dae.size1())
+        dt_sym = sym.sym("dt")
+
+        # Rebuild parameter vector with actual symbols
+        p_call = [u_sym, p_sym]
+        step_inputs = [x_sym]
+        step_names = ["x"]
+
+        if z_disc_sym is not None:
+            z_sym_call = sym.sym("z", z_disc_sym.size1())
+            p_call.append(z_sym_call)
+            step_inputs.append(z_sym_call)
+            step_names.append("z")
+        if m_sym is not None:
+            m_sym_call = sym.sym("m", m_sym.size1())
+            p_call.append(m_sym_call)
+            step_inputs.append(m_sym_call)
+            step_names.append("m")
+
+        step_inputs.extend([u_sym, p_sym, dt_sym])
+        step_names.extend(["u", "p", "dt"])
+
+        # Add dt_sym to parameter vector for integrator call
+        p_call.append(dt_sym)
+
+        # Call the unit integrator but with scaled grid: [0, dt]
+        # Use the grid-based form: integrator(x0=..., p=...) with implicit grid [0, 1]
+        # Then we need to scale time...
+        # Actually, simpler: create a new integrator for each dt value
+        # But that's not efficient. Instead, use integrator map or recreate with symbolic dt
+
+        # Alternative: Use the integrator with grid points
+        # Form: integrator(..., t0, [t1, t2, ...], opts)
+        # But this still requires numeric values
+
+        # Best approach: Create scaled DAE where time is scaled by dt
+        # tau = t/dt, so dt*dtau = dt, and d/dtau = dt * d/dt
+        # This means ode_scaled = dt * ode_rhs
+
+        dae_scaled = dict(dae)
+        dae_scaled["ode"] = dt_extract * dae["ode"]
+        if has_alg:
+            # Algebraic constraints don't change with time scaling
+            pass
+
+        # Create integrator with scaled dynamics
+        integrator_scaled = ca.integrator(
+            "idas_scaled", "idas", dae_scaled, 0.0, 1.0, integrator_opts
+        )
+
+        # Call the integrator
+        if has_alg:
+            z_alg_guess_sym = sym.sym("z_alg0", z_alg_dae.size1())
+            integ_result = integrator_scaled(
+                x0=x_sym, z0=z_alg_guess_sym, p=ca.vertcat(*p_call)
+            )
+            step_inputs.insert(-1, z_alg_guess_sym)  # Insert before dt
+            step_names.insert(-1, "z_alg0")
+        else:
+            integ_result = integrator_scaled(x0=x_sym, p=ca.vertcat(*p_call))
+
+        x_next = integ_result["xf"]
+
+        self.f_step = ca.Function(
+            "f_step",
+            step_inputs,
+            [x_next],
+            step_names,
+            ["x_next"],
+        )
 
     def _build_index_maps(self):
         """Build index maps for state/input/parameter/output access (internal use only)."""

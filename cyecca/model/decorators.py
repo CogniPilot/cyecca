@@ -24,7 +24,7 @@ def compose_states(*state_types):
         New combined state class with all fields from input types
 
     Example:
-        >>> ClosedLoopStates = compose_states(PlantStates, ControllerStates)
+        >>> ClosedLoopStates = compose_states(PlantStates, ControllerStates)  # doctest: +SKIP
     """
     from dataclasses import MISSING
     from dataclasses import fields as get_fields

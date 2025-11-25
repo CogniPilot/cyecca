@@ -88,10 +88,10 @@ class CompositionMixin:
             Parent model with submodels attached as attributes
 
         Example:
-            >>> plant = sportcub()
-            >>> controller = autolevel_controller()
-            >>> parent = ModelSX.compose({"plant": plant, "controller": controller})
-            >>> parent.connect(controller.u.q, plant.x.r)
+            >>> plant = sportcub()  # doctest: +SKIP
+            >>> controller = autolevel_controller()  # doctest: +SKIP
+            >>> parent = ModelSX.compose({"plant": plant, "controller": controller})  # doctest: +SKIP
+            >>> parent.connect(controller.u.q, plant.x.r)  # doctest: +SKIP
         """
         # Auto-compose state type if not provided
         if state_type is None:
@@ -154,7 +154,7 @@ class CompositionMixin:
             output_connections: Map submodel outputs to parent outputs
 
         Example:
-            >>> parent.add_submodel("aircraft", aircraft,
+            >>> parent.add_submodel("aircraft", aircraft,  # doctest: +SKIP
             ...     input_connections={"aircraft.thr": "controller.thr"})
         """
         if not hasattr(self, "_submodels"):
@@ -188,8 +188,8 @@ class CompositionMixin:
             source: Source signal (SignalRef or string like "plant.x.r")
 
         Example:
-            >>> parent.connect("controller.u.q", "plant.x.r")
-            >>> parent.connect(parent.controller.u.q, parent.plant.x.r)
+            >>> parent.connect("controller.u.q", "plant.x.r")  # doctest: +SKIP
+            >>> parent.connect(parent.controller.u.q, parent.plant.x.r)  # doctest: +SKIP
         """
 
         # Helper to convert signal references to path strings
@@ -248,9 +248,9 @@ class CompositionMixin:
         Creates unified dynamics integrating all submodels with signal routing.
 
         Example:
-            >>> parent.add_submodel("aircraft", aircraft, ...)
-            >>> parent.add_submodel("controller", controller, ...)
-            >>> parent.build_composed(integrator="rk4")
+            >>> parent.add_submodel("aircraft", aircraft, ...)  # doctest: +SKIP
+            >>> parent.add_submodel("controller", controller, ...)  # doctest: +SKIP
+            >>> parent.build_composed(integrator="rk4")  # doctest: +SKIP
         """
         if not hasattr(self, "_submodels") or not self._submodels:
             raise ValueError("No submodels added. Use add_submodel() first.")

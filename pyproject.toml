@@ -15,14 +15,15 @@ sympy = "~1.12"
 beartype = "^0.19.0"
 pydot = "^3.0.3"
 simpy = "^4.1.1"
-pyulog = "^1.1.0"
-graphviz = "^0.20.3"
-matplotlib = "~3.10"
 protobuf = "^3.20.3"
 synapse-pb = "^0.2.10"
 delimited-protobuf = "^1.0.0"
 pandas = "^2.2.2"
 pytest = "^8.3.4"
+# Optional dependencies for old estimator code
+pyulog = {version = "^1.1.0", optional = true}
+graphviz = {version = "^0.20.3", optional = true}
+matplotlib = {version = "~3.10", optional = true}
 
 [tool.poetry.group.dev.dependencies]
 slycot = "^0.6.0"
@@ -45,6 +46,9 @@ pytest-cov = "^6.0.0"
 snakeviz = "^2.1.1"
 nbmake = "^1.4.1"
 
+[tool.poetry.extras]
+estimator = ["pyulog", "matplotlib", "graphviz"]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
@@ -66,3 +70,9 @@ per-file-ignores = [
 ]
 max-line-length = 88
 count = true
+
+[tool.pytest.ini_options]
+# Exclude old estimator tests by default (require heavy dependencies)
+# To run estimator tests: pip install 'cyecca[estimator]' && pytest tests/estimate/
+testpaths = ["tests"]
+norecursedirs = ["tests/estimate"]

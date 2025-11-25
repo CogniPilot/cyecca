@@ -2,16 +2,16 @@ import casadi as ca
 import sympy
 
 __all__ = [
-    "taylor_series_near_zero",
-    "sympy_to_casadi",
-    "SERIES",
-    "SQUARED_SERIES",
-    "casadi_to_sympy",
+    'taylor_series_near_zero',
+    'sympy_to_casadi',
+    'SERIES',
+    'SQUARED_SERIES',
+    'casadi_to_sympy',
 ]
 
 
 def taylor_series_near_zero(x, f, order=6, eps=1e-4, verbose=False):
-    """
+    '''
     Takes a sympy function and near zero approximates it by a taylor
     series. The resulting function is converted to a casadi function.
 
@@ -20,15 +20,15 @@ def taylor_series_near_zero(x, f, order=6, eps=1e-4, verbose=False):
     @eps: tolerance for using series
     @verbose: show functions
     @return: casadi.Function
-    """
-    symbols = {"x": ca.SX.sym("x")}
+    '''
+    symbols = {'x': ca.SX.sym('x')}
     f_series = f.series(x, 0, order).removeO()
     f_series, _ = sympy_to_casadi(f=f_series, symbols=symbols)
     if verbose:
-        print("f_series: ", f_series, "\nf:", f)
+        print('f_series: ', f_series, '\nf:', f)
     f, _ = sympy_to_casadi(f, symbols=symbols)
     f = ca.Function(
-        "f", [symbols["x"]], [ca.if_else(ca.fabs(symbols["x"]) < eps, f_series, f)]
+        'f', [symbols['x']], [ca.if_else(ca.fabs(symbols['x']) < eps, f_series, f)]
     )
     return f
 
@@ -51,7 +51,7 @@ def _sympy_parser(f, f_dict=None, symbols=None, depth=0, cse=False, verbose=Fals
     f_type = type(f)
     dict_keys = list(f_dict.keys())
     if verbose:
-        print("-" * depth, f, "type", f_type)
+        print('-' * depth, f, 'type', f_type)
     if cse:
         cse_defs, cse_exprs = sympy.cse(f)
         assert len(cse_exprs) == 1
@@ -108,20 +108,20 @@ def _sympy_parser(f, f_dict=None, symbols=None, depth=0, cse=False, verbose=Fals
         return -1
     elif f_type == sympy.core.numbers.Half:
         return 0.5
-    elif str(f_type) == "sin":
+    elif str(f_type) == 'sin':
         return ca.sin(prs(f.args[0]))
-    elif str(f_type) == "cos":
+    elif str(f_type) == 'cos':
         return ca.cos(prs(f.args[0]))
-    elif str(f_type) == "tan":
+    elif str(f_type) == 'tan':
         return ca.tan(prs(f.args[0]))
-    elif str(f_type) == "atan":
+    elif str(f_type) == 'atan':
         return ca.arctan(prs(f.args[0]))
     elif str(f_type) in dict_keys:
         for i in range(len(dict_keys)):
             return f_dict[dict_keys[i]](prs(f.args[0]))
     else:
         raise NotImplementedError(
-            "unhandled type: {:s} {:s}".format(str(f_type), str(f))
+            'unhandled type: {:s} {:s}'.format(str(f_type), str(f))
         )
 
 
@@ -151,7 +151,7 @@ def casadi_to_sympy(expr, syms=None):
     op = expr.op()
 
     if op == ca.OP_ASSIGN:
-        raise NotImplementedError("op", op)
+        raise NotImplementedError('op', op)
     elif op == ca.OP_ADD:
         return binary(expr, lambda a, b: a + b)
     elif op == ca.OP_SUB:
@@ -169,7 +169,7 @@ def casadi_to_sympy(expr, syms=None):
     elif op == ca.OP_POW:
         return binary(expr, lambda a, b: a**b)
     elif op == ca.OP_CONSTPOW:
-        raise NotImplementedError("op", op)
+        raise NotImplementedError('op', op)
     elif op == ca.OP_SQRT:
         return unary(expr, lambda a: sympy.sqrt(a))
     elif op == ca.OP_SQ:
@@ -213,7 +213,7 @@ def casadi_to_sympy(expr, syms=None):
     elif op == ca.OP_SIGN:
         return unary(expr, lambda a: sympy.sign(a))
     elif op == ca.OP_COPYSIGN:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_IF_ELSE_ZERO:
         return binary(expr, lambda cond, val: sympy.Piecewise((val, cond), (0, True)))
     elif op == ca.OP_ERF:
@@ -246,127 +246,127 @@ def casadi_to_sympy(expr, syms=None):
         else:
             return f_num
     elif op == ca.OP_INPUT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_OUTPUT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_PARAMETER:
         if expr not in syms:
             syms[expr] = sympy.symbols(str(expr))
         return syms[expr]
     elif op == ca.OP_CALL:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_FIND:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_LOW:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_MAP:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_MTIMES:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_SOLVE:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_TRANSPOSE:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_DETERMINANT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_INVERSE:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_INVERSE:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_DOT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_BILIN:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_RANK1:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_HORZCAT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_VERTCAT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_DIAGCAT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_HORZSPLIT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_VERTSPLIT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_DIAGSPLIT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_RESHAPE:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_SUBREF:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_SUBASSIGN:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_GETNONZEROS:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_GETNONZEROS_PARAM:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_ADDNONZEROS:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_ADDNONZEROS_PARAM:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_SETNONZEROS:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_SETNONZEROS_PARAM:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_PROJECT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_ASSERTION:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_MONITOR:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_NORM2:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_NORM1:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_NORMINF:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_NORMF:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_MMIN:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_MMAX:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_HORZREPSUM:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_ERFINV:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_PRINTME:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_LIFT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_EINSTEIN:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_BSPLINE:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_CONVEXIFY:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_SPARSITY_CAST:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_LOG1P:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_EXPM1:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_HYPOT:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_LOGSUMEXP:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
     elif op == ca.OP_REMAINDER:
         return binary(expr, lambda a, b: sympy.Mod(a + b, b) - b)
     else:
-        raise NotImplementedError("op: {:s}: {:s}".format(str(op), str(expr)))
+        raise NotImplementedError('op: {:s}: {:s}'.format(str(op), str(expr)))
 
 
 def derive_series(input_squared=False):
-    """
+    '''
     Derives taylor series near zero, useful for Lie Groups.
 
     If use_sqrt is passed as True, will take the sqrt of the argument x before passing
     it to the function. This is useful as many series in Lie groups depend on theta, and
     to find theta we take the sqrt(dot(v, v)), which results in a nan for the jacobian at
     zero. By making the series in terms of sqrt(x), we can avoid this issue.
-    """
-    u = sympy.symbols("x")
+    '''
+    u = sympy.symbols('x')
 
     if input_squared:
         x = sympy.sqrt(u)
@@ -387,44 +387,44 @@ def derive_series(input_squared=False):
 
     # return series dictionary
     return {
-        "cos(x)": taylor_series_near_zero(
+        'cos(x)': taylor_series_near_zero(
             u, cos_x
         ),  # necessary for series of cos(sqrt(x))
-        "sin(x)/x": taylor_series_near_zero(u, sin_x / x),
-        "x/sin(x)": taylor_series_near_zero(u, x / sin_x),
-        "(1 - cos(x))/x": taylor_series_near_zero(u, (1 - cos_x) / x),
-        "(1 - cos(x))/x^2": taylor_series_near_zero(u, (1 - cos_x) / x2),
-        "(x - sin(x))/x^3": taylor_series_near_zero(u, (x - sin_x) / x3),
-        "(1 - x*sin(x)/(2*(1 - cos(x))))/x^2": taylor_series_near_zero(
+        'sin(x)/x': taylor_series_near_zero(u, sin_x / x),
+        'x/sin(x)': taylor_series_near_zero(u, x / sin_x),
+        '(1 - cos(x))/x': taylor_series_near_zero(u, (1 - cos_x) / x),
+        '(1 - cos(x))/x^2': taylor_series_near_zero(u, (1 - cos_x) / x2),
+        '(x - sin(x))/x^3': taylor_series_near_zero(u, (x - sin_x) / x3),
+        '(1 - x*sin(x)/(2*(1 - cos(x))))/x^2': taylor_series_near_zero(
             u, (1 - x * sin_x / (2 * (1 - cos_x))) / x2
         ),
-        "(-x^2/2 - cos(x) + 1)/x^2": taylor_series_near_zero(
+        '(-x^2/2 - cos(x) + 1)/x^2': taylor_series_near_zero(
             u, (-x2 / 2 - cos_x + 1) / x2
         ),
-        "(x^2/2 + cos(x) - 1)/x^4": taylor_series_near_zero(
+        '(x^2/2 + cos(x) - 1)/x^4': taylor_series_near_zero(
             u, (x2 / 2 + cos_x - 1) / x4
         ),
-        "1/x^2": taylor_series_near_zero(u, 1 / x2),
-        "(2 - x cos(x))/(2 x^2)": taylor_series_near_zero(
+        '1/x^2': taylor_series_near_zero(u, 1 / x2),
+        '(2 - x cos(x))/(2 x^2)': taylor_series_near_zero(
             u, (2 - x * cos_x) / (2 * x2)
         ),
-        "1/x^2 + sin(x)/(2 x (cos(x) - 1))": taylor_series_near_zero(
+        '1/x^2 + sin(x)/(2 x (cos(x) - 1))': taylor_series_near_zero(
             u, 1 / x2 + sin_x / (2 * x * (cos_x - 1))
         ),
-        "(x^2 + 2 cos(x) - 2)/(2 x^4)": taylor_series_near_zero(
+        '(x^2 + 2 cos(x) - 2)/(2 x^4)': taylor_series_near_zero(
             u, (x2 + 2 * cos_x - 2) / (2 * x4)
         ),
-        "(x cos(x) + 2 x - 3 sin(x))/(2 x^5)": taylor_series_near_zero(
+        '(x cos(x) + 2 x - 3 sin(x))/(2 x^5)': taylor_series_near_zero(
             u, (x * cos_x + 2 * x - 3 * sin_x) / (2 * x5)
         ),
-        "(x^2 + x sin(x) + 4 cos(x) - 4)/(2 x^6)": taylor_series_near_zero(
+        '(x^2 + x sin(x) + 4 cos(x) - 4)/(2 x^6)': taylor_series_near_zero(
             u, (x2 + x * sin_x + 4 * cos_x - 4) / (2 * x6)
         ),
-        "(2 - 2 cos(x) - x sin(x))/(2 x^4))": taylor_series_near_zero(
+        '(2 - 2 cos(x) - x sin(x))/(2 x^4))': taylor_series_near_zero(
             u, (2 - 2 * cos_x - x * sin_x) / (2 * x4)
         ),
-        "tan(x/4)/x": taylor_series_near_zero(u, tan(x / 4) / x),
-        "4 atan(x)/x": taylor_series_near_zero(u, 4 * atan(x) / x),
+        'tan(x/4)/x': taylor_series_near_zero(u, tan(x / 4) / x),
+        '4 atan(x)/x': taylor_series_near_zero(u, 4 * atan(x) / x),
     }
 
 

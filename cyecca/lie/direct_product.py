@@ -28,9 +28,9 @@ class LieAlgebraDirectProduct(LieAlgebra):
         return LieAlgebraDirectProductElement(algebra=self, param=param)
 
     def __mul__(self, other: LieAlgebra):
-        """
+        '''
         Implements Direct Product of Lie Algebras
-        """
+        '''
         return LieAlgebraDirectProduct(algebras=self.algebras + [other])
 
     def sub_param(self, i: int, param: PARAM_TYPE) -> ca.SX:
@@ -49,7 +49,7 @@ class LieAlgebraDirectProduct(LieAlgebra):
         left: LieAlgebraDirectProductElement,
         right: LieAlgebraDirectProductElement,
     ) -> LieAlgebraDirectProductElement:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def scalar_multiplication(
         self, left: SCALAR_TYPE, right: LieAlgebraDirectProductElement
@@ -71,17 +71,17 @@ class LieAlgebraDirectProduct(LieAlgebra):
 
     def from_Matrix(self, arg: ca.SX) -> LieAlgebraDirectProduct:
         assert arg.shape == self.matrix_shape
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def __repr__(self):
-        return " x ".join([algebra.__class__.__name__ for algebra in self.algebras])
+        return ' x '.join([algebra.__class__.__name__ for algebra in self.algebras])
 
 
 @beartype
 class LieAlgebraDirectProductElement(LieAlgebraElement):
-    """
+    '''
     This is an Direct Product Lie algebra elem
-    """
+    '''
 
     def __init__(self, algebra: LieAlgebraDirectProduct, param: PARAM_TYPE):
         super().__init__(algebra, param)
@@ -121,9 +121,9 @@ class LieGroupDirectProduct(LieGroup):
         return self * other.exp(self.group)
 
     def __mul__(self, other: LieGroup) -> LieGroupDirectProduct:
-        """
+        '''
         Implements Direct Product of Lie Groups
-        """
+        '''
         return LieGroupDirectProduct(groups=self.groups + [other])
 
     def sub_elems(self, arg: LieGroupDirectProductElement) -> List[LieGroupElement]:
@@ -167,7 +167,7 @@ class LieGroupDirectProduct(LieGroup):
         )
 
     def adjoint(self, arg: LieGroupDirectProductElement) -> ca.SX:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def exp(self, arg: LieAlgebraDirectProductElement) -> LieGroupDirectProductElement:
         algebra = arg.algebra  # type: LieAlgebraDirectProduct
@@ -192,17 +192,17 @@ class LieGroupDirectProduct(LieGroup):
 
     def from_Matrix(self, arg: ca.SX) -> LieGroupDirectProductElement:
         assert arg.shape == self.matrix_shape
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def __repr__(self) -> str:
-        return " x ".join([group.__class__.__name__ for group in self.groups])
+        return ' x '.join([group.__class__.__name__ for group in self.groups])
 
 
 @beartype
 class LieGroupDirectProductElement(LieGroupElement):
-    """
+    '''
     This is a Lie group directo product elem
-    """
+    '''
 
     def __init__(self, group: LieGroupDirectProduct, param: PARAM_TYPE):
         super().__init__(group, param)

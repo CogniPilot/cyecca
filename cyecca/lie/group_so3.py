@@ -13,15 +13,15 @@ from cyecca.lie.group_rn import R3LieGroupElement, R3LieAlgebraElement
 from cyecca.symbolic import SERIES, SQUARED_SERIES
 
 __all__ = [
-    "so3",
-    "Axis",
-    "EulerType",
-    "SO3Quat",
-    "SO3Mrp",
-    "SO3Dcm",
-    "SO3EulerLieGroup",
-    "SO3EulerB321",
-    "SO3LieGroup",
+    'so3',
+    'Axis',
+    'EulerType',
+    'SO3Quat',
+    'SO3Mrp',
+    'SO3Dcm',
+    'SO3EulerLieGroup',
+    'SO3EulerB321',
+    'SO3LieGroup',
 ]
 
 
@@ -83,8 +83,8 @@ class SO3LieAlgebra(LieAlgebra):
         # must do series for theta_sq to avoid sqrt(x) nan for jacobian
         # near zero
         theta_sq = ca.dot(v, v)
-        A = SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq)
-        B = SQUARED_SERIES["(x - sin(x))/x^3"](theta_sq)
+        A = SQUARED_SERIES['(1 - cos(x))/x^2'](theta_sq)
+        B = SQUARED_SERIES['(x - sin(x))/x^3'](theta_sq)
         return ca.SX.eye(3) + A * X + B * (X @ X)
 
     def left_jacobian_inv(self, arg: SO3LieAlgebraElement) -> ca.SX:
@@ -93,7 +93,7 @@ class SO3LieAlgebra(LieAlgebra):
         # must do series for theta_sq to avoid sqrt(x) nan for jacobian
         # near zero
         theta_sq = ca.dot(v, v)
-        A = SQUARED_SERIES["1/x^2 + sin(x)/(2 x (cos(x) - 1))"](theta_sq)
+        A = SQUARED_SERIES['1/x^2 + sin(x)/(2 x (cos(x) - 1))'](theta_sq)
         return ca.SX.eye(3) - 0.5 * X + A * (X @ X)
 
     def right_jacobian(self, arg: SO3LieAlgebraElement) -> ca.SX:
@@ -102,8 +102,8 @@ class SO3LieAlgebra(LieAlgebra):
         # must do series for theta_sq to avoid sqrt(x) nan for jacobian
         # near zero
         theta_sq = ca.dot(v, v)
-        A = SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq)
-        B = SQUARED_SERIES["(x - sin(x))/x^3"](theta_sq)
+        A = SQUARED_SERIES['(1 - cos(x))/x^2'](theta_sq)
+        B = SQUARED_SERIES['(x - sin(x))/x^3'](theta_sq)
         return ca.SX.eye(3) - A * X + B * (X @ X)
 
     def right_jacobian_inv(self, arg: SO3LieAlgebraElement) -> ca.SX:
@@ -112,15 +112,15 @@ class SO3LieAlgebra(LieAlgebra):
         # must do series for theta_sq to avoid sqrt(x) nan for jacobian
         # near zero
         theta_sq = ca.dot(v, v)
-        A = SQUARED_SERIES["1/x^2 + sin(x)/(2 x (cos(x) - 1))"](theta_sq)
+        A = SQUARED_SERIES['1/x^2 + sin(x)/(2 x (cos(x) - 1))'](theta_sq)
         return ca.SX.eye(3) + 0.5 * X + A * (X @ X)
 
 
 @beartype
 class SO3LieAlgebraElement(LieAlgebraElement):
-    """
+    '''
     This is an SO3 Lie algebra elem
-    """
+    '''
 
     def __init__(self, algebra: SO3LieAlgebra, param: PARAM_TYPE):
         super().__init__(algebra, param)
@@ -165,7 +165,7 @@ def rotation_matrix(axis: Axis, angle: SCALAR_TYPE):
         R[1, 1] = cos_angle
         return R
     else:
-        raise ValueError("unknown axis")
+        raise ValueError('unknown axis')
 
 
 so3 = SO3LieAlgebra()
@@ -173,49 +173,49 @@ so3 = SO3LieAlgebra()
 
 @beartype
 class SO3LieGroup(LieGroup):
-    """
+    '''
     An abstract SO3 Lie Group
-    """
+    '''
 
     def product(
         self, left: SO3LieGroupElement, right: SO3LieGroupElement
     ) -> SO3LieGroupElement:
-        """
+        '''
         Default product uses matrix conversion
-        """
+        '''
         return self.from_Matrix(left.to_Matrix() @ right.to_Matrix())
 
     def product_r3(
         self, left: SO3LieGroupElement, right: R3LieAlgebraElement
     ) -> R3LieAlgebraElement:
-        """
+        '''
         Vector rotation for algebra r3, uses to_Matrix
-        """
+        '''
         v = left.to_Matrix() @ right.param
         return R3LieAlgebraElement(algebra=right.algebra, param=v)
 
     def product_vector(
         self, left: SO3LieGroupElement, right: Union[ca.SX, ca.DM]
     ) -> ca.SX:
-        """
+        '''
         Vector product, uses matrix conversion
-        """
+        '''
         return left.to_Matrix() @ right
 
 
 @beartype
 class SO3LieGroupElement(LieGroupElement):
-    """
+    '''
     An abstract SO3Dcm Lie group elem
-    """
+    '''
 
     def __init__(self, group: SO3LieGroup, param: PARAM_TYPE):
         super().__init__(group, param)
 
     def __matmul__(self, right):
-        """
+        '''
         override matrix mul operator to use as actions on 3 vectors
-        """
+        '''
         if isinstance(right, R3LieAlgebraElement):
             return self.group.product_r3(self, right)
         elif isinstance(right, ca.SX) and right.shape == (3, 1):
@@ -224,7 +224,7 @@ class SO3LieGroupElement(LieGroupElement):
             return self.group.product_vector(self, right)
         else:
             print(type(right))
-            raise TypeError("unhandled type in product {:s}".format(str(type(right))))
+            raise TypeError('unhandled type in product {:s}'.format(str(type(right))))
 
 
 @beartype
@@ -250,15 +250,15 @@ class SO3DcmLieGroup(SO3LieGroup):
         # must do series for theta_sq to avoid sqrt(x) nan for jacobian
         # near zero
         theta_sq = ca.dot(v, v)
-        C1 = SQUARED_SERIES["sin(x)/x"](theta_sq)
-        C2 = SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq)
+        C1 = SQUARED_SERIES['sin(x)/x'](theta_sq)
+        C2 = SQUARED_SERIES['(1 - cos(x))/x^2'](theta_sq)
         return self.from_Matrix(ca.SX.eye(3) + C1 * X + C2 * X @ X)
 
     def log(self, arg: SO3DcmLieGroupElement) -> SO3LieAlgebraElement:
         R = self.to_Matrix(arg)
         e1 = (ca.trace(R) - 1) / 2
         theta = ca.if_else(e1 > 1, 0, ca.if_else(e1 < -1, ca.pi, ca.acos(e1)))
-        C1 = SERIES["x/sin(x)"](theta) / 2
+        C1 = SERIES['x/sin(x)'](theta) / 2
         return self.algebra.from_Matrix((R - R.T) * C1)
 
     def to_Matrix(self, arg: SO3DcmLieGroupElement) -> ca.SX:
@@ -296,13 +296,9 @@ class SO3DcmLieGroup(SO3LieGroup):
         return self.from_Matrix(arg=R)
 
     def from_Mrp(self, arg: SO3MrpLieGroupElement) -> SO3DcmLieGroupElement:
-        v = arg.param
-        X = arg.to_Matrix()
-        n_sq = ca.dot(v, v)
-        X_sq = X @ X
-        R = ca.SX.eye(3) + (8 * X_sq - 4 * (1 - n_sq) * X) / (1 + n_sq) ** 2
-        # return transpose, due to convention difference in book
-        return self.from_Matrix(R.T)
+        # Use the MRP group's to_Matrix method which correctly computes the DCM
+        R = SO3Mrp.to_Matrix(arg)
+        return self.from_Matrix(R)
 
     def from_Mrp_alternative(self, arg: SO3MrpLieGroupElement) -> SO3DcmLieGroupElement:
         return self.from_Quat(SO3Quat.from_Mrp(arg))
@@ -313,9 +309,9 @@ class SO3DcmLieGroup(SO3LieGroup):
 
 @beartype
 class SO3DcmLieGroupElement(SO3LieGroupElement):
-    """
+    '''
     This is an SO3Dcm Lie group elem
-    """
+    '''
 
     def __init__(self, group: SO3DcmLieGroup, param: PARAM_TYPE):
         super().__init__(group, param)
@@ -350,6 +346,81 @@ class SO3EulerLieGroup(SO3LieGroup):
     def log(self, arg: SO3EulerLieGroupElement) -> SO3LieAlgebraElement:
         return SO3Dcm.log(SO3Dcm.from_Euler(arg))
 
+    def left_jacobian(self, arg: SO3EulerLieGroupElement) -> ca.SX:
+        """
+        Compute the left Jacobian for Euler angle kinematics.
+        
+        Returns the 3x3 matrix J such that euler_dot = J @ w_spatial,
+        where w_spatial is the angular velocity in spatial (inertial) frame.
+        
+        For B321 (ZYX) sequence with state order [psi, theta, phi]:
+        The relationship between left and right Jacobians is:
+        Jl = Jr @ R_eb
+        where R_eb is the rotation matrix from earth (spatial) to body frame.
+        
+        This ensures: euler_dot = Jr @ omega_body = Jl @ omega_spatial
+        with omega_spatial = R_be @ omega_body = R_eb^T @ omega_body
+        """
+        if self.euler_type == EulerType.body_fixed and self.sequence == [
+            Axis.z,
+            Axis.y,
+            Axis.x,
+        ]:
+            # Get right Jacobian and rotation matrix
+            Jr = self.right_jacobian(arg)
+            
+            # Get rotation matrix (earth to body)
+            from cyecca.lie.group_so3 import SO3Dcm
+            R_eb = SO3Dcm.from_Euler(arg).to_Matrix()
+            
+            # Left Jacobian is Jr @ R_eb
+            return Jr @ R_eb
+        else:
+            raise NotImplementedError(
+                f'left_jacobian not implemented for {self.euler_type}, {self.sequence}'
+            )
+
+    def right_jacobian(self, arg: SO3EulerLieGroupElement) -> ca.SX:
+        """
+        Compute the right Jacobian for Euler angle kinematics.
+        
+        Returns the 3x3 matrix J such that euler_dot = J @ w_body,
+        where w_body is the angular velocity in body frame.
+        
+        For B321 (ZYX) sequence with state order [psi, theta, phi]:
+        - psi: yaw (rotation about z)
+        - theta: pitch (rotation about y')
+        - phi: roll (rotation about x'')
+        - w_body = [p, q, r] in body frame (p=roll rate, q=pitch rate, r=yaw rate)
+        """
+        if self.euler_type == EulerType.body_fixed and self.sequence == [
+            Axis.z,
+            Axis.y,
+            Axis.x,
+        ]:
+            # B321 (ZYX) kinematics
+            psi, theta, phi = arg.param[0], arg.param[1], arg.param[2]
+            
+            c_phi = ca.cos(phi)
+            s_phi = ca.sin(phi)
+            c_theta = ca.cos(theta)
+            s_theta = ca.sin(theta)
+            t_theta = ca.tan(theta)
+            
+            # Kinematic matrix for state order [psi, theta, phi] with w_body = [p, q, r]
+            # euler_dot = J @ w_body
+            # Based on Stevens & Lewis "Aircraft Control and Simulation"
+            J = ca.vertcat(
+                ca.horzcat(0, s_phi / c_theta, c_phi / c_theta),  # psi_dot
+                ca.horzcat(0, c_phi, -s_phi),                      # theta_dot
+                ca.horzcat(1, s_phi * t_theta, c_phi * t_theta)    # phi_dot
+            )
+            return J
+        else:
+            raise NotImplementedError(
+                f'right_jacobian not implemented for {self.euler_type}, {self.sequence}'
+            )
+
     def to_Matrix(self, arg: SO3EulerLieGroupElement) -> ca.SX:
         m = ca.SX.eye(3)
         for axis, angle in zip(self.sequence, ca.vertsplit(arg.param)):
@@ -358,7 +429,7 @@ class SO3EulerLieGroup(SO3LieGroup):
             elif self.euler_type == EulerType.space_fixed:
                 m = rotation_matrix(axis=axis, angle=angle) @ m
             else:
-                raise ValueError("euler_type must be body_fixed or space_fixed")
+                raise ValueError('euler_type must be body_fixed or space_fixed')
         return m
 
     def from_Matrix(self, arg: ca.SX) -> SO3EulerLieGroupElement:
@@ -390,7 +461,7 @@ class SO3EulerLieGroup(SO3LieGroup):
             )
         else:
             raise NotImplementedError(
-                f"from_Matrix not implemented for {self.euler_type}, {self.sequence}"
+                f'from_Matrix not implemented for {self.euler_type}, {self.sequence}'
             )
         return SO3EulerLieGroupElement(group=self, param=param)
 
@@ -406,9 +477,9 @@ class SO3EulerLieGroup(SO3LieGroup):
 
 @beartype
 class SO3EulerLieGroupElement(SO3LieGroupElement):
-    """
+    '''
     This is an SO3Euler Lie group elem
-    """
+    '''
 
     def __init__(self, group: SO3EulerLieGroup, param: PARAM_TYPE):
         super().__init__(group, param)
@@ -425,9 +496,9 @@ class SO3QuatLieGroup(SO3LieGroup):
     def product(
         self, left: SO3QuatLieGroupElement, right: SO3QuatLieGroupElement
     ) -> SO3QuatLieGroupElement:
-        """
+        '''
         provide a more efficient product
-        """
+        '''
         q = left.param
         p = right.param
         return self.elem(
@@ -454,8 +525,8 @@ class SO3QuatLieGroup(SO3LieGroup):
         # must do series for theta_sq to avoid sqrt(x) nan for jacobian
         # near zero
         theta_sq = ca.dot(v, v)
-        A = SQUARED_SERIES["sin(x)/x"](theta_sq / 4) / 2
-        B = SQUARED_SERIES["cos(x)"](theta_sq / 4)
+        A = SQUARED_SERIES['sin(x)/x'](theta_sq / 4) / 2
+        B = SQUARED_SERIES['cos(x)'](theta_sq / 4)
         return SO3Quat.elem(ca.vertcat(B, A * v[0], A * v[1], A * v[2]))
 
     def log(self, arg: SO3QuatLieGroupElement) -> SO3LieAlgebraElement:
@@ -469,18 +540,18 @@ class SO3QuatLieGroup(SO3LieGroup):
         # Protect acos from numerical errors (requires input in [-1, 1])
         q0_clamped = ca.fmin(ca.fmax(q[0], -1.0), 1.0)
         theta = angle_wrap(2 * ca.acos(q0_clamped))
-        A = SERIES["x/sin(x)"](theta / 2)
+        A = SERIES['x/sin(x)'](theta / 2)
         omega = q[1:4] * A * 2 * ca.sign(theta)
         return self.algebra.elem(omega)
 
     def left_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
-        w = so3.elem(ca.SX.sym("w", 3))
+        w = so3.elem(ca.SX.sym('w', 3))
         qw = SO3Quat.elem(ca.vertcat(0, w.param))
         q_dot_left = (qw * arg).param / 2
         return ca.jacobian(q_dot_left, w.param)
 
     def right_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
-        w = so3.elem(ca.SX.sym("w", 3))
+        w = so3.elem(ca.SX.sym('w', 3))
         qw = SO3Quat.elem(ca.vertcat(0, w.param))
         q_dot_right = (arg * qw).param / 2
         return ca.jacobian(q_dot_right, w.param)
@@ -578,9 +649,9 @@ class SO3QuatLieGroup(SO3LieGroup):
 
 @beartype
 class SO3QuatLieGroupElement(SO3LieGroupElement):
-    """
+    '''
     This is an SO3Quat Lie group elem
-    """
+    '''
 
     def __init__(self, group: SO3QuatLieGroup, param: PARAM_TYPE):
         super().__init__(group, param)
@@ -600,9 +671,9 @@ class SO3MrpLieGroup(SO3LieGroup):
     def product(
         self, left: SO3MrpLieGroupElement, right: SO3MrpLieGroupElement
     ) -> SO3MrpLieGroupElement:
-        """
+        '''
         Provide a move efficient product
-        """
+        '''
         a = left.param[:3]
         b = right.param[:3]
         na_sq = ca.dot(a, a)
@@ -635,7 +706,7 @@ class SO3MrpLieGroup(SO3LieGroup):
     def exp(self, arg: SO3LieAlgebraElement) -> SO3MrpLieGroupElement:
         v = arg.param
         theta_sq = ca.dot(v, v)
-        A = SQUARED_SERIES["tan(x/4)/x"](theta_sq)
+        A = SQUARED_SERIES['tan(x/4)/x'](theta_sq)
         V = self.elem(param=A * v)
         self.shadow_if_necessary(arg=V)
         return V
@@ -643,7 +714,7 @@ class SO3MrpLieGroup(SO3LieGroup):
     def log(self, arg: SO3MrpLieGroupElement) -> SO3LieAlgebraElement:
         r = arg.param
         theta_sq = ca.dot(r, r)
-        A = SQUARED_SERIES["4 atan(x)/x"](theta_sq)
+        A = SQUARED_SERIES['4 atan(x)/x'](theta_sq)
         return self.algebra.elem(param=A * r)
 
     def right_jacobian(self, arg: SO3LieGroupElement) -> ca.SX:
@@ -696,9 +767,9 @@ SO3EulerB321 = SO3EulerLieGroup(
 
 @beartype
 class SO3MrpLieGroupElement(SO3LieGroupElement):
-    """
+    '''
     This is an SO3Mrp Lie group elem
-    """
+    '''
 
     def __init__(self, group: SO3MrpLieGroup, param: PARAM_TYPE):
         super().__init__(group, param)

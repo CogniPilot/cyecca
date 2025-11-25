@@ -11,7 +11,7 @@ from beartype.typing import Union
 
 from cyecca.lie.base import *
 
-__all__ = ["r2", "R2", "r3", "R3"]
+__all__ = ['r2', 'R2', 'r3', 'R3']
 
 
 @beartype
@@ -45,17 +45,17 @@ class RnLieAlgebra(LieAlgebra):
         return ca.sparsify(A)
 
     def from_Matrix(self, arg: ca.SX) -> RnLieAlgebraElement:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def __str__(self):
-        return "{:s}({:d})".format(self.__class__.__name__, self.n_param)
+        return '{:s}({:d})'.format(self.__class__.__name__, self.n_param)
 
 
 @beartype
 class RnLieAlgebraElement(LieAlgebraElement):
-    """
+    '''
     This is an Rn Lie algebra elem
-    """
+    '''
 
     def __init__(self, algebra: RnLieAlgebra, param: PARAM_TYPE):
         super().__init__(algebra, param)
@@ -85,11 +85,11 @@ class RnLieGroup(LieGroup):
         return ca.SX.eye(self.n_param + 1)
 
     def exp(self, arg: RnLieAlgebraElement) -> RnLieGroupElement:
-        """It is the identity map"""
+        '''It is the identity map'''
         return self.elem(param=arg.param)
 
     def log(self, arg: RnLieGroupElement) -> RnLieAlgebraElement:
-        """It is the identity map"""
+        '''It is the identity map'''
         return arg.group.algebra.elem(arg.param)
 
     def to_Matrix(self, arg: RnLieGroupElement) -> ca.SX:
@@ -99,17 +99,17 @@ class RnLieGroup(LieGroup):
         return ca.sparsify(A)
 
     def from_Matrix(self, arg: ca.SX) -> RnLieGroupElement:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def __str__(self):
-        return "{:s}({:d})".format(self.__class__.__name__, self.n_param)
+        return '{:s}({:d})'.format(self.__class__.__name__, self.n_param)
 
 
 @beartype
 class RnLieGroupElement(LieGroupElement):
-    """
+    '''
     This is an Rn Lie group elem, not necessarily represented as a matrix
-    """
+    '''
 
     def __init__(self, group: RnLieGroup, param: PARAM_TYPE):
         super().__init__(group, param)

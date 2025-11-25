@@ -39,9 +39,9 @@ ki_z = 0.1  # velocity z integral gain
 
 
 def angle_wrap(angle):
-    """
+    '''
     Wrap angle to [-pi, pi]
-    """
+    '''
     # First ensure we're in [0, 2*pi) range, then shift to [-pi, pi]
     wrapped = ca.fmod(angle, 2 * ca.pi)
     # Handle negative angles
@@ -51,16 +51,16 @@ def angle_wrap(angle):
 
 
 def derive_control_allocation():
-    """
+    '''
     quadrotor control allocation
-    """
+    '''
     n_motors = 4
-    l = ca.SX.sym("l")
-    Cm = ca.SX.sym("Cm")
-    Ct = ca.SX.sym("Ct")
-    T = ca.SX.sym("T")
-    F_max = ca.SX.sym("F_max")  # max thrust of each motor
-    M = ca.SX.sym("M", 3)
+    l = ca.SX.sym('l')
+    Cm = ca.SX.sym('Cm')
+    Ct = ca.SX.sym('Ct')
+    T = ca.SX.sym('T')
+    F_max = ca.SX.sym('F_max')  # max thrust of each motor
+    M = ca.SX.sym('M', 3)
 
     T_max = n_motors * F_max
     F_min = 0
@@ -118,19 +118,19 @@ def derive_control_allocation():
     omega = ca.sqrt(Fp_sum / Ct)
 
     f_alloc = ca.Function(
-        "control_allocation",
+        'control_allocation',
         [F_max, l, Cm, Ct, T, M],
         [omega, Fp_sum, F_moment, F_thrust, M_sat],
-        ["F_max", "l", "Cm", "Ct", "T", "M"],
-        ["omega", "Fp_sum", "F_moment", "F_thrust", "M_sat"],
+        ['F_max', 'l', 'Cm', 'Ct', 'T', 'M'],
+        ['omega', 'Fp_sum', 'F_moment', 'F_thrust', 'M_sat'],
     )
-    return {"f_alloc": f_alloc}
+    return {'f_alloc': f_alloc}
 
 
 def saturatem(x, x_min, x_max):
-    """
+    '''
     saturate a matrix
-    """
+    '''
     y = ca.SX.zeros(x.shape[0])
     for i in range(x.shape[0]):
         y[i] = saturate(x[i], x_min[i], x_max[i])
@@ -138,9 +138,9 @@ def saturatem(x, x_min, x_max):
 
 
 def saturate(x, x_min, x_max):
-    """
+    '''
     saturate
-    """
+    '''
     return ca.if_else(x > x_max, x_max, ca.if_else(x < x_min, x_min, x))
 
 
@@ -148,13 +148,13 @@ def derive_velocity_control():
 
     # INPUT VARIABLES
     # -------------------------------
-    dt = ca.SX.sym("dt")
-    psi_sp = ca.SX.sym("psi_sp")
-    pw_sp = ca.SX.sym("pw_sp", 3)
-    pw = ca.SX.sym("pw", 3)
-    vb = ca.SX.sym("vb", 3)
-    psi_vel_sp = ca.SX.sym("psi_vel_sp")
-    reset_position = ca.SX.sym("reset_position")
+    dt = ca.SX.sym('dt')
+    psi_sp = ca.SX.sym('psi_sp')
+    pw_sp = ca.SX.sym('pw_sp', 3)
+    pw = ca.SX.sym('pw', 3)
+    vb = ca.SX.sym('vb', 3)
+    psi_vel_sp = ca.SX.sym('psi_vel_sp')
+    reset_position = ca.SX.sym('reset_position')
 
     # CALC
     # -------------------------------
@@ -184,7 +184,7 @@ def derive_velocity_control():
     # FUNCTION
     # -------------------------------
     f_velocity_control = ca.Function(
-        "velocity_control",
+        'velocity_control',
         [
             dt,
             psi_sp,
@@ -196,34 +196,34 @@ def derive_velocity_control():
         ],
         [psi_sp1, pw_sp1, vw_sp, aw_sp, q_sp],
         [
-            "dt",
-            "psi_sp",
-            "pw_sp",
-            "pw",
-            "vb",
-            "psi_vel_sp",
-            "reset_position",
+            'dt',
+            'psi_sp',
+            'pw_sp',
+            'pw',
+            'vb',
+            'psi_vel_sp',
+            'reset_position',
         ],
-        ["psi_sp1", "pw_sp1", "vw_sp", "aw_sp", "q_sp"],
+        ['psi_sp1', 'pw_sp1', 'vw_sp', 'aw_sp', 'q_sp'],
     )
-    return {"velocity_control": f_velocity_control}
+    return {'velocity_control': f_velocity_control}
 
 
 def derive_input_acro():
-    """
+    '''
     Acro mode manual :
 
     Given input, find roll rate and thrust setpoints
-    """
+    '''
 
     # INPUT CONSTANTS
     # -------------------------------
-    thrust_trim = ca.SX.sym("thrust_trim")
-    thrust_delta = ca.SX.sym("thrust_delta")
+    thrust_trim = ca.SX.sym('thrust_trim')
+    thrust_delta = ca.SX.sym('thrust_delta')
 
     # INPUT VARIABLES
     # -------------------------------
-    input_aetr = ca.SX.sym("input_aetr", 4)
+    input_aetr = ca.SX.sym('input_aetr', 4)
 
     # CALC
     # -------------------------------
@@ -237,36 +237,36 @@ def derive_input_acro():
     # FUNCTION
     # -------------------------------
     f_input_acro = ca.Function(
-        "input_acro",
+        'input_acro',
         [thrust_trim, thrust_delta, input_aetr],
         [w, thrust],
         [
-            "thrust_trim",
-            "thrust_delta",
-            "input_aetr",
+            'thrust_trim',
+            'thrust_delta',
+            'input_aetr',
         ],
-        ["omega", "thrust"],
+        ['omega', 'thrust'],
     )
 
-    return {"input_acro": f_input_acro}
+    return {'input_acro': f_input_acro}
 
 
 def derive_input_auto_level():
-    """
+    '''
     Auto level mode manual input:
 
     Given manual input, find attitude and thrust set points
-    """
+    '''
 
     # INPUT CONSTANTS
     # -------------------------------
-    thrust_trim = ca.SX.sym("thrust_trim")
-    thrust_delta = ca.SX.sym("thrust_delta")
+    thrust_trim = ca.SX.sym('thrust_trim')
+    thrust_delta = ca.SX.sym('thrust_delta')
 
     # INPUT VARIABLES
     # -------------------------------
-    input_aetr = ca.SX.sym("input_aetr", 4)  # aileron, elevator, thrust, rudder
-    q = SO3Quat.elem(ca.SX.sym("q", 4))
+    input_aetr = ca.SX.sym('input_aetr', 4)  # aileron, elevator, thrust, rudder
+    q = SO3Quat.elem(ca.SX.sym('q', 4))
 
     # CALC
     # -------------------------------
@@ -289,25 +289,25 @@ def derive_input_auto_level():
     # FUNCTION
     # -------------------------------
     f_input_auto_level = ca.Function(
-        "input_auto_level",
+        'input_auto_level',
         [thrust_trim, thrust_delta, input_aetr, q.param],
         [q_r.param, thrust],
         [
-            "thrust_trim",
-            "thrust_delta",
-            "input_aetr",  # aileron, elevator, thrust, rudder
-            "q",
+            'thrust_trim',
+            'thrust_delta',
+            'input_aetr',  # aileron, elevator, thrust, rudder
+            'q',
         ],
-        ["q_r", "thrust"],
+        ['q_r', 'thrust'],
     )
 
-    return {"input_auto_level": f_input_auto_level}
+    return {'input_auto_level': f_input_auto_level}
 
 
 def derive_input_velocity():
     # INPUT VARIABLES
     # -------------------------------
-    input_aetr = ca.SX.sym("input_aetr", 4)
+    input_aetr = ca.SX.sym('input_aetr', 4)
 
     # CALC
     # -------------------------------
@@ -317,34 +317,34 @@ def derive_input_velocity():
     # FUNCTION
     # -------------------------------
     f_input_velocity = ca.Function(
-        "input_velocity",
+        'input_velocity',
         [
             input_aetr,
         ],
         [vb, psi_vel_sp],
         [
-            "input_aetr",
+            'input_aetr',
         ],
-        ["vb", "psi_vel_sp"],
+        ['vb', 'psi_vel_sp'],
     )
-    return {"input_velocity": f_input_velocity}
+    return {'input_velocity': f_input_velocity}
 
 
 def derive_attitude_control():
-    """
+    '''
     Attitude control loop
 
     Given desired attitude, and attitude, find desired angular velocity
-    """
+    '''
 
     # INPUT CONSTANTS
     # -------------------------------
-    kp = ca.SX.sym("kp", 3)
+    kp = ca.SX.sym('kp', 3)
 
     # INPUT VARIABLES
     # -------------------------------
-    q = ca.SX.sym("q", 4)  # actual quat
-    q_r = ca.SX.sym("q_r", 4)  # quat setpoint
+    q = ca.SX.sym('q', 4)  # actual quat
+    q_r = ca.SX.sym('q_r', 4)  # quat setpoint
 
     # CALC
     # -------------------------------
@@ -359,36 +359,36 @@ def derive_attitude_control():
     # FUNCTION
     # -------------------------------
     f_attitude_control = ca.Function(
-        "attitude_control", [kp, q, q_r], [omega], ["kp", "q", "q_r"], ["omega"]
+        'attitude_control', [kp, q, q_r], [omega], ['kp', 'q', 'q_r'], ['omega']
     )
 
-    return {"attitude_control": f_attitude_control}
+    return {'attitude_control': f_attitude_control}
 
 
 def derive_attitude_rate_control():
-    """
+    '''
     Attitude rate control loop
 
     Given angular velocity , angular vel. set point, and angular velocity error integral,
     find the desired moment and updated angular velocity error integral.
-    """
+    '''
 
     # CONSTANTS
     # -------------------------------
-    kp = ca.SX.sym("kp", 3)
-    ki = ca.SX.sym("ki", 3)
-    kd = ca.SX.sym("kd", 3)
-    i_max = ca.SX.sym("i_max", 3)
-    f_cut = ca.SX.sym("f_cut")
+    kp = ca.SX.sym('kp', 3)
+    ki = ca.SX.sym('ki', 3)
+    kd = ca.SX.sym('kd', 3)
+    i_max = ca.SX.sym('i_max', 3)
+    f_cut = ca.SX.sym('f_cut')
 
     # VARIABLES
     # -------------------------------
-    omega = ca.SX.sym("omega", 3)
-    omega_r = ca.SX.sym("omega_r", 3)
-    i0 = ca.SX.sym("i0", 3)
-    e0 = ca.SX.sym("e0", 3)
-    de0 = ca.SX.sym("de0", 3)
-    dt = ca.SX.sym("dt")
+    omega = ca.SX.sym('omega', 3)
+    omega_r = ca.SX.sym('omega_r', 3)
+    i0 = ca.SX.sym('i0', 3)
+    e0 = ca.SX.sym('e0', 3)
+    de0 = ca.SX.sym('de0', 3)
+    dt = ca.SX.sym('dt')
 
     # CALC
     # -------------------------------
@@ -407,7 +407,7 @@ def derive_attitude_rate_control():
     # FUNCTION
     # -------------------------------
     f_attitude_rate_control = ca.Function(
-        "attitude_rate_control",
+        'attitude_rate_control',
         [
             kp,
             ki,
@@ -423,33 +423,33 @@ def derive_attitude_rate_control():
         ],
         [M, i1, e1, de1, alpha],
         [
-            "kp",
-            "ki",
-            "kd",
-            "f_cut",
-            "i_max",
-            "omega",
-            "omega_r",
-            "i0",
-            "e0",
-            "de0",
-            "dt",
+            'kp',
+            'ki',
+            'kd',
+            'f_cut',
+            'i_max',
+            'omega',
+            'omega_r',
+            'i0',
+            'e0',
+            'de0',
+            'dt',
         ],
-        ["M", "i1", "e1", "de1", "alpha"],
+        ['M', 'i1', 'e1', 'de1', 'alpha'],
     )
 
-    return {"attitude_rate_control": f_attitude_rate_control}
+    return {'attitude_rate_control': f_attitude_rate_control}
 
 
 def derive_position_control():
-    """
+    '''
     Given the position, velocity ,and acceleration set points, find the
     desired attitude and thrust.
-    """
+    '''
 
     # INPUT CONSTANTS
     # -------------------------------
-    thrust_trim = ca.SX.sym("thrust_trim")
+    thrust_trim = ca.SX.sym('thrust_trim')
 
     # INPUT VARIABLES
     # -------------------------------
@@ -457,15 +457,15 @@ def derive_position_control():
     # inputs: position trajectory, velocity trajectory, desired Yaw vel, dt
     # state inputs: position, orientation, velocity, and angular velocity
     # outputs: thrust force, angular errors
-    pt_w = ca.SX.sym("pt_w", 3)  # desired position world frame
-    vt_w = ca.SX.sym("vt_w", 3)  # desired velocity world frame
-    at_w = ca.SX.sym("at_w", 3)  # desired acceleration world frame
+    pt_w = ca.SX.sym('pt_w', 3)  # desired position world frame
+    vt_w = ca.SX.sym('vt_w', 3)  # desired velocity world frame
+    at_w = ca.SX.sym('at_w', 3)  # desired acceleration world frame
 
-    qc_wb = SO3Quat.elem(ca.SX.sym("qc_wb", 4))  # camera orientation
-    p_w = ca.SX.sym("p_w", 3)  # position in world frame
-    v_w = ca.SX.sym("v_w", 3)  # velocity in world frame
-    z_i = ca.SX.sym("z_i", 3)  # velocity error integral
-    dt = ca.SX.sym("dt")  # time step
+    qc_wb = SO3Quat.elem(ca.SX.sym('qc_wb', 4))  # camera orientation
+    p_w = ca.SX.sym('p_w', 3)  # position in world frame
+    v_w = ca.SX.sym('v_w', 3)  # velocity in world frame
+    z_i = ca.SX.sym('z_i', 3)  # velocity error integral
+    dt = ca.SX.sym('dt')  # time step
 
     # CALC
     # -------------------------------
@@ -534,7 +534,7 @@ def derive_position_control():
     # FUNCTION
     # -------------------------------
     f_get_u = ca.Function(
-        "position_control",
+        'position_control',
         [
             thrust_trim,
             pt_w,
@@ -548,79 +548,79 @@ def derive_position_control():
         ],
         [nT, qr_wb.param, z_i_2],
         [
-            "thrust_trim",
-            "pt_w",
-            "vt_w",
-            "at_w",
-            "qc_wb",
-            "p_w",
-            "v_w",
-            "z_i",
-            "dt",
+            'thrust_trim',
+            'pt_w',
+            'vt_w',
+            'at_w',
+            'qc_wb',
+            'p_w',
+            'v_w',
+            'z_i',
+            'dt',
         ],
-        ["nT", "qr_wb", "z_i_2"],
+        ['nT', 'qr_wb', 'z_i_2'],
     )
 
-    return {"position_control": f_get_u}
+    return {'position_control': f_get_u}
 
 
 def derive_common():
-    q = SO3Quat.elem(ca.SX.sym("q", 4))
-    vw0 = ca.SX.sym("vw0", 3)
-    vb1 = ca.SX.sym("vb1", 3)
+    q = SO3Quat.elem(ca.SX.sym('q', 4))
+    vw0 = ca.SX.sym('vw0', 3)
+    vb1 = ca.SX.sym('vb1', 3)
     vb0 = q.inverse() @ vw0
     vw1 = q @ vb1
     f_rotate_vector_w_to_b = ca.Function(
-        "rotate_vector_w_to_b", [q.param, vw0], [vb0], ["q", "v_w"], ["v_b"]
+        'rotate_vector_w_to_b', [q.param, vw0], [vb0], ['q', 'v_w'], ['v_b']
     )
     f_rotate_vector_b_to_w = ca.Function(
-        "rotate_vector_b_to_w", [q.param, vb1], [vw1], ["q", "v_b"], ["v_w"]
+        'rotate_vector_b_to_w', [q.param, vb1], [vw1], ['q', 'v_b'], ['v_w']
     )
     return {
-        "rotate_vector_w_to_b": f_rotate_vector_w_to_b,
-        "rotate_vector_b_to_w": f_rotate_vector_b_to_w,
+        'rotate_vector_w_to_b': f_rotate_vector_w_to_b,
+        'rotate_vector_b_to_w': f_rotate_vector_b_to_w,
     }
 
 
 def derive_strapdown_ins_propagation():
-    """
+    '''
     INS strapdown propagation
-    """
-    dt = ca.SX.sym("dt")
-    X0 = lie.SE23Quat.elem(ca.SX.sym("X0", 10))
-    a_b = ca.SX.sym("a_b", 3)
-    g = ca.SX.sym("g")
-    omega_b = ca.SX.sym("omega_b", 3)
+    '''
+    dt = ca.SX.sym('dt')
+    X0 = lie.SE23Quat.elem(ca.SX.sym('X0', 10))
+    a_b = ca.SX.sym('a_b', 3)
+    g = ca.SX.sym('g')
+    omega_b = ca.SX.sym('omega_b', 3)
     l = lie.se23.elem(ca.vertcat(0, 0, 0, a_b, omega_b))
     r = lie.se23.elem(ca.vertcat(0, 0, 0, 0, 0, -g, 0, 0, 0))
     B = ca.sparsify(ca.SX([[0, 1], [0, 0]]))
     X1 = lie.SE23Quat.exp_mixed(X0, l * dt, r * dt, B * dt)
     # should do q renormalize check here
     f_ins = ca.Function(
-        "strapdown_ins_propagate",
+        'strapdown_ins_propagate',
         [X0.param, a_b, omega_b, g, dt],
         [X1.param],
         [
-            "x0",
-            "a_b",
-            "omega_b",
-            "g",
-            "dt",
+            'x0',
+            'a_b',
+            'omega_b',
+            'g',
+            'dt',
         ],
-        ["x1"],
+        ['x1'],
     )
-    eqs = {"strapdown_ins_propagate": f_ins}
+    eqs = {'strapdown_ins_propagate': f_ins}
     return eqs
 
 
 def derive_position_correction():
     ## Initilaizing measurments
-    z = ca.SX.sym("gps", 3)
-    dt = ca.SX.sym("dt", 1)
-    P = ca.SX.sym("P", 6, 6)
+    z = ca.SX.sym('gps', 3)
+    dt = ca.SX.sym('dt', 1)
+    P = ca.SX.sym('P', 6, 6)
 
     # Initialize state
-    est_x = ca.SX.sym("est", 10)  # [x,y,z,u,v,w,q0,q1,q2,q3]
+    est_x = ca.SX.sym('est', 10)  # [x,y,z,u,v,w,q0,q1,q2,q3]
     x0 = est_x[0:6]  # [x,y,z,u,v,w]
 
     # Define the state transition matrix (A)
@@ -654,7 +654,7 @@ def derive_position_correction():
     x_new = ca.vertcat(x_new, ca.SX.zeros(4))
 
     f_pos_estimator = ca.Function(
-        "position_correction",
+        'position_correction',
         [
             est_x,
             z,
@@ -663,22 +663,22 @@ def derive_position_correction():
         ],
         [x_new, P_new],
         [
-            "est_x",
-            "gps",
-            "dt",
-            "P",
+            'est_x',
+            'gps',
+            'dt',
+            'P',
         ],
-        ["x_new", "P_new"],
+        ['x_new', 'P_new'],
     )
-    return {"position_correction": f_pos_estimator}
+    return {'position_correction': f_pos_estimator}
 
 
 def derive_yaw_init():
-    """
+    '''
     Calculate yaw from magnetometer readings.
-    """
-    mag_b = ca.SX.sym("mag_b", 3)
-    mag_decl = ca.SX.sym("mag_decl", 1)
+    '''
+    mag_b = ca.SX.sym('mag_b', 3)
+    mag_decl = ca.SX.sym('mag_decl', 1)
 
     # Calculate yaw from magnetometer readings
     yaw = -angle_wrap(ca.atan2(mag_b[1], mag_b[0]) + mag_decl - ca.pi / 2)
@@ -689,31 +689,31 @@ def derive_yaw_init():
 
     # Also return the individual angles for debugging
     f_yaw_init = ca.Function(
-        "yaw_init",
+        'yaw_init',
         [
             mag_b,
             mag_decl,
         ],
         [q_init.param],
         [
-            "mag_b",
-            "mag_decl",
+            'mag_b',
+            'mag_decl',
         ],
-        ["q_init"],
+        ['q_init'],
     )
 
-    return {"yaw_init": f_yaw_init}
+    return {'yaw_init': f_yaw_init}
 
 
 def derive_attitude_init():
-    """
+    '''
     Initialize attitude quaternion from accelerometer and magnetometer readings.
     First calculates pitch and roll from accelerometer, then uses these to
     convert magnetometer to world frame and calculate yaw.
-    """
-    mag_b = ca.SX.sym("mag_b", 3)
-    accel_b = ca.SX.sym("accel_b", 3)
-    mag_decl = ca.SX.sym("mag_decl", 1)
+    '''
+    mag_b = ca.SX.sym('mag_b', 3)
+    accel_b = ca.SX.sym('accel_b', 3)
+    mag_decl = ca.SX.sym('mag_decl', 1)
 
     # Calculate pitch and roll from accelerometer
     # Assuming gravity vector is [0, 0, g] in world frame
@@ -764,7 +764,7 @@ def derive_attitude_init():
 
     # Also return the individual angles for debugging
     f_attitude_init = ca.Function(
-        "attitude_init",
+        'attitude_init',
         [
             mag_b,
             accel_b,
@@ -772,27 +772,27 @@ def derive_attitude_init():
         ],
         [q_init.param],
         [
-            "mag_b",
-            "accel_b",
-            "mag_decl",
+            'mag_b',
+            'accel_b',
+            'mag_decl',
         ],
-        ["q_init"],
+        ['q_init'],
     )
 
-    return {"attitude_init": f_attitude_init}
+    return {'attitude_init': f_attitude_init}
 
 
 def derive_attitude_estimator():
     # Define Casadi variables
-    q = ca.SX.sym("q", 4)
-    mag_b = ca.SX.sym("mag", 3)
-    mag_decl = ca.SX.sym("mag_decl", 1)
-    omega_b = ca.SX.sym("omega_b", 3)
-    accel_b = ca.SX.sym("accel", 3)
-    accel_gain = ca.SX.sym("accel_gain", 1)
-    mag_gain = ca.SX.sym("mag_gain", 1)
-    dt = ca.SX.sym("dt", 1)
-    P_att = ca.SX.sym("P_att", 6)
+    q = ca.SX.sym('q', 4)
+    mag_b = ca.SX.sym('mag', 3)
+    mag_decl = ca.SX.sym('mag_decl', 1)
+    omega_b = ca.SX.sym('omega_b', 3)
+    accel_b = ca.SX.sym('accel', 3)
+    accel_gain = ca.SX.sym('accel_gain', 1)
+    mag_gain = ca.SX.sym('mag_gain', 1)
+    dt = ca.SX.sym('dt', 1)
+    P_att = ca.SX.sym('P_att', 6)
 
     # Convert quaternion to SO3Quat object
     q_wb = SO3Quat.elem(param=q)
@@ -866,7 +866,7 @@ def derive_attitude_estimator():
 
     # Return estimator
     f_att_estimator = ca.Function(
-        "attitude_estimator",
+        'attitude_estimator',
         [
             q,
             mag_b,
@@ -880,39 +880,39 @@ def derive_attitude_estimator():
         ],
         [q_new.param, P_att_new],
         [
-            "q",
-            "mag_b",
-            "mag_decl",
-            "omega_b",
-            "accel_b",
-            "accel_gain",
-            "mag_gain",
-            "dt",
-            "P_att",
+            'q',
+            'mag_b',
+            'mag_decl',
+            'omega_b',
+            'accel_b',
+            'accel_gain',
+            'mag_gain',
+            'dt',
+            'P_att',
         ],
-        ["q_new", "P_att_new"],
+        ['q_new', 'P_att_new'],
     )
 
-    return {"attitude_estimator": f_att_estimator}
+    return {'attitude_estimator': f_att_estimator}
 
 
 def generate_code(eqs: dict, filename, dest_dir: str, **kwargs):
-    """
+    '''
     Generate C Code from python CasADi functions.
-    """
+    '''
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(exist_ok=True)
     p = {
-        "verbose": True,
-        "mex": False,
-        "cpp": False,
-        "main": False,
-        "with_header": True,
-        "with_mem": False,
-        "with_export": False,
-        "with_import": False,
-        "include_math": True,
-        "avoid_stack": True,
+        'verbose': True,
+        'mex': False,
+        'cpp': False,
+        'main': False,
+        'with_header': True,
+        'with_mem': False,
+        'with_export': False,
+        'with_import': False,
+        'include_math': True,
+        'avoid_stack': True,
     }
     for k, v in kwargs.items():
         assert k in p.keys()
@@ -924,12 +924,12 @@ def generate_code(eqs: dict, filename, dest_dir: str, **kwargs):
     gen.generate(str(dest_dir) + os.sep)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("dest_dir")
+    parser.add_argument('dest_dir')
     args = parser.parse_args()
 
-    print("generating casadi equations in {:s}".format(args.dest_dir))
+    print('generating casadi equations in {:s}'.format(args.dest_dir))
     eqs = {}
     eqs.update(derive_attitude_rate_control())
     eqs.update(derive_attitude_control())
@@ -947,7 +947,7 @@ if __name__ == "__main__":
     eqs.update(derive_position_correction())
 
     for name, eq in eqs.items():
-        print("eq: ", name)
+        print('eq: ', name)
 
-    generate_code(eqs, filename="rdd2.c", dest_dir=args.dest_dir)
-    print("complete")
+    generate_code(eqs, filename='rdd2.c', dest_dir=args.dest_dir)
+    print('complete')

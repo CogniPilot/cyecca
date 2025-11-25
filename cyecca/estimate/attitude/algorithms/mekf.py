@@ -1,7 +1,7 @@
-"""
+'''
 multiplicative kalman filter with quaternions
 :return: dict of equations
-"""
+'''
 
 from .common import *
 from . import quat
@@ -10,7 +10,7 @@ from . import quat
 # -----------
 # q, quaternion (4)
 # b, gyro bias (3)
-x = ca.SX.sym("x", 7)
+x = ca.SX.sym('x', 7)
 q = x[:4]
 b_gyro = x[4:7]
 r = so3.Mrp.from_quat(q)
@@ -22,14 +22,14 @@ G = SO3Quat * R3
 # er, so(3) lie algebra rotation error
 # eb, R(3) lie algebra rotation error
 n_e = 6
-eta = ca.SX.sym("eta", n_e, 1)  # (right)
+eta = ca.SX.sym('eta', n_e, 1)  # (right)
 eta_r = eta[0:3]
 eta_b = eta[3:6]
-W = ca.SX.sym("W", ca.Sparsity_lower(n_e))
+W = ca.SX.sym('W', ca.Sparsity_lower(n_e))
 
 
 def get_state(**kwargs):
-    return ca.Function("get_state", [x], [q, r, b_gyro], ["x"], ["q", "r", "b_gyro"])
+    return ca.Function('get_state', [x], [q, r, b_gyro], ['x'], ['q', 'r', 'b_gyro'])
 
 
 def initialize(**kwargs):
@@ -40,11 +40,11 @@ def predict(**kwargs):
     # state derivative
     xdot = ca.vertcat(so3.Quat.kinematics(q, omega_m - b_gyro + w_gyro), w_gyro_rw)
     f_xdot = ca.Function(
-        "xdot",
+        'xdot',
         [t, x, omega_m, w_gyro, w_gyro_rw],
         [xdot],
-        ["t", "x", "omega_m", "w_gyro", "w_gyro_rw"],
-        ["xdot"],
+        ['t', 'x', 'omega_m', 'w_gyro', 'w_gyro_rw'],
+        ['xdot'],
     )
 
     # state prop w/o noise
@@ -59,7 +59,7 @@ def predict(**kwargs):
     # error dynamics
     eta_R = so3.Dcm.exp(eta_r)
     f = ca.Function(
-        "f",
+        'f',
         [omega_m, eta, x, w_gyro_rw],
         [
             ca.vertcat(
@@ -79,7 +79,7 @@ def predict(**kwargs):
 
     # covariance propagation
     f_W_dot_lt = ca.Function(
-        "W_dot_lt",
+        'W_dot_lt',
         [x, W, std_gyro, sn_gyro_rw, omega_m, dt],
         [ca.tril(util.sqrt_covariance_predict(W, F, Q))],
     )
@@ -89,16 +89,16 @@ def predict(**kwargs):
 
     # prediction
     return ca.Function(
-        "predict",
+        'predict',
         [t, x, W, omega_m, std_gyro, sn_gyro_rw, dt],
         [x1, W1],
-        ["t", "x", "W", "omega_m", "std_gyro", "sn_gyro_rw", "dt"],
-        ["x1", "W1"],
+        ['t', 'x', 'W', 'omega_m', 'std_gyro', 'sn_gyro_rw', 'dt'],
+        ['x1', 'W1'],
     )
 
 
 def correct_mag(**kwargs):
-    y_b = ca.SX.sym("y_b", 3)
+    y_b = ca.SX.sym('y_b', 3)
     B_n = so3.Dcm.exp(mag_decl * e3) @ ca.SX([1, 0, 0])
     yh_b = C_nb.T @ B_n
 
@@ -118,16 +118,16 @@ def correct_mag(**kwargs):
     W_mag = ca.if_else(mag_ret == 0, W_mag, W)
 
     return ca.Function(
-        "correct_mag",
+        'correct_mag',
         [x, W, y_b, mag_decl, std_mag, beta_mag_c],
         [x_mag, W_mag, beta_mag, r_mag, r_std_mag, mag_ret],
-        ["x", "W", "y_b", "decl", "std_mag", "beta_mag_c"],
-        ["x_mag", "W_mag", "beta_mag", "r_mag", "r_std_mag", "error_code"],
+        ['x', 'W', 'y_b', 'decl', 'std_mag', 'beta_mag_c'],
+        ['x_mag', 'W_mag', 'beta_mag', 'r_mag', 'r_std_mag', 'error_code'],
     )
 
 
 def correct_accel(**kwargs):
-    y_b = ca.SX.sym("y_b", 3)
+    y_b = ca.SX.sym('y_b', 3)
     g_n = g * ca.SX([0, 0, -1])
     g_b = C_nb.T @ g_n
     H_accel = ca.sparsify(ca.horzcat(-so3.Dcm.wedge(g_b), ca.SX.zeros(3, 3)))
@@ -149,34 +149,34 @@ def correct_accel(**kwargs):
     W_accel = ca.if_else(accel_ret == 0, W_accel, W)
 
     return ca.Function(
-        "correct_accel",
+        'correct_accel',
         [x, W, y_b, g, omega_m, std_accel, std_accel_omega, beta_accel_c],
         [x_accel, W_accel, beta_accel, r_accel, r_std_accel, accel_ret],
         [
-            "x",
-            "W",
-            "y_b",
-            "g",
-            "omega_b",
-            "std_accel",
-            "std_accel_omega",
-            "beta_accel_c",
+            'x',
+            'W',
+            'y_b',
+            'g',
+            'omega_b',
+            'std_accel',
+            'std_accel_omega',
+            'beta_accel_c',
         ],
-        ["x_accel", "W_accel", "beta_accel", "r_accel", "r_std_accel", "error_code"],
+        ['x_accel', 'W_accel', 'beta_accel', 'r_accel', 'r_std_accel', 'error_code'],
     )
 
 
 def constants(**kwargs):
     x0 = ca.DM([1, 0, 0, 0, 0, 0, 0])
-    return ca.Function("constants", [], [x0, W0], [], ["x0", "W0"])
+    return ca.Function('constants', [], [x0, W0], [], ['x0', 'W0'])
 
 
 def eqs(**kwargs):
     return {
-        "initialize": initialize(**kwargs),
-        "predict": predict(**kwargs),
-        "correct_mag": correct_mag(**kwargs),
-        "correct_accel": correct_accel(**kwargs),
-        "get_state": get_state(**kwargs),
-        "constants": constants(**kwargs),
+        'initialize': initialize(**kwargs),
+        'predict': predict(**kwargs),
+        'correct_mag': correct_mag(**kwargs),
+        'correct_accel': correct_accel(**kwargs),
+        'get_state': get_state(**kwargs),
+        'constants': constants(**kwargs),
     }

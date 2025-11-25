@@ -73,7 +73,7 @@ class Test_LieAlgebraSE3(ProfiledTestCase):
 
     def test_left_jacobian(self):
         n = 6
-        x = ca.SX.sym("x", n)
+        x = ca.SX.sym('x', n)
         omega = se3.elem(x)
         Jl = omega.left_jacobian()
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl, x), x, ca.DM.zeros(n))))
@@ -88,7 +88,7 @@ class Test_LieAlgebraSE3(ProfiledTestCase):
 
     def test_right_jacobian(self):
         n = 6
-        x = ca.SX.sym("x", n)
+        x = ca.SX.sym('x', n)
         omega = se3.elem(x)
         Jr = omega.right_jacobian()
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr, x), x, ca.DM.zeros(n))))
@@ -114,13 +114,13 @@ class Test_LieAlgebraSE3(ProfiledTestCase):
         self.assertTrue(SX_close(Jr_inv, scipy.linalg.expm(ca.DM(omega.ad())) @ Jl_inv))
 
     def test_left_Q(self):
-        x = ca.SX.sym("x", 6)
+        x = ca.SX.sym('x', 6)
         omega = se3.elem(x)
         Ql = omega.left_Q()
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Ql, x), x, ca.DM.zeros(6))))
 
     def test_right_Q(self):
-        x = ca.SX.sym("x", 6)
+        x = ca.SX.sym('x', 6)
         omega = se3.elem(x)
         Qr = omega.right_Q()
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Qr, x), x, ca.DM.zeros(6))))

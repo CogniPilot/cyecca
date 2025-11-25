@@ -1,17 +1,17 @@
 from cyecca.estimate.attitude.algorithms.common import *
 
-"""
+'''
 A right invariant extended kalman filter parameterized with
 modified rodrigues parameters
 :return: dict of equations
-"""
+'''
 
 # x, state (6)
 # -----------
 # mrp (3)
 # b, gyro bias (3)
 G = SO3Mrp * R3
-x = ca.SX.sym("x", G.n_param)
+x = ca.SX.sym('x', G.n_param)
 X = G.elem(x)
 r, b_gyro = G.sub_elems(X)
 q = SO3Quat.from_Mrp(r)
@@ -22,24 +22,24 @@ C_nb = r.to_Matrix()
 # er, so(3) lie algebra rotation error
 # eb, R(3) lie algebra rotation error
 n_e = 6
-eta = ca.SX.sym("eta", G.algebra.n_param)  # (right inv error)
-W = ca.SX.sym("W", ca.Sparsity.lower(n_e))
+eta = ca.SX.sym('eta', G.algebra.n_param)  # (right inv error)
+W = ca.SX.sym('W', ca.Sparsity.lower(n_e))
 
 
 def get_state(**kwargs):
     return ca.Function(
-        "get_state", [x], [q.param, r.param, b_gyro.param], ["x"], ["q", "r", "b_gyro"]
+        'get_state', [x], [q.param, r.param, b_gyro.param], ['x'], ['q', 'r', 'b_gyro']
     )
 
 
 def constants(**kwargs):
     x0 = ca.DM.zeros(6)
-    return ca.Function("constants", [], [x0, W0], [], ["x0", "W0"])
+    return ca.Function('constants', [], [x0, W0], [], ['x0', 'W0'])
 
 
 def initialize(**kwargs):
-    g_b = ca.SX.sym("g_b", 3)
-    B_b = ca.SX.sym("B_b", 3)
+    g_b = ca.SX.sym('g_b', 3)
+    B_b = ca.SX.sym('B_b', 3)
 
     C_nm = (
         so3.elem(mag_decl * e3).exp(SO3Mrp) * so3.elem(-mag_incl * e2).exp(SO3Mrp)
@@ -85,11 +85,11 @@ def initialize(**kwargs):
     b0 = ca.SX(3, 1)  # initial bias, zero
     x0 = ca.if_else(init_ret == 0, ca.vertcat(r0.param, b0), ca.SX(G.n_param, 1))
     return ca.Function(
-        "init",
+        'init',
         [g_b, B_b, mag_decl],
         [x0, init_ret],
-        ["g_b", "B_b", "decl"],
-        ["x0", "error_code"],
+        ['g_b', 'B_b', 'decl'],
+        ['x0', 'error_code'],
     )
 
 
@@ -99,11 +99,11 @@ def predict(**kwargs):
         SO3Mrp.right_jacobian(r) @ (omega_m - b_gyro.param), std_gyro_rw * w_gyro_rw
     )
     f_xdot = ca.Function(
-        "xdot",
+        'xdot',
         [t, x, omega_m, std_gyro, sn_gyro_rw, w_gyro, w_gyro_rw, dt],
         [xdot],
-        ["t", "x", "omega_m", "std_gyro", "sn_gyro_rw", "w_gyro", "w_gyro_rw", "dt"],
-        ["xdot"],
+        ['t', 'x', 'omega_m', 'std_gyro', 'sn_gyro_rw', 'w_gyro', 'w_gyro_rw', 'dt'],
+        ['xdot'],
     )
 
     # state prop w/o noise
@@ -119,7 +119,7 @@ def predict(**kwargs):
 
     # error dynamics
     f = ca.Function(
-        "f",
+        'f',
         [omega_m, eta, x, w_gyro_rw],
         [ca.vertcat(r @ (-eta[3:6]), w_gyro_rw)],
     )
@@ -131,15 +131,15 @@ def predict(**kwargs):
         )
     )
 
-    if "results_dir" in kwargs.keys():
-        os.makedirs(kwargs["results_dir"], exist_ok=True)
+    if 'results_dir' in kwargs.keys():
+        os.makedirs(kwargs['results_dir'], exist_ok=True)
         g = graph.dotgraph(F)
-        g.set("dpi", 180)
-        g.write_png(os.path.join(kwargs["results_dir"], "casadi_graph_F.png"))
+        g.set('dpi', 180)
+        g.write_png(os.path.join(kwargs['results_dir'], 'casadi_graph_F.png'))
 
     # covariance propagation
     f_W_dot_lt = ca.Function(
-        "W_dot_lt",
+        'W_dot_lt',
         [x, W, omega_m, std_gyro, sn_gyro_rw, dt],
         [ca.tril(util.sqrt_covariance_predict(W, F, Q))],
     )
@@ -149,11 +149,11 @@ def predict(**kwargs):
 
     # combined prediction function
     return ca.Function(
-        "predict",
+        'predict',
         [t, x, W, omega_m, std_gyro, sn_gyro_rw, dt],
         [x1, W1],
-        ["t", "x", "W", "omega_m", "std_gyro", "sn_gyro_rw", "dt"],
-        ["x1", "W1"],
+        ['t', 'x', 'W', 'omega_m', 'std_gyro', 'sn_gyro_rw', 'dt'],
+        ['x1', 'W1'],
     )
 
 
@@ -161,18 +161,18 @@ def correct_mag(**kwargs):
     C_nm = SO3EulerB321.elem(ca.vertcat(mag_decl, -mag_incl, 0)).to_Matrix()
     B_n = mag_str * ca.mtimes(C_nm, ca.SX([1, 0, 0]))
     h_mag = ca.Function(
-        "h_mag",
+        'h_mag',
         [x, mag_str, mag_decl, mag_incl, std_mag, w_mag],
         [ca.mtimes(C_nb.T, B_n) + w_mag * std_mag],
-        ["x", "mag_str", "mag_decl", "mag_incl", "std_mag", "w_mag"],
-        ["y"],
+        ['x', 'mag_str', 'mag_decl', 'mag_incl', 'std_mag', 'w_mag'],
+        ['y'],
     )
 
     yh_mag = h_mag(x, 1, mag_decl, 0, 0, 0)
     gamma = ca.acos(yh_mag[2] / ca.norm_2(yh_mag))
     h = ca.fmax(ca.sin(gamma), 1e-3)
 
-    y_mag = ca.SX.sym("y_mag", 3, 1)
+    y_mag = ca.SX.sym('y_mag', 3, 1)
     y_n = ca.mtimes(C_nb, y_mag)
 
     H_mag = ca.SX(1, 6)
@@ -202,11 +202,11 @@ def correct_mag(**kwargs):
     W_mag = ca.if_else(mag_ret == 0, W_mag, W)
 
     return ca.Function(
-        "correct_mag",
+        'correct_mag',
         [x, W, y_mag, mag_decl, std_mag, beta_mag_c],
         [x_mag, W_mag, beta_mag, r_mag, r_std_mag, mag_ret],
-        ["x", "W", "y_b", "decl", "std_mag", "beta_mag_c"],
-        ["x_mag", "W_mag", "beta_mag", "r_mag", "r_std_mag", "error_code"],
+        ['x', 'W', 'y_b', 'decl', 'std_mag', 'beta_mag_c'],
+        ['x_mag', 'W_mag', 'beta_mag', 'r_mag', 'r_std_mag', 'error_code'],
     )
 
 
@@ -216,14 +216,14 @@ def correct_accel(**kwargs):
     H_accel[1, 1] = 1
 
     f_measure_accel = ca.Function(
-        "measure_accel",
+        'measure_accel',
         [x, g],
         [g * ca.mtimes(C_nb.T, ca.SX([0, 0, -1]))],
-        ["x", "g"],
-        ["y"],
+        ['x', 'g'],
+        ['y'],
     )
     yh_accel = f_measure_accel(x, g)
-    y_b = ca.SX.sym("y_b", 3)
+    y_b = ca.SX.sym('y_b', 3)
     n3 = ca.SX([0, 0, 1])
     y_n = ca.mtimes(C_nb, -y_b)
     v_n = ca.cross(y_n, n3) / ca.norm_2(y_b)
@@ -257,29 +257,29 @@ def correct_accel(**kwargs):
     W_accel = ca.if_else(accel_ret == 0, W_accel, W)
 
     return ca.Function(
-        "correct_accel",
+        'correct_accel',
         [x, W, y_b, g, omega_m, std_accel, std_accel_omega, beta_accel_c],
         [x_accel, W_accel, beta_accel, r_accel, r_std_accel, accel_ret],
         [
-            "x",
-            "W",
-            "y_b",
-            "g",
-            "omega_b",
-            "std_accel",
-            "std_accel_omega",
-            "beta_accel_c",
+            'x',
+            'W',
+            'y_b',
+            'g',
+            'omega_b',
+            'std_accel',
+            'std_accel_omega',
+            'beta_accel_c',
         ],
-        ["x_accel", "W_accel", "beta_accel", "r_accel", "r_std_accel", "error_code"],
+        ['x_accel', 'W_accel', 'beta_accel', 'r_accel', 'r_std_accel', 'error_code'],
     )
 
 
 def eqs(**kwargs):
     return {
-        "initialize": initialize(**kwargs),
-        "predict": predict(**kwargs),
-        "correct_mag": correct_mag(**kwargs),
-        "correct_accel": correct_accel(**kwargs),
-        "get_state": get_state(**kwargs),
-        "constants": constants(**kwargs),
+        'initialize': initialize(**kwargs),
+        'predict': predict(**kwargs),
+        'correct_mag': correct_mag(**kwargs),
+        'correct_accel': correct_accel(**kwargs),
+        'get_state': get_state(**kwargs),
+        'constants': constants(**kwargs),
     }

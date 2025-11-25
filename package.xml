@@ -14,7 +14,8 @@
   <depend>rclpy</depend>
   <depend>python3-beartype</depend>
   <depend>python3-sympy</depend>
-  <depend>python3-matplotlib</depend>
+  <!-- Optional: only needed for old estimator code -->
+  <!-- <depend>python3-matplotlib</depend> -->
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

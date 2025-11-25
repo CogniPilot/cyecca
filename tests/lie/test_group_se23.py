@@ -72,7 +72,7 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
         print(SE23Mrp)
 
     def test_left_jacobian(self):
-        x = ca.SX.sym("x", 9)
+        x = ca.SX.sym('x', 9)
         omega = se23.elem(x)
         Jl = omega.left_jacobian()
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl, x), x, ca.DM.zeros(9))))
@@ -86,7 +86,7 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
         self.assertTrue(SX_close(I_check, ca.DM.eye(9)))
 
     def test_right_jacobian(self):
-        x = ca.SX.sym("x", 9)
+        x = ca.SX.sym('x', 9)
         omega = se23.elem(x)
         Jr = omega.right_jacobian()
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr, x), x, ca.DM.zeros(9))))

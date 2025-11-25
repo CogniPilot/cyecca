@@ -25,70 +25,70 @@ class Simulator(Node):
         # ----------------------------------------------
         # ROS2 node setup
         # ----------------------------------------------
-        param_list = [Parameter("use_sim_time", Parameter.Type.BOOL, True)]
-        super().__init__("simulator", parameter_overrides=param_list)
+        param_list = [Parameter('use_sim_time', Parameter.Type.BOOL, True)]
+        super().__init__('simulator', parameter_overrides=param_list)
 
         # ----------------------------------------------
         # parameters
         # ----------------------------------------------
-        self.declare_parameter("mocap_vehicle_id", "/sim")
-        self.declare_parameter("frame_id", "/map")
+        self.declare_parameter('mocap_vehicle_id', '/sim')
+        self.declare_parameter('frame_id', '/map')
 
         # ----------------------------------------------
         # publications
         # ----------------------------------------------
         self.pub_pose = self.create_publisher(
             PoseWithCovarianceStamped,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/pose",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/pose',
             1,
         )
         self.pub_clock = self.create_publisher(
             Clock,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/clock",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/clock',
             1,
         )
         self.pub_odom = self.create_publisher(
             Odometry,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/odom",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/odom',
             1,
         )
         self.pub_lift = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/lift",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/lift',
             1,
         )
         self.pub_drag = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/drag",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/drag',
             1,
         )
         self.pub_weight = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/weight",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/weight',
             1,
         )
         self.pub_thrust = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/thrust",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/thrust',
             1,
         )
         self.pub_side_force = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/side_force",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/side_force',
             1,
         )
         self.pub_vel_b = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/vel_b",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/vel_b',
             1,
         )
 
@@ -100,15 +100,15 @@ class Simulator(Node):
         # ----------------------------------------------
         self.sub_joy = self.create_subscription(
             Joy,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/joy",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/joy',
             self.joy_callback,
             1,
         )
         self.sub_auto_joy = self.create_subscription(
             Joy,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/auto_joy",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/auto_joy',
             self.auto_joy_callback,
             1,
         )
@@ -123,17 +123,17 @@ class Simulator(Node):
         # -------------------------------------------------------
         # mode handling
         # ----------------------------------------------
-        self.input_mode = "auto"
+        self.input_mode = 'auto'
         self.pub_mode = self.create_publisher(
             String,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/flight_mode",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/flight_mode',
             1,
         )
         self.pub_mode_marker = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/mode_marker",
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
+            + '/mode_marker',
             1,
         )
 
@@ -142,13 +142,13 @@ class Simulator(Node):
         # ----------------------------------------------
         self.model = fixedwing_4ch.derive_model()
         self.publish_static_wheel_frames()
-        self.x0_dict = self.model["x0_defaults"]
+        self.x0_dict = self.model['x0_defaults']
         if x0 is not None:
             for k in x0.keys():
                 if not k in self.x0_dict.keys():
                     raise KeyError(k)
                 self.x0_dict[k] = x0[k]
-        self.p_dict = self.model["p_defaults"]
+        self.p_dict = self.model['p_defaults']
         # print(self.p_dict)
         if p is not None:
             for k in p.keys():
@@ -160,8 +160,8 @@ class Simulator(Node):
         self.state = np.array(list(self.x0_dict.values()), dtype=float)
         self.p = np.array(
             [
-                self.p_dict[str(self.model["p"][i])]
-                for i in range(self.model["p"].shape[0])
+                self.p_dict[str(self.model['p'][i])]
+                for i in range(self.model['p'].shape[0])
             ],
             dtype=float,
         )
@@ -188,13 +188,13 @@ class Simulator(Node):
 
         new_mode = self.input_mode
         if msg.buttons[0] == 1:
-            new_mode = "auto"
+            new_mode = 'auto'
         elif msg.buttons[1] == 1:
-            new_mode = "manual"
+            new_mode = 'manual'
 
         if new_mode != self.input_mode:
             self.get_logger().info(
-                "mode changed from: %s to %s" % (self.input_mode, new_mode)
+                'mode changed from: %s to %s' % (self.input_mode, new_mode)
             )
             self.input_mode = new_mode
 
@@ -212,10 +212,10 @@ class Simulator(Node):
 
         m = Marker()
         m.header.frame_id = (
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
         )
         m.header.stamp = Time()
-        m.ns = "flight_mode"
+        m.ns = 'flight_mode'
         m.id = 0
         m.type = Marker.TEXT_VIEW_FACING
         m.action = Marker.ADD
@@ -241,12 +241,12 @@ class Simulator(Node):
 
         # 4 Channel Airplane
 
-        if self.input_mode == "manual":
+        if self.input_mode == 'manual':
             input = self.input_aetr
-        elif self.input_mode == "auto":
+        elif self.input_mode == 'auto':
             input = self.input_auto
         else:
-            self.get_logger().info("unhandled mode: %s" % self.input_mode)
+            self.get_logger().info('unhandled mode: %s' % self.input_mode)
             input = ca.vertcat(float(0), float(0), float(0), float(0))
 
         self.u = ca.vertcat(  # alocate AETR mode
@@ -257,54 +257,54 @@ class Simulator(Node):
         )
 
     def integrate_simulation(self):
-        """
+        '''
         Integrate the simulation one step and calculate measurements
-        """
+        '''
         RAD2DEG = 180 / ca.pi
 
         try:
 
             opts = {}
-            xdot = self.model["f"](self.state, self.u, self.p)
+            xdot = self.model['f'](self.state, self.u, self.p)
 
-            method = "cvodes"
+            method = 'cvodes'
 
-            if method == "rk":
+            if method == 'rk':
                 opts = {}
-            elif method == "idas":
+            elif method == 'idas':
                 opts = {
-                    "abstol": 1e-9,
-                    "reltol": 1e-9,
-                    "fsens_err_con": True,
-                    "calc_ic": True,
-                    "calc_icB": True,
+                    'abstol': 1e-9,
+                    'reltol': 1e-9,
+                    'fsens_err_con': True,
+                    'calc_ic': True,
+                    'calc_icB': True,
                 }
-            elif method == "cvodes":
-                opts = {"abstol": 1e-2, "reltol": 1e-6, "fsens_err_con": True}
+            elif method == 'cvodes':
+                opts = {'abstol': 1e-2, 'reltol': 1e-6, 'fsens_err_con': True}
             else:
-                raise ValueError("unknown integration method: %s" % method)
+                raise ValueError('unknown integration method: %s' % method)
 
             f_int = ca.integrator(
-                "test", method, self.model["dae"], self.t, self.t + self.dt, opts
+                'test', method, self.model['dae'], self.t, self.t + self.dt, opts
             )
             res = f_int(x0=self.state, z0=0.0, p=self.p, u=self.u)
 
         except RuntimeError as e:
             print(e)
-            xdot = self.model["f"](x=self.state, u=self.u, p=self.p)
+            xdot = self.model['f'](x=self.state, u=self.u, p=self.p)
             print(xdot)
             raise e
 
-        x1 = np.array(res["xf"]).reshape(-1)
+        x1 = np.array(res['xf']).reshape(-1)
         if not np.all(np.isfinite(x1)):
-            print("integration not finite")
-            raise RuntimeError("nan in integration")
+            print('integration not finite')
+            raise RuntimeError('nan in integration')
 
         # ---------------------------------------------------------------------
         # store states and measurements
         # ---------------------------------------------------------------------
-        self.state = np.array(res["xf"]).reshape(-1)
-        self.Info = self.model["Info"](x=self.state, u=self.u, p=self.p)
+        self.state = np.array(res['xf']).reshape(-1)
+        self.Info = self.model['Info'](x=self.state, u=self.u, p=self.p)
 
         # self.publish_state()
 
@@ -314,25 +314,25 @@ class Simulator(Node):
         self.publish_state()
 
     def get_state_by_name(self, name):
-        return self.state[self.model["x_index"][name]]
+        return self.state[self.model['x_index'][name]]
 
     def publish_state(self):
-        x = self.get_state_by_name("position_w_0")
-        y = self.get_state_by_name("position_w_1")
-        z = self.get_state_by_name("position_w_2")
+        x = self.get_state_by_name('position_w_0')
+        y = self.get_state_by_name('position_w_1')
+        z = self.get_state_by_name('position_w_2')
 
-        wx = self.get_state_by_name("omega_wb_b_0")
-        wy = self.get_state_by_name("omega_wb_b_1")
-        wz = self.get_state_by_name("omega_wb_b_2")
+        wx = self.get_state_by_name('omega_wb_b_0')
+        wy = self.get_state_by_name('omega_wb_b_1')
+        wz = self.get_state_by_name('omega_wb_b_2')
 
-        vx = self.get_state_by_name("velocity_b_0")
-        vy = self.get_state_by_name("velocity_b_1")
-        vz = self.get_state_by_name("velocity_b_2")
+        vx = self.get_state_by_name('velocity_b_0')
+        vy = self.get_state_by_name('velocity_b_1')
+        vz = self.get_state_by_name('velocity_b_2')
 
-        qw = self.get_state_by_name("quat_wb_0")
-        qx = self.get_state_by_name("quat_wb_1")
-        qy = self.get_state_by_name("quat_wb_2")
-        qz = self.get_state_by_name("quat_wb_3")
+        qw = self.get_state_by_name('quat_wb_0')
+        qx = self.get_state_by_name('quat_wb_1')
+        qy = self.get_state_by_name('quat_wb_2')
+        qz = self.get_state_by_name('quat_wb_3')
 
         # ------------------------------------
         # publish simulation clock
@@ -346,10 +346,10 @@ class Simulator(Node):
         # ------------------------------------
         tf = TransformStamped()
         tf.header.frame_id = (
-            self.get_parameter("frame_id").get_parameter_value().string_value
+            self.get_parameter('frame_id').get_parameter_value().string_value
         )
         tf.child_frame_id = (
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
         )
         tf.header.stamp = msg_clock.clock
         tf.transform.translation.x = x
@@ -367,7 +367,7 @@ class Simulator(Node):
         def vector(v, name, color, scale):
             marker = Marker()
             marker.header.frame_id = (
-                self.get_parameter("mocap_vehicle_id")
+                self.get_parameter('mocap_vehicle_id')
                 .get_parameter_value()
                 .string_value
             )
@@ -404,32 +404,32 @@ class Simulator(Node):
             return marker
 
         self.pub_lift.publish(
-            vector(self.Info["L_b"], "lift", [1.0, 0.0, 0.0, 1.0], 1.0)
+            vector(self.Info['L_b'], 'lift', [1.0, 0.0, 0.0, 1.0], 1.0)
         )
         self.pub_drag.publish(
-            vector(self.Info["D_b"], "drag", [0.0, 0.0, 1.0, 1.0], 1.0)
+            vector(self.Info['D_b'], 'drag', [0.0, 0.0, 1.0, 1.0], 1.0)
         )
         self.pub_weight.publish(
-            vector(self.Info["FW_b"], "weight", [0.0, 1.0, 0.0, 1.0], 1.0)
+            vector(self.Info['FW_b'], 'weight', [0.0, 1.0, 0.0, 1.0], 1.0)
         )
         self.pub_thrust.publish(
-            vector(self.Info["FT_b"], "thrust", [1.0, 0.0, 1.0, 1.0], 1.0)
+            vector(self.Info['FT_b'], 'thrust', [1.0, 0.0, 1.0, 1.0], 1.0)
         )
         self.pub_side_force.publish(
-            vector(self.Info["C_b"], "side_force", [1.0, 1.0, 0.0, 1.0], 1.0)
+            vector(self.Info['C_b'], 'side_force', [1.0, 1.0, 0.0, 1.0], 1.0)
         )
 
         self.pub_vel_b.publish(
-            vector(self.Info["v_b"], "vel_b", [0.0, 1.0, 1.0, 1.0], 0.1)
+            vector(self.Info['v_b'], 'vel_b', [0.0, 1.0, 1.0, 1.0], 0.1)
         )
-        # print("alpha", self.Info["alpha"], "CL", self.Info["CL"], "CD", self.Info["CD"])
+        # print('alpha', self.Info['alpha'], 'CL', self.Info['CL'], 'CD', self.Info['CD'])
         # ------------------------------------
         # publish pose with covariance stamped
         # ------------------------------------
         msg_pose = PoseWithCovarianceStamped()
         msg_pose.header.stamp = msg_clock.clock
         msg_pose.header.frame_id = (
-            self.get_parameter("frame_id").get_parameter_value().string_value
+            self.get_parameter('frame_id').get_parameter_value().string_value
         )
         # msg_pose.pose.covariance = P_pose_full.reshape(-1)
         msg_pose.pose.pose.position.x = x
@@ -447,10 +447,10 @@ class Simulator(Node):
         msg_odom = Odometry()
         msg_odom.header.stamp = msg_clock.clock
         msg_odom.header.frame_id = (
-            self.get_parameter("frame_id").get_parameter_value().string_value
+            self.get_parameter('frame_id').get_parameter_value().string_value
         )
         msg_odom.child_frame_id = (
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
+            self.get_parameter('mocap_vehicle_id').get_parameter_value().string_value
         )
         # msg_pose.pose.covariance = P_pose_full.reshape(-1)
         msg_odom.pose.pose.position.x = x
@@ -465,17 +465,17 @@ class Simulator(Node):
         self.publish_flight_mode()
 
     def publish_static_wheel_frames(self):
-        """
+        '''
         Publish static TFs for three-wheel configuration relative to body frame. Wheel positions are defined in the dynamics model as offsets from body-frame base.
-        """
+        '''
 
         def sx_to_xyz(sx_vec):
             return [float(sx_vec[0]), float(sx_vec[1]), float(sx_vec[2])]
 
         wheels_pos = [
-            ("left_main_wheel", self.model["left_wheel_b"]),
-            ("right_main_wheel", self.model["right_wheel_b"]),
-            ("tail_wheel", self.model["tail_wheel_b"]),
+            ('left_main_wheel', self.model['left_wheel_b']),
+            ('right_main_wheel', self.model['right_wheel_b']),
+            ('tail_wheel', self.model['tail_wheel_b']),
         ]
 
         tfs = []
@@ -484,7 +484,7 @@ class Simulator(Node):
             tf = TransformStamped()
             tf.header.stamp = self.get_clock().now().to_msg()
             tf.header.frame_id = (
-                self.get_parameter("mocap_vehicle_id")
+                self.get_parameter('mocap_vehicle_id')
                 .get_parameter_value()
                 .string_value
             )
@@ -510,5 +510,5 @@ def main(args=None):
         print(e)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

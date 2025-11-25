@@ -12,7 +12,7 @@ from cyecca.lie.group_rn import R2LieAlgebraElement
 from cyecca.lie.group_so2 import SO2LieGroupElement, SO2LieAlgebraElement
 from cyecca.symbolic import SERIES
 
-__all__ = ["se2", "SE2"]
+__all__ = ['se2', 'SE2']
 
 
 @beartype
@@ -55,7 +55,7 @@ class SE2LieAlgebra(LieAlgebra):
         return ca.vertcat(ca.horzcat(arg.Omega.to_Matrix(), arg.v_b.param), ca.SX(1, 3))
 
     def from_Matrix(self, arg: ca.SX) -> SE2LieAlgebraElement:
-        raise NotImplementedError("")
+        raise NotImplementedError('')
 
     def wedge(self, arg: Union[ca.SX, ca.DM]) -> SE2LieAlgebraElement:
         return self.elem(param=arg)
@@ -66,9 +66,9 @@ class SE2LieAlgebra(LieAlgebra):
 
 @beartype
 class SE2LieAlgebraElement(LieAlgebraElement):
-    """
+    '''
     This is an SE2 Lie algebra elem
-    """
+    '''
 
     def __init__(self, algebra: SE2LieAlgebra, param: PARAM_TYPE):
         super().__init__(algebra, param)
@@ -113,17 +113,17 @@ class SE2LieGroup(LieGroup):
         theta = arg.Omega.param
         sin_th = ca.sin(theta)
         cos_th = ca.cos(theta)
-        a = SERIES["sin(x)/x"](theta)
-        b = SERIES["(1 - cos(x))/x"](theta)
+        a = SERIES['sin(x)/x'](theta)
+        b = SERIES['(1 - cos(x))/x'](theta)
         V = ca.vertcat(ca.horzcat(a, -b), ca.horzcat(b, a))
         p = V @ arg.v_b.param
         return self.elem(ca.vertcat(p, theta))
 
     def log(self, arg: SE2LieGroupElement) -> SE2LieAlgebraElement:
         theta = arg.R.param
-        x = ca.SX.sym("x")
-        a = SERIES["sin(x)/x"](theta)
-        b = SERIES["(1 - cos(x))/x"](theta)
+        x = ca.SX.sym('x')
+        a = SERIES['sin(x)/x'](theta)
+        b = SERIES['(1 - cos(x))/x'](theta)
         V_inv = ca.SX(2, 2)
         V_inv[0, 0] = a
         V_inv[0, 1] = b
@@ -149,9 +149,9 @@ class SE2LieGroup(LieGroup):
 
 @beartype
 class SE2LieGroupElement(LieGroupElement):
-    """
+    '''
     This is an SE2 Lie group elem, not necessarily represented as a matrix
-    """
+    '''
 
     def __init__(self, group: SE2LieGroup, param: PARAM_TYPE):
         super().__init__(group, param)

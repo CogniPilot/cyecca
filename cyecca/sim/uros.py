@@ -17,7 +17,7 @@ class Core(simpy.Environment):
         self._subscribers = {}
         self._declared_params = {}
         self.pub_sub_locked = False
-        self.pub_params = Publisher(self, "params", msgs.Params)
+        self.pub_params = Publisher(self, 'params', msgs.Params)
 
     def init_params(self):
         self._params = msgs.Params(self)
@@ -32,9 +32,9 @@ class Core(simpy.Environment):
     def declare_param(self, param):
         assert not self.pub_sub_locked
         if self.pub_sub_locked:
-            raise ValueError("cannot declare parameters after logger initialized")
+            raise ValueError('cannot declare parameters after logger initialized')
         if param.name in self._declared_params:
-            raise ValueError("{:s} already declared".format(param.name))
+            raise ValueError('{:s} already declared'.format(param.name))
         self._declared_params[param.name] = param
 
     def run(self, *args, **kwargs):
@@ -70,7 +70,7 @@ class Publisher:
     def publish(self, msg: msgs.Msg):
         if not isinstance(msg, self.msg_type):
             raise ValueError(
-                "{:s} expects msg {:s}, but got {:s}".format(
+                '{:s} expects msg {:s}, but got {:s}'.format(
                     self.topic, str(self.msg_type), str(type(msg))
                 )
             )
@@ -105,7 +105,7 @@ class Param:
 class Logger:
     def __init__(self, core):
         self.core = core
-        self.dt = Param(core, "logger/dt", 1.0 / 200, "f8")
+        self.dt = Param(core, 'logger/dt', 1.0 / 200, 'f8')
         self.data_latest = None
         self.data_list = []
         self.subs = {}
@@ -119,13 +119,13 @@ class Logger:
 
     def callback(self, topic, msg):
         self.data_latest.data[topic] = copy.deepcopy(msg.data)
-        if topic == "params":
+        if topic == 'params':
             for p in self.param_list:
                 p.update()
 
     def run(self):
         while True:
-            self.data_latest.data["time"] = self.core.now
+            self.data_latest.data['time'] = self.core.now
             self.data_list.append(copy.deepcopy(self.data_latest.data))
             yield simpy.Timeout(self.core, self.dt.get())
 
@@ -138,5 +138,5 @@ def check_nan(locals_dict, label, t, names):
     for name in names:
         val = eval(name)
         if np.any((np.isnan(np.array(val)))):
-            s = "nan in {:s} @ {:f} sec {:s} = {:s}".format(label, t, name, str(val))
+            s = 'nan in {:s} @ {:f} sec {:s} = {:s}'.format(label, t, name, str(val))
             raise ValueError(s)

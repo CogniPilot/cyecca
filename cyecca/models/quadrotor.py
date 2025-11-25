@@ -9,34 +9,34 @@ def derive_model():
     g0 = 9.8
 
     # p, parameters
-    tau_up = ca.SX.sym("tau_up")
-    tau_down = ca.SX.sym("tau_down")
-    dir_motor = ca.SX.sym("dir_motor", n_motor)
-    l_motor = ca.SX.sym("l_motor", n_motor)
-    theta_motor = ca.SX.sym("theta_motor", n_motor)
-    CT = ca.SX.sym("CT")
-    CM = ca.SX.sym("CM")
-    Cl_p = ca.SX.sym("Cl_p")
-    Cm_q = ca.SX.sym("Cm_q")
-    Cn_r = ca.SX.sym("Cn_r")
-    CD0 = ca.SX.sym("CD0")
-    S = ca.SX.sym("S")
-    rho = ca.SX.sym("rho")
-    g = ca.SX.sym("g")
-    m = ca.SX.sym("m")
-    Jx = ca.SX.sym("Jx")
-    Jy = ca.SX.sym("Jy")
-    Jz = ca.SX.sym("Jz")
-    Jxz = ca.SX.sym("Jxz")
+    tau_up = ca.SX.sym('tau_up')
+    tau_down = ca.SX.sym('tau_down')
+    dir_motor = ca.SX.sym('dir_motor', n_motor)
+    l_motor = ca.SX.sym('l_motor', n_motor)
+    theta_motor = ca.SX.sym('theta_motor', n_motor)
+    CT = ca.SX.sym('CT')
+    CM = ca.SX.sym('CM')
+    Cl_p = ca.SX.sym('Cl_p')
+    Cm_q = ca.SX.sym('Cm_q')
+    Cn_r = ca.SX.sym('Cn_r')
+    CD0 = ca.SX.sym('CD0')
+    S = ca.SX.sym('S')
+    rho = ca.SX.sym('rho')
+    g = ca.SX.sym('g')
+    m = ca.SX.sym('m')
+    Jx = ca.SX.sym('Jx')
+    Jy = ca.SX.sym('Jy')
+    Jz = ca.SX.sym('Jz')
+    Jxz = ca.SX.sym('Jxz')
     J = ca.vertcat(
         ca.horzcat(Jx, 0, Jxz),
         ca.horzcat(0, Jy, 0),
         ca.horzcat(Jxz, 0, Jz),
     )
-    noise_power_sqrt_a_b = ca.SX.sym("noise_power_sqrt_a_b", 3)
-    noise_power_sqrt_omega_wb_b = ca.SX.sym("noise_power_sqrt_omega_wb_b", 3)
-    noise_power_sqrt_mag_b = ca.SX.sym("noise_power_sqrt_mag_b", 3)
-    noise_power_sqrt_gps_pos = ca.SX.sym("noise_power_sqrt_gps_pos", 3)
+    noise_power_sqrt_a_b = ca.SX.sym('noise_power_sqrt_a_b', 3)
+    noise_power_sqrt_omega_wb_b = ca.SX.sym('noise_power_sqrt_omega_wb_b', 3)
+    noise_power_sqrt_mag_b = ca.SX.sym('noise_power_sqrt_mag_b', 3)
+    noise_power_sqrt_gps_pos = ca.SX.sym('noise_power_sqrt_gps_pos', 3)
     p = ca.vertcat(
         tau_up,
         tau_down,
@@ -63,54 +63,54 @@ def derive_model():
         noise_power_sqrt_gps_pos,
     )
     p_defaults = {
-        "tau_up": 0.0125,  # time to spin up motors
-        "tau_down": 0.025,  # time to spin down motors
-        "dir_motor_0": 1,  # diretion of motor 0 (1 CCW, -1 CW)
-        "dir_motor_1": 1,
-        "dir_motor_2": -1,
-        "dir_motor_3": -1,
-        "l_motor_0": 0.25,  # arm length of motor 0
-        "l_motor_1": 0.25,
-        "l_motor_2": 0.25,
-        "l_motor_3": 0.25,
-        "theta_motor_0": -np.pi / 4,  # angle of arm 0
-        "theta_motor_1": 3 * np.pi / 4,
-        "theta_motor_2": np.pi / 4,
-        "theta_motor_3": -3 * np.pi / 4,
-        "CT": 8.54858e-06,  # thrust coefficient
-        "CM": 0.016,  # moment coefficient
-        "Cl_p": 0,
-        "Cm_q": 0,
-        "Cn_r": 0,
-        "CD0": 0,
-        "S": 1e-1,  # aerodynamic reference area
-        "rho": 1.225,  # air density
-        "g": 9.8,
-        "m": 2.0,
-        "Jx": 0.02166666666666667,
-        "Jy": 0.02166666666666667,
-        "Jz": 0.04000000000000001,
-        "Jxz": 0.0,
-        "noise_power_sqrt_a_b_0": 70e-3 * g0,  # micro-g/sqrt(hz)
-        "noise_power_sqrt_a_b_1": 70e-3 * g0,
-        "noise_power_sqrt_a_b_2": 70e-3 * g0,
-        "noise_power_sqrt_omega_wb_b_0": np.deg2rad(2.8e-3),  # 2.8 milli-dpgs/sqrt(hz)
-        "noise_power_sqrt_omega_wb_b_1": np.deg2rad(2.8e-3),
-        "noise_power_sqrt_omega_wb_b_2": np.deg2rad(2.8e-3),
-        "noise_power_sqrt_mag_b_0": 1e-6,
-        "noise_power_sqrt_mag_b_1": 1e-6,
-        "noise_power_sqrt_mag_b_2": 1e-6,
-        "noise_power_sqrt_gps_pos_0": 1e-8,
-        "noise_power_sqrt_gps_pos_1": 1e-8,
-        "noise_power_sqrt_gps_pos_2": 1e-8,
+        'tau_up': 0.0125,  # time to spin up motors
+        'tau_down': 0.025,  # time to spin down motors
+        'dir_motor_0': 1,  # diretion of motor 0 (1 CCW, -1 CW)
+        'dir_motor_1': 1,
+        'dir_motor_2': -1,
+        'dir_motor_3': -1,
+        'l_motor_0': 0.25,  # arm length of motor 0
+        'l_motor_1': 0.25,
+        'l_motor_2': 0.25,
+        'l_motor_3': 0.25,
+        'theta_motor_0': -np.pi / 4,  # angle of arm 0
+        'theta_motor_1': 3 * np.pi / 4,
+        'theta_motor_2': np.pi / 4,
+        'theta_motor_3': -3 * np.pi / 4,
+        'CT': 8.54858e-06,  # thrust coefficient
+        'CM': 0.016,  # moment coefficient
+        'Cl_p': 0,
+        'Cm_q': 0,
+        'Cn_r': 0,
+        'CD0': 0,
+        'S': 1e-1,  # aerodynamic reference area
+        'rho': 1.225,  # air density
+        'g': 9.8,
+        'm': 2.0,
+        'Jx': 0.02166666666666667,
+        'Jy': 0.02166666666666667,
+        'Jz': 0.04000000000000001,
+        'Jxz': 0.0,
+        'noise_power_sqrt_a_b_0': 70e-3 * g0,  # micro-g/sqrt(hz)
+        'noise_power_sqrt_a_b_1': 70e-3 * g0,
+        'noise_power_sqrt_a_b_2': 70e-3 * g0,
+        'noise_power_sqrt_omega_wb_b_0': np.deg2rad(2.8e-3),  # 2.8 milli-dpgs/sqrt(hz)
+        'noise_power_sqrt_omega_wb_b_1': np.deg2rad(2.8e-3),
+        'noise_power_sqrt_omega_wb_b_2': np.deg2rad(2.8e-3),
+        'noise_power_sqrt_mag_b_0': 1e-6,
+        'noise_power_sqrt_mag_b_1': 1e-6,
+        'noise_power_sqrt_mag_b_2': 1e-6,
+        'noise_power_sqrt_gps_pos_0': 1e-8,
+        'noise_power_sqrt_gps_pos_1': 1e-8,
+        'noise_power_sqrt_gps_pos_2': 1e-8,
     }
 
     # x, state
-    omega_motor = ca.SX.sym("omega_motor", n_motor)
-    omega_wb_b = ca.SX.sym("omega_wb_b", 3)
-    quaternion_wb = ca.SX.sym("quaternion_wb", 4)
-    velocity_w_p_b = ca.SX.sym("velocity_w_p_b", 3)
-    position_op_w = ca.SX.sym("position_op_w", 3)
+    omega_motor = ca.SX.sym('omega_motor', n_motor)
+    omega_wb_b = ca.SX.sym('omega_wb_b', 3)
+    quaternion_wb = ca.SX.sym('quaternion_wb', 4)
+    velocity_w_p_b = ca.SX.sym('velocity_w_p_b', 3)
+    position_op_w = ca.SX.sym('position_op_w', 3)
 
     x = ca.vertcat(
         position_op_w,
@@ -121,27 +121,27 @@ def derive_model():
     )
 
     x0_defaults = {
-        "position_op_w_0": 0,
-        "position_op_w_1": 0,
-        "position_op_w_2": 0,
-        "velocity_w_p_b_0": 0,
-        "velocity_w_p_b_1": 0,
-        "velocity_w_p_b_2": 0,
-        "quaternion_wb_0": 1,
-        "quaternion_wb_1": 0,
-        "quaternion_wb_2": 0,
-        "quaternion_wb_3": 0,
-        "omega_wb_b_0": 0,
-        "omega_wb_b_1": 0,
-        "omega_wb_b_2": 0,
-        "omega_motor_0": 0,
-        "omega_motor_1": 0,
-        "omega_motor_2": 0,
-        "omega_motor_3": 0,
+        'position_op_w_0': 0,
+        'position_op_w_1': 0,
+        'position_op_w_2': 0,
+        'velocity_w_p_b_0': 0,
+        'velocity_w_p_b_1': 0,
+        'velocity_w_p_b_2': 0,
+        'quaternion_wb_0': 1,
+        'quaternion_wb_1': 0,
+        'quaternion_wb_2': 0,
+        'quaternion_wb_3': 0,
+        'omega_wb_b_0': 0,
+        'omega_wb_b_1': 0,
+        'omega_wb_b_2': 0,
+        'omega_motor_0': 0,
+        'omega_motor_1': 0,
+        'omega_motor_2': 0,
+        'omega_motor_3': 0,
     }
 
     # u, input
-    omega_motor_cmd = ca.SX.sym("omega_motor_cmd", n_motor)
+    omega_motor_cmd = ca.SX.sym('omega_motor_cmd', n_motor)
     u = ca.vertcat(
         omega_motor_cmd,
     )
@@ -229,7 +229,7 @@ def derive_model():
         derivative_omega_wb_b,
         derivative_omega_motor,
     )
-    f = ca.Function("f", [x, u, p], [x_dot], ["x", "u", "p"], ["x_dot"])
+    f = ca.Function('f', [x, u, p], [x_dot], ['x', 'u', 'p'], ['x_dot'])
 
     # algebraic (these algebraic expressions are used during the simulation)
     z = ca.vertcat()
@@ -240,44 +240,44 @@ def derive_model():
     # -----------------------------------------
 
     # measurement noise
-    dt = ca.SX.sym("dt")  # sample time
+    dt = ca.SX.sym('dt')  # sample time
     w3 = ca.SX.sym(
-        "w", 3
+        'w', 3
     )  # 3 dim noise (std dev = 1, mean = 0), scaling via noise power occurs in function from params
 
     # cyecca.lie.SO3EulerB321.from_Quat(q_wb).param
     g_accel = ca.Function(
-        "g_accel",
+        'g_accel',
         [x, u, p, w3, dt],
         [a_b + w3 * noise_power_sqrt_a_b * np.sqrt(dt)],
-        ["x", "u", "p", "w", "dt"],
-        ["y"],
+        ['x', 'u', 'p', 'w', 'dt'],
+        ['y'],
     )
     g_gyro = ca.Function(
-        "g_gyro",
+        'g_gyro',
         [x, u, p, w3, dt],
         [omega_wb_b + w3 * noise_power_sqrt_omega_wb_b * np.sqrt(dt)],
-        ["x", "u", "p", "w", "dt"],
-        ["y"],
+        ['x', 'u', 'p', 'w', 'dt'],
+        ['y'],
     )
     north = cyecca.lie.SO3Quat.elem(ca.vertcat(0, 1, 0, 0))
     g_mag = ca.Function(
-        "g_mag",
+        'g_mag',
         [x, u, p, w3, dt],
         [(q_wb * north * q_bw).param[1:] + w3 * noise_power_sqrt_mag_b * np.sqrt(dt)],
-        ["x", "u", "p", "w", "dt"],
-        ["y"],
+        ['x', 'u', 'p', 'w', 'dt'],
+        ['y'],
     )
     g_gps_pos = ca.Function(
-        "g_gps_pos",
+        'g_gps_pos',
         [x, u, p, w3, dt],
         [position_op_w + w3 * np.sqrt(noise_power_sqrt_gps_pos / dt)],
-        ["x", "u", "p", "w", "dt"],
-        ["y"],
+        ['x', 'u', 'p', 'w', 'dt'],
+        ['y'],
     )
 
     # setup integrator
-    dae = {"x": x, "ode": f(x, u, p), "p": p, "u": u, "z": z, "alg": alg}
+    dae = {'x': x, 'ode': f(x, u, p), 'p': p, 'u': u, 'z': z, 'alg': alg}
 
     p_index = {p[i].name(): i for i in range(p.shape[0])}
     x_index = {x[i].name(): i for i in range(x.shape[0])}
@@ -288,24 +288,24 @@ def derive_model():
 
 
 def sim(model, t, u, x0=None, p=None, plot=True):
-    x0_dict = model["x0_defaults"]
+    x0_dict = model['x0_defaults']
     if x0 is not None:
         for k in x0.keys():
             if not k in x0_dict.keys():
                 raise KeyError(k)
             x0_dict[k] = x0[k]
-    p_dict = model["p_defaults"]
+    p_dict = model['p_defaults']
     if p is not None:
         for k in p.keys():
             if not k in p_dict.keys():
                 raise KeyError(k)
             p_dict[k] = p[k]
-    dae = model["dae"]
-    f_int = ca.integrator("test", "idas", dae, t[0], t)
+    dae = model['dae']
+    f_int = ca.integrator('test', 'idas', dae, t[0], t)
     res = f_int(x0=x0_dict.values(), z0=0, p=p_dict.values(), u=u)
-    res["p"] = p_dict
-    res["yf"] = model["g"](res["xf"], u, p_dict.values())
+    res['p'] = p_dict
+    res['yf'] = model['g'](res['xf'], u, p_dict.values())
 
-    for k in ["xf", "yf", "zf"]:
+    for k in ['xf', 'yf', 'zf']:
         res[k] = np.array(res[k])
     return res

@@ -7,53 +7,53 @@ import cyecca.sim.uros as uros
 
 
 class AttitudeEstimator:
-    """
+    '''
     An attitude estimator node for uros
-    """
+    '''
 
     def __init__(self, core, name, eqs, initialize):
         self.core = core
         self.name = name
 
         # subscriptions
-        self.sub_imu = uros.Subscriber(core, "imu", msgs.Imu, self.imu_callback)
-        self.sub_mag = uros.Subscriber(core, "mag", msgs.Mag, self.mag_callback)
+        self.sub_imu = uros.Subscriber(core, 'imu', msgs.Imu, self.imu_callback)
+        self.sub_mag = uros.Subscriber(core, 'mag', msgs.Mag, self.mag_callback)
 
         # publications
-        self.pub_est = uros.Publisher(core, name + "_status", msgs.EstimatorStatus)
-        self.pub_att = uros.Publisher(core, name + "_attitude", msgs.Attitude)
+        self.pub_est = uros.Publisher(core, name + '_status', msgs.EstimatorStatus)
+        self.pub_att = uros.Publisher(core, name + '_attitude', msgs.Attitude)
 
         self.msg_est_status = msgs.EstimatorStatus()
         self.msg_att = msgs.Attitude()
 
         self.sub_params = uros.Subscriber(
-            core, "params", msgs.Params, self.params_callback
+            core, 'params', msgs.Params, self.params_callback
         )
 
         # parameters
         self.param_list = []
 
         def add_param(name, value, type):
-            p = uros.Param(self.core, self.name + "/" + name, value, type)
+            p = uros.Param(self.core, self.name + '/' + name, value, type)
             self.param_list.append(p)
             return p
 
-        self.std_mag = add_param("std_mag", 2.5e-3, "f8")
-        self.std_accel = add_param("std_accel", 35.0e-3, "f8")
-        self.std_accel_omega = add_param("std_accel_omega", 0, "f8")
-        self.std_gyro = add_param("std_gyro", 1e-3, "f8")
-        self.sn_gyro_rw = add_param("sn_gyro_rw", 1e-5, "f8")
-        self.mag_decl = add_param("mag_decl", 0, "f8")
-        self.beta_mag_c = add_param("beta_mag_c", 6.6, "f8")  # 99% for n=1
-        self.beta_accel_c = add_param("beta_accel_c", 9.2, "f8")  # 99% for n=2
-        self.dt_min_accel = add_param("dt_min_accel", 1.0 / 200, "f8")
-        self.dt_min_mag = add_param("dt_min_mag", 1.0 / 200, "f8")
+        self.std_mag = add_param('std_mag', 2.5e-3, 'f8')
+        self.std_accel = add_param('std_accel', 35.0e-3, 'f8')
+        self.std_accel_omega = add_param('std_accel_omega', 0, 'f8')
+        self.std_gyro = add_param('std_gyro', 1e-3, 'f8')
+        self.sn_gyro_rw = add_param('sn_gyro_rw', 1e-5, 'f8')
+        self.mag_decl = add_param('mag_decl', 0, 'f8')
+        self.beta_mag_c = add_param('beta_mag_c', 6.6, 'f8')  # 99% for n=1
+        self.beta_accel_c = add_param('beta_accel_c', 9.2, 'f8')  # 99% for n=2
+        self.dt_min_accel = add_param('dt_min_accel', 1.0 / 200, 'f8')
+        self.dt_min_mag = add_param('dt_min_mag', 1.0 / 200, 'f8')
 
-        self.g = add_param("g", 9.8, "f8")
+        self.g = add_param('g', 9.8, 'f8')
 
         # misc
-        self.x = eqs["constants"]()["x0"]
-        self.W = eqs["constants"]()["W0"]
+        self.x = eqs['constants']()['x0']
+        self.W = eqs['constants']()['W0']
         self.n_x = self.x.shape[0]
         self.n_e = self.W.shape[0]
         self.t_last_imu = 0
@@ -73,7 +73,7 @@ class AttitudeEstimator:
             p.update()
 
     def mag_callback(self, msg):
-        t = msg.data["time"]
+        t = msg.data['time']
         self.last_mag = msg  # must always set, since used for init
 
         if not self.initialized or t - self.t_last_mag < (
@@ -82,11 +82,11 @@ class AttitudeEstimator:
             return
 
         self.t_last_mag = t
-        y = msg.data["mag"]
+        y = msg.data['mag']
         # out: ['x_mag', 'W_mag', 'beta_mag', 'r_mag', 'r_std_mag', 'error_code'])
         # in: ['x', 'W', 'y_b', 'decl', 'std_mag', 'beta_mag_c']
         start = time.thread_time()
-        self.x, self.W, beta_mag, r_mag, r_std_mag, mag_ret = self.eqs["correct_mag"](
+        self.x, self.W, beta_mag, r_mag, r_std_mag, mag_ret = self.eqs['correct_mag'](
             self.x,
             self.W,
             y,
@@ -98,22 +98,22 @@ class AttitudeEstimator:
 
         uros.check_nan(
             locals(),
-            "{:s} mag correction".format(self.name),
+            '{:s} mag correction'.format(self.name),
             t,
-            ["self.x", "self.W", "beta_mag", "r_mag", "r_std_mag", "mag_ret"],
+            ['self.x', 'self.W', 'beta_mag', 'r_mag', 'r_std_mag', 'mag_ret'],
         )
 
-        self.msg_est_status.data["beta_mag"] = beta_mag
-        self.msg_est_status.data["r_mag"][: r_mag.shape[0]] = np.array(r_mag).T
-        self.msg_est_status.data["r_std_mag"][: r_std_mag.shape[0]] = np.array(
+        self.msg_est_status.data['beta_mag'] = beta_mag
+        self.msg_est_status.data['r_mag'][: r_mag.shape[0]] = np.array(r_mag).T
+        self.msg_est_status.data['r_std_mag'][: r_std_mag.shape[0]] = np.array(
             r_std_mag
         ).T
-        self.msg_est_status.data["mag_ret"] = mag_ret
-        self.msg_est_status.data["cpu_mag"] = cpu_mag
+        self.msg_est_status.data['mag_ret'] = mag_ret
+        self.msg_est_status.data['cpu_mag'] = cpu_mag
 
     def imu_callback(self, msg):
         # compute dt
-        t = msg.data["time"]
+        t = msg.data['time']
         dt = t - self.t_last_imu
         self.t_last_imu = t
         self.last_imu = msg
@@ -123,20 +123,20 @@ class AttitudeEstimator:
             if self.last_imu is not None and self.last_mag is not None:
                 # in: ['g_b', 'B_b', 'decl'],
                 # out: ['x0', 'error_code']
-                x0, ret = self.eqs["initialize"](
-                    self.last_imu.data["accel"],
-                    self.last_mag.data["mag"],
+                x0, ret = self.eqs['initialize'](
+                    self.last_imu.data['accel'],
+                    self.last_mag.data['mag'],
                     self.mag_decl.get(),
                 )
 
                 if ret != 0:
-                    print("initialization failed with error code", ret)
+                    print('initialization failed with error code', ret)
                 else:
-                    print("initialized at time ", self.core.now, x0, ret)
+                    print('initialized at time ', self.core.now, x0, ret)
                     self.x = x0
                     self.initialized = True
                     if np.any((np.isnan(np.array(self.x)))):
-                        s = "nan in estimator {:s} @ initialization, x = {:s}".format(
+                        s = 'nan in estimator {:s} @ initialization, x = {:s}'.format(
                             self.name, str(self.x)
                         )
                         raise ValueError(s)
@@ -148,20 +148,20 @@ class AttitudeEstimator:
             return
 
         # estimate state
-        omega = msg.data["gyro"]
+        omega = msg.data['gyro']
         start = time.thread_time()
         # in: ['t', 'x', 'W', 'omega_m', 'std_gyro', 'sn_gyro_rw', 'dt']
         # out ['x1', 'W1']
-        self.x, self.W = self.eqs["predict"](
+        self.x, self.W = self.eqs['predict'](
             t, self.x, self.W, omega, self.std_gyro.get(), self.sn_gyro_rw.get(), dt
         )
-        q, r, b_g = self.eqs["get_state"](self.x)
+        q, r, b_g = self.eqs['get_state'](self.x)
         cpu_predict = time.thread_time() - start
         uros.check_nan(
             locals(),
-            "{:s} prediction".format(self.name),
+            '{:s} prediction'.format(self.name),
             t,
-            ["self.x", "self.W", "q", "r", "b_g"],
+            ['self.x', 'self.W', 'q', 'r', 'b_g'],
         )
 
         if t - self.t_last_accel >= (self.dt_min_accel.get() - self.time_eps):
@@ -170,11 +170,11 @@ class AttitudeEstimator:
             # in: ['x', 'W', 'y_b', 'g', 'omega_b', 'std_accel', 'std_accel_omega', 'beta_accel_c']
             start = time.thread_time()
             self.x, self.W, beta_accel, r_accel, r_std_accel, accel_ret = self.eqs[
-                "correct_accel"
+                'correct_accel'
             ](
                 self.x,
                 self.W,
-                msg.data["accel"],
+                msg.data['accel'],
                 self.g.get(),
                 omega,
                 self.std_accel.get(),
@@ -185,42 +185,42 @@ class AttitudeEstimator:
 
             uros.check_nan(
                 locals(),
-                "{:s} accel correction".format(self.name),
+                '{:s} accel correction'.format(self.name),
                 t,
                 [
-                    "self.x",
-                    "self.W",
-                    "beta_accel",
-                    "r_accel",
-                    "r_std_accel",
-                    "accel_ret",
+                    'self.x',
+                    'self.W',
+                    'beta_accel',
+                    'r_accel',
+                    'r_std_accel',
+                    'accel_ret',
                 ],
             )
 
-            self.msg_est_status.data["beta_accel"] = beta_accel
-            self.msg_est_status.data["r_accel"][: r_accel.shape[0]] = np.array(
+            self.msg_est_status.data['beta_accel'] = beta_accel
+            self.msg_est_status.data['r_accel'][: r_accel.shape[0]] = np.array(
                 r_accel
             ).T
-            self.msg_est_status.data["r_std_accel"][: r_accel.shape[0]] = np.array(
+            self.msg_est_status.data['r_std_accel'][: r_accel.shape[0]] = np.array(
                 r_std_accel
             ).T
-            self.msg_est_status.data["accel_ret"] = accel_ret
-            self.msg_est_status.data["cpu_accel"] = cpu_accel
+            self.msg_est_status.data['accel_ret'] = accel_ret
+            self.msg_est_status.data['cpu_accel'] = cpu_accel
             self.t_last_accel = t
 
         # publish vehicle state
-        self.msg_att.data["time"] = t
-        self.msg_att.data["q"] = np.array(q).T
-        self.msg_att.data["r"] = np.array(r).T
-        self.msg_att.data["b"] = np.array(b_g).T
-        self.msg_att.data["omega"] = np.array(omega).T
+        self.msg_att.data['time'] = t
+        self.msg_att.data['q'] = np.array(q).T
+        self.msg_att.data['r'] = np.array(r).T
+        self.msg_att.data['b'] = np.array(b_g).T
+        self.msg_att.data['omega'] = np.array(omega).T
         self.pub_att.publish(self.msg_att)
 
         # publish estimator status
-        self.msg_est_status.data["time"] = t
-        self.msg_est_status.data["n_x"] = self.n_x
-        self.msg_est_status.data["x"][: self.n_x] = np.array(self.x).T
+        self.msg_est_status.data['time'] = t
+        self.msg_est_status.data['n_x'] = self.n_x
+        self.msg_est_status.data['x'][: self.n_x] = np.array(self.x).T
         W_vect = np.reshape(np.array(self.W)[np.diag_indices(self.n_e)], -1)
-        self.msg_est_status.data["W"][: len(W_vect)] = W_vect
-        self.msg_est_status.data["cpu_predict"] = cpu_predict
+        self.msg_est_status.data['W'][: len(W_vect)] = W_vect
+        self.msg_est_status.data['cpu_predict'] = cpu_predict
         self.pub_est.publish(self.msg_est_status)

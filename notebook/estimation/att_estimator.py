@@ -5,19 +5,19 @@ import numpy as np
 
 def derive_dynamics_linearization():
     # input varibles
-    P = ca.SX.sym("P", 3, 3)  # covariance matrix
-    # x = lie.so3.elem(ca.SX.sym("x", 3))  # state
-    omega = lie.so3.elem(ca.SX.sym("omega", 3))  # angular velocity, from gyroscope
-    q = lie.SO3Quat.elem(ca.SX.sym("q", 4))  # quaternion
-    qr = lie.SO3Quat.elem(ca.SX.sym("qr", 4))  # reference quaternion
+    P = ca.SX.sym('P', 3, 3)  # covariance matrix
+    # x = lie.so3.elem(ca.SX.sym('x', 3))  # state
+    omega = lie.so3.elem(ca.SX.sym('omega', 3))  # angular velocity, from gyroscope
+    q = lie.SO3Quat.elem(ca.SX.sym('q', 4))  # quaternion
+    qr = lie.SO3Quat.elem(ca.SX.sym('qr', 4))  # reference quaternion
 
     # input parameters
-    dt = ca.SX.sym("dt")  # prediction period of kalman filter
-    gyro_sqrt_noise_power = ca.SX.sym("gyro_sqrt_noise_power")
+    dt = ca.SX.sym('dt')  # prediction period of kalman filter
+    gyro_sqrt_noise_power = ca.SX.sym('gyro_sqrt_noise_power')
 
     # computed values
     Q = ca.SX.eye(3) * gyro_sqrt_noise_power**2 * dt
-    # qr = lie.SO3Quat.elem(ca.SX.sym("qr", 4))
+    # qr = lie.SO3Quat.elem(ca.SX.sym('qr', 4))
 
     # here we assume that noise can be viewed as constant during this
     # sampling period, this is valid if the noise power is constant
@@ -38,38 +38,38 @@ def derive_dynamics_linearization():
 
     euler_error = lie.SO3EulerB321.from_Quat(q.inverse() * qr).param
     f_euler_error = ca.Function(
-        "eulerB321_error", [q.param, qr.param], [euler_error], ["q", "qr"], ["euler"]
+        'eulerB321_error', [q.param, qr.param], [euler_error], ['q', 'qr'], ['euler']
     )
 
     q1 = q * (omega * dt).exp(lie.SO3Quat)
 
     f_exp_quat = ca.Function(
-        "exp_quat", [q.param, omega.param, dt], [q1.param], ["q", "omega", "dt"], ["q1"]
+        'exp_quat', [q.param, omega.param, dt], [q1.param], ['q', 'omega', 'dt'], ['q1']
     )
 
     f_kalman_predict = ca.Function(
-        "kalman_predict",
+        'kalman_predict',
         [q.param, ca.reshape(P, 9, 1), gyro_sqrt_noise_power, dt, omega.param],
         [q1.param.T, ca.reshape(P1, 9, 1)],
-        ["q", "P", "gyro_sqrt_noise_power", "dt", "omega"],
-        ["q1", "P1"],
+        ['q', 'P', 'gyro_sqrt_noise_power', 'dt', 'omega'],
+        ['q1', 'P1'],
     )
 
     return {
         #'f_log_error_quat': f_log_error_quat,
-        "exp_quat": f_exp_quat,
-        "kalman_predict": f_kalman_predict,
-        "euler_error": f_euler_error,
+        'exp_quat': f_exp_quat,
+        'kalman_predict': f_kalman_predict,
+        'euler_error': f_euler_error,
     }
 
 
 def derive_accel_measurement():
-    v = ca.SX.sym("v", 3)  # measurement noise
-    x = lie.so3.elem(ca.SX.sym("x", 3))  # state (lie algebra)
+    v = ca.SX.sym('v', 3)  # measurement noise
+    x = lie.so3.elem(ca.SX.sym('x', 3))  # state (lie algebra)
     zh = ca.vertcat(0, 0, 1)  # z unit vector
-    accel_noise_str = ca.SX.sym("accel_noise_str")
-    g = ca.SX.sym("g")
-    qr = lie.SO3Quat.elem(ca.SX.sym("qr", 4))
+    accel_noise_str = ca.SX.sym('accel_noise_str')
+    g = ca.SX.sym('g')
+    qr = lie.SO3Quat.elem(ca.SX.sym('qr', 4))
     qe = x.exp(lie.SO3Quat)
 
     # parameterize measurements in exponential coordinates
@@ -81,11 +81,11 @@ def derive_accel_measurement():
         return expr
 
     f_accel_g = ca.Function(
-        "accel_g",
+        'accel_g',
         [qr.param, v, g, accel_noise_str],
         [sub_est_zero_error(y_accel)],
-        ["qr", "v", "g", "accel_noise_str"],
-        ["y"],
+        ['qr', 'v', 'g', 'accel_noise_str'],
+        ['y'],
     )
 
     # jacobian of measurement wrt state at zero error
@@ -98,8 +98,8 @@ def derive_accel_measurement():
     R_accel = N_accel @ N_accel.T
 
     # kalman update
-    y_accel_meas = ca.SX.sym("y_accel", 3)
-    P = ca.SX.sym("P", 3, 3)
+    y_accel_meas = ca.SX.sym('y_accel', 3)
+    P = ca.SX.sym('P', 3, 3)
     S = H_accel @ P @ H_accel.T + R_accel
     K = P @ H_accel.T @ ca.inv(S)
     P1 = (ca.SX.eye(3) - K @ H_accel) @ P
@@ -108,31 +108,31 @@ def derive_accel_measurement():
     q1 = (lie.so3.elem(K @ (y_accel_meas - y_accel_est))).exp(lie.SO3Quat) * qr
 
     f_accel_kalman_update = ca.Function(
-        "accel_kalman_update",
+        'accel_kalman_update',
         [y_accel_meas, qr.param, ca.reshape(P, 9, 1), g, accel_noise_str],
         [q1.param, ca.reshape(P1, 9, 1), K, H_accel, R_accel],
-        ["y_accel", "q0", "P0", "g", "accel_noise_str"],
-        ["q1", "P1", "K", "H", "R"],
+        ['y_accel', 'q0', 'P0', 'g', 'accel_noise_str'],
+        ['q1', 'P1', 'K', 'H', 'R'],
     )
 
     return {
-        "accel_g": f_accel_g,
-        "accel_kalman_update": f_accel_kalman_update,
+        'accel_g': f_accel_g,
+        'accel_kalman_update': f_accel_kalman_update,
     }
 
 
 def derive_mag_measurement():
     # parameters
-    mag_decl = ca.SX.sym("decl")
-    mag_incl = ca.SX.sym("incl")
-    mag_str = ca.SX.sym("mag_str")
-    mag_noise_str = ca.SX.sym("mag_noise_str")
+    mag_decl = ca.SX.sym('decl')
+    mag_incl = ca.SX.sym('incl')
+    mag_str = ca.SX.sym('mag_str')
+    mag_noise_str = ca.SX.sym('mag_noise_str')
 
     # inputs
-    v = ca.SX.sym("v", 3)  # measurement noise
-    x = lie.so3.elem(ca.SX.sym("x", 3))  # state (lie algebra)
+    v = ca.SX.sym('v', 3)  # measurement noise
+    x = lie.so3.elem(ca.SX.sym('x', 3))  # state (lie algebra)
     q_we = x.exp(lie.SO3Quat)  # right inv error quaternion
-    q_eb = lie.SO3Quat.elem(ca.SX.sym("q_eb", 4))  # reference quaterion
+    q_eb = lie.SO3Quat.elem(ca.SX.sym('q_eb', 4))  # reference quaterion
 
     # constants
     xh = ca.vertcat(1, 0, 0)  # x unit vector
@@ -162,18 +162,18 @@ def derive_mag_measurement():
 
     # define functions
     f_g_mag = ca.Function(
-        "g_mag",
+        'g_mag',
         [q_eb.param, v, mag_decl, mag_incl, mag_str, mag_noise_str],
         [ca.substitute(y_mag_b, x.param, [0, 0, 0])],
-        ["q_eb", "v", "mag_decl", "mag_incl", "mag_str", "mag_noise_str"],
-        ["y_mag_b"],
+        ['q_eb', 'v', 'mag_decl', 'mag_incl', 'mag_str', 'mag_noise_str'],
+        ['y_mag_b'],
     )
 
     # kalman update
-    y_mag_meas_b = ca.SX.sym("y_mag_b", 3)
+    y_mag_meas_b = ca.SX.sym('y_mag_b', 3)
     y_mag_meas_e = (q_eb @ y_mag_meas_b)[:2]
 
-    P = ca.SX.sym("P", 3, 3)
+    P = ca.SX.sym('P', 3, 3)
     S = H_mag @ P @ H_mag.T + R_mag
     K = P @ H_mag.T @ ca.inv(S)
     P1 = (ca.SX.eye(3) - K @ H_mag) @ P
@@ -187,7 +187,7 @@ def derive_mag_measurement():
     q1 = lie.so3.elem(delta_x).exp(lie.SO3Quat) * q_eb
 
     f_mag_kalman_update = ca.Function(
-        "mag_kalman_update",
+        'mag_kalman_update',
         [
             y_mag_meas_b,
             q_eb.param,
@@ -198,13 +198,13 @@ def derive_mag_measurement():
             mag_noise_str,
         ],
         [q1.param, ca.reshape(P1, 9, 1), K, H_mag, delta_x],
-        ["y_mag", "q0", "P0", "mag_decl", "mag_incl", "mag_str", "mag_noise_str"],
-        ["q1", "P1", "K", "H_mag", "delta_x"],
+        ['y_mag', 'q0', 'P0', 'mag_decl', 'mag_incl', 'mag_str', 'mag_noise_str'],
+        ['q1', 'P1', 'K', 'H_mag', 'delta_x'],
     )
 
     return {
-        "mag_g": f_g_mag,
-        "mag_kalman_update": f_mag_kalman_update,
+        'mag_g': f_g_mag,
+        'mag_kalman_update': f_mag_kalman_update,
     }
 
 
@@ -242,7 +242,7 @@ def simulate():
     eqs.update(derive_dynamics_linearization())
 
     def ca2np(vect: ca.SX):
-        """function to turn casadi vectors into numpy vectors"""
+        '''function to turn casadi vectors into numpy vectors'''
         return np.array(ca.DM(vect)).reshape(-1)
 
     # initialize loops
@@ -260,19 +260,19 @@ def simulate():
 
     def sim_mag(x):
         return ca2np(
-            eqs["mag_g"](
+            eqs['mag_g'](
                 x, np.random.randn(3), mag_decl, mag_incl, mag_str, mag_noise_std_dev
             )
         )
 
     def sim_accel(x):
-        return ca2np(eqs["accel_g"](x, np.random.randn(3), g, accel_noise_std_dev))
+        return ca2np(eqs['accel_g'](x, np.random.randn(3), g, accel_noise_std_dev))
 
     def sim_gyro(omega_b):
         return omega_b + gyro_noise_std_dev * np.random.randn(3)
 
     def kalman_predict(x_est, P):
-        x_est, P = eqs["kalman_predict"](x_est, P, gyro_sqrt_noise_power, dt, y_gyro)
+        x_est, P = eqs['kalman_predict'](x_est, P, gyro_sqrt_noise_power, dt, y_gyro)
         x_est = ca2np(x_est)
         P = ca2np(P)
         assert np.all(np.isfinite(x_est))
@@ -280,7 +280,7 @@ def simulate():
         return x_est, P
 
     def kalman_correct_mag(x_est, P, y_mag):
-        [x_est, P, K, H, delta_x] = eqs["mag_kalman_update"](
+        [x_est, P, K, H, delta_x] = eqs['mag_kalman_update'](
             y_mag,
             x_est,
             P,
@@ -298,7 +298,7 @@ def simulate():
         return x_est, P
 
     def kalman_correct_accel(x_est, P, y_accel):
-        [x_est, P, K, H, R] = eqs["accel_kalman_update"](
+        [x_est, P, K, H, R] = eqs['accel_kalman_update'](
             y_accel,
             x_est,
             P,
@@ -320,32 +320,32 @@ def simulate():
 
     # data dictionary for simulation
     data = {
-        "t": [],
-        "x": [],
-        "x_est": [],
-        "y_mag": [],
-        "y_accel": [],
-        "y_gyro": [],
-        "P": [],
-        "euler_error": [],
+        't': [],
+        'x': [],
+        'x_est': [],
+        'y_mag': [],
+        'y_accel': [],
+        'y_gyro': [],
+        'P': [],
+        'euler_error': [],
     }
 
     # main simulation loop
     for ti in np.arange(0, tf, dt):
-        euler_error = ca2np(eqs["euler_error"](x_est, x))
+        euler_error = ca2np(eqs['euler_error'](x_est, x))
 
         # store data
-        data["t"].append(ti)
-        data["x"].append(x)
-        data["x_est"].append(x_est)
-        data["y_mag"].append(y_mag)
-        data["y_accel"].append(y_accel)
-        data["y_gyro"].append(y_gyro)
-        data["P"].append(P)
-        data["euler_error"].append(euler_error)
+        data['t'].append(ti)
+        data['x'].append(x)
+        data['x_est'].append(x_est)
+        data['y_mag'].append(y_mag)
+        data['y_accel'].append(y_accel)
+        data['y_gyro'].append(y_gyro)
+        data['P'].append(P)
+        data['euler_error'].append(euler_error)
 
         # simulation
-        x = ca2np(eqs["exp_quat"](x, omega_b, dt))
+        x = ca2np(eqs['exp_quat'](x, omega_b, dt))
         y_gyro = sim_gyro(omega_b)
 
         # kalman prediction

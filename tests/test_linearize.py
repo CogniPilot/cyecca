@@ -3,7 +3,7 @@
 import casadi as ca
 import numpy as np
 import pytest
-from cyecca.model import (
+from cyecca.dynamics import (
     ModelSX,
     input_var,
     param,

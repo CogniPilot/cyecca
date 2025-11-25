@@ -116,6 +116,10 @@ def _sympy_parser(f, f_dict=None, symbols=None, depth=0, cse=False, verbose=Fals
         return ca.tan(prs(f.args[0]))
     elif str(f_type) == "atan":
         return ca.arctan(prs(f.args[0]))
+    elif str(f_type) == "exp":
+        return ca.exp(prs(f.args[0]))
+    elif str(f_type) == "atan2":
+        return ca.atan2(prs(f.args[0]), prs(f.args[1]))
     elif str(f_type) in dict_keys:
         for i in range(len(dict_keys)):
             return f_dict[dict_keys[i]](prs(f.args[0]))

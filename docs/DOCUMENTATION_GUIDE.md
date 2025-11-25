@@ -50,7 +50,7 @@ def my_function(x, y):
     Examples
     --------
     >>> import casadi as ca
-    >>> from cyecca.model import my_function
+    >>> from cyecca.dynamics import my_function
     >>> result = my_function(1, 2)
     >>> result
     3
@@ -131,7 +131,7 @@ Common imports are configured in `docs/conf.py`:
 doctest_global_setup = """
 import casadi as ca
 import cyecca.lie as lie
-from cyecca.model import *
+from cyecca.dynamics import *
 import matplotlib
 matplotlib.use('Agg')
 """

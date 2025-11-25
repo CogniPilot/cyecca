@@ -41,7 +41,7 @@ def state(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""
     Examples
     --------
     >>> import casadi as ca
-    >>> from cyecca.model import state, symbolic
+    >>> from cyecca.dynamics import state, symbolic
     >>> @symbolic
     ... class States:
     ...     x: ca.SX = state(1, 0.0, "position (m)")

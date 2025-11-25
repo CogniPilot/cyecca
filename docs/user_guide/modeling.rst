@@ -19,7 +19,7 @@ Quick Start
 .. doctest::
 
    >>> import casadi as ca
-   >>> from cyecca.model import ModelSX, state, input_var, param, symbolic
+   >>> from cyecca.dynamics import ModelSX, state, input_var, param, symbolic
    >>> @symbolic
    ... class States:
    ...     x: ca.SX = state(1, 0.0, "position")
@@ -115,7 +115,7 @@ Find trim conditions and analyze stability:
 
 .. code-block:: python
 
-   from cyecca.model import find_trim, linearize, analyze_modes
+   from cyecca.dynamics import find_trim, linearize, analyze_modes
    
    # Find equilibrium
    x_trim, u_trim = find_trim(model, x_guess, u_guess, p_values)

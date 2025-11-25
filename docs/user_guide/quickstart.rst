@@ -26,7 +26,7 @@ Build a simple mass-spring-damper system:
 
 .. code-block:: python
 
-   from cyecca.model import ModelSX, state, input_var, param, symbolic
+   from cyecca.dynamics import ModelSX, state, input_var, param, symbolic
    import casadi as ca
    
    @symbolic
@@ -52,15 +52,8 @@ Build a simple mass-spring-damper system:
    
    model.build(f_x=f_x, integrator='rk4')
    
-   # Simulate
-   result = model.simulate(
-       t0=0.0, 
-       tf=10.0, 
-       dt=0.01,
-       x0={'x': 1.0, 'v': 0.0},
-       u={'F': 0.0},
-       p={'m': 1.0, 'c': 0.1, 'k': 1.0}
-   )
+   # Simulate (uses default initial conditions from States/Inputs/Params)
+   result = model.simulate(t0=0.0, tf=10.0, dt=0.01)
    
    # Plot results
    import matplotlib.pyplot as plt

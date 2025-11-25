@@ -9,7 +9,7 @@ Main components:
 - Models: ModelSX/ModelMX for building and simulating systems
 
 Quick Start:
-    from cyecca.model import ModelSX, state, input_var, param, symbolic
+    from cyecca.dynamics import ModelSX, state, input_var, param, symbolic
 
     @symbolic
     class States:

@@ -6,13 +6,16 @@ authors = ["James Goppert <james.goppert@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "~3.12"
-numpy = "~1.26"
-casadi = {version = "^3.6.5"}
-scipy = "~1.11"
-sympy = "~1.12"
+python = "^3.12"
+numpy = "^1.26"
+casadi = "^3.6.5"
+scipy = "^1.11"
+sympy = "^1.12"
 beartype = "^0.19.0"
-pydot = "^3.0.3"
+pydot = {version = "^3.0.3", optional = true}
+
+[tool.poetry.extras]
+visualization = ["pydot"]
 
 [tool.poetry.group.dev.dependencies]
 black = {extras = ["jupyter"], version = "^24.10.0"}

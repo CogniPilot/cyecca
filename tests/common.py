@@ -9,17 +9,18 @@ import casadi as ca
 
 EPS = 1e-9
 
-from cyecca.symbolic import casadi_to_sympy
 import numpy as np
 
 
 @beartype
 def is_finite(e: ca.SX) -> bool:
+    """Check if all elements in a CasADi expression are finite."""
     return bool(np.all(np.isfinite(ca.DM(e))))
 
 
 @beartype
 def SX_close(e1: Union[ca.SX, ca.DM], e2: Union[ca.SX, ca.DM]):
+    """Check if two CasADi expressions are close within EPS tolerance."""
     close = ca.mmax(e1 - e2) < EPS
     if not close:
         print(ca.DM(e1), ca.DM(e2))
@@ -28,6 +29,8 @@ def SX_close(e1: Union[ca.SX, ca.DM], e2: Union[ca.SX, ca.DM]):
 
 @beartype
 class ProfiledTestCase(unittest.TestCase):
+    """Base test case with profiling support."""
+
     def setUp(self):
         self.pr = cProfile.Profile()
         self.pr.enable()

@@ -18,7 +18,7 @@ Lie Groups
 Model Framework
 ---------------
 
-.. automodule:: cyecca.model
+.. automodule:: cyecca.dynamics
    :members:
    :undoc-members:
    :show-inheritance:

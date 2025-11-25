@@ -37,11 +37,11 @@ X = lie.SE3Quat.elem(ca.DM([1, 2, 3, 1, 0, 0, 0]))  # position + quaternion
 X_inv = X.inverse()
 
 # Type-safe modeling with full autocomplete
-from cyecca.model import ModelSX, state, input_var, param, symbolic
+from cyecca.dynamics import ModelSX, state, input_var, param, output_var, symbolic
 
 @symbolic
 class States:
-    x: ca.SX = state(1, 0.0, "position")
+    x: ca.SX = state(1, 1.0, "position")  # Start at x=1
     v: ca.SX = state(1, 0.0, "velocity")
 
 @symbolic
@@ -52,12 +52,31 @@ class Inputs:
 class Params:
     m: ca.SX = param(1.0, "mass")
     c: ca.SX = param(0.1, "damping")
+    k: ca.SX = param(1.0, "spring constant")
 
-model = ModelSX.create(States, Inputs, Params)
-x, u, p = model.x, model.u, model.p
-f_x = ca.vertcat(x.v, (u.F - p.c * x.v) / p.m)
-model.build(f_x=f_x, integrator='rk4')
+@symbolic
+class Outputs:
+    position: ca.SX = output_var(desc="position output")
+    velocity: ca.SX = output_var(desc="velocity output")
+
+model = ModelSX.create(States, Inputs, Params, output_type=Outputs)
+x, u, p, y = model.x, model.u, model.p, model.y
+
+# Mass-spring-damper: mx'' + cx' + kx = F
+f_x = ca.vertcat(x.v, (u.F - p.c * x.v - p.k * x.x) / p.m)
+
+# Output the full state
+f_y = ca.vertcat(x.x, x.v)
+
+model.build(f_x=f_x, f_y=f_y, integrator='rk4')
+
+# Simulate free oscillation from x0=1
 result = model.simulate(0.0, 10.0, 0.01)
+# Output:
+#   Final position: -0.529209
+#   Final velocity: 0.323980
+#   result['out'][0, :] contains position trajectory
+#   result['out'][1, :] contains velocity trajectory
 ```
 
 ## Documentation
@@ -82,17 +101,23 @@ cd docs && poetry run make html
 ### Lie Groups (`cyecca.lie`)
 Complete implementations of SO(2), SO(3), SE(2), SE(3), SE_2(3), and R^n with multiple parameterizations.
 
-**Key features:** Group operations, Lie algebra, Jacobians, conversions  
+**Key features:** Group operations, Lie algebra, Jacobians, conversions
 **Learn more:** [Lie Groups Guide](docs/user_guide/lie_groups.rst)
 
-### Modeling Framework (`cyecca.model`)
+### Dynamics Framework (`cyecca.dynamics`)
 Type-safe declarative API for building hybrid dynamical systems with IDE autocomplete.
 
-**Key features:** Continuous/discrete states, events, DAE, composition, linearization  
+**Key features:** Continuous/discrete states, events, DAE, composition, linearization
 **Learn more:** [Modeling Guide](docs/user_guide/modeling.rst)
 
 ### Pre-Built Models (`cyecca.models`)
 Ready-to-use dynamics models: quadrotor, fixed-wing aircraft, RDD2 controller, Bezier trajectories
+
+### Path Planning (`cyecca.planning`)
+Dubins path planner for fixed-wing aircraft with forward-only, fixed turn radius constraints.
+
+**Key features:** CasADi-based symbolic planning, RSL/LSR/LSL/RSR path types, branch-free implementation
+**Learn more:** [Planning Module](cyecca/planning/)
 
 ### Other Modules
 - **integrators** - RK4, RK8 (DOP853), Euler with adaptive stepping

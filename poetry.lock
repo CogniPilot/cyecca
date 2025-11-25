@@ -91,7 +91,10 @@ files = [
 ]
 
 [package.dependencies]
-cffi = {version = ">=1.0.1", markers = "python_version < \"3.14\""}
+cffi = [
+    {version = ">=1.0.1", markers = "python_version < \"3.14\""},
+    {version = ">=2.0.0b1", markers = "python_version >= \"3.14\""},
+]
 
 [[package]]
 name = "arrow"
@@ -2341,7 +2344,7 @@ files = [
 name = "pydot"
 version = "3.0.4"
 description = "Python interface to Graphviz's Dot"
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "pydot-3.0.4-py3-none-any.whl", hash = "sha256:bfa9c3fc0c44ba1d132adce131802d7df00429d1a79cc0346b0a5cd374dbe9c6"},
@@ -3402,7 +3405,10 @@ docs = ["Sphinx (>=6.0)", "myst-parser (>=2.0.0)", "sphinx_rtd_theme (>=1.1.0)"]
 optional = ["python-socks", "wsaccel"]
 test = ["pytest", "websockets"]
 
+[extras]
+visualization = ["pydot"]
+
 [metadata]
 lock-version = "2.0"
-python-versions = "~3.12"
-content-hash = "d3bb7fc5d12effcd091d5ee8e90dc1337c187093de82119745a46ca4070c53d8"
+python-versions = "^3.12"
+content-hash = "25c937b9c3fc57405b2d1268170857332d289dd8c338185eb404d6191eadbd4a"

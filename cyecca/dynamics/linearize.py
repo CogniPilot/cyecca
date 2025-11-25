@@ -7,7 +7,7 @@ Provides tools for:
 - Linearizing dynamics around operating points
 - Modal analysis (eigenvalue decomposition, stability, frequencies)
 
-Works with any ModelSX/ModelMX instance from cyecca.model.
+Works with any ModelSX/ModelMX instance from cyecca.dynamics.
 """
 
 import casadi as ca

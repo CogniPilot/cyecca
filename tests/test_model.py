@@ -4,6 +4,7 @@ import casadi as ca
 import numpy as np
 import pytest
 from cyecca.model import ModelMX, ModelSX, input_var, output_var, param, state, symbolic
+from cyecca.model.composition import SubmodelProxy
 
 
 class TestModelCreate:
@@ -350,7 +351,7 @@ class TestModelComposition:
 
         # Verify child proxy is accessible as attribute
         assert hasattr(parent, "child")
-        assert isinstance(parent.child, parent.SubmodelProxy)
+        assert isinstance(parent.child, SubmodelProxy)
 
     def test_connect_signals(self):
         """Test signal connection API."""

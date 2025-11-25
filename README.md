@@ -123,8 +123,6 @@ ros2 launch cyecca fixedwing_sim.xml   # Fixed-wing simulation
 | **SE(3)Quat** | 7 (pos+quat) | Manipulators, 3D SLAM |
 | **SE_2(3)** | 10 (p+v+quat) | IMU preintegration, VIO |
 
-See [cyecca/lie/README.md](cyecca/lie/README.md) for detailed examples and conversions.
-
 ## Dependencies
 
 Core dependencies (automatically installed):

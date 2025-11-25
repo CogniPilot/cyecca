@@ -1,2 +1,4 @@
-from cyecca.lie import *
-from cyecca.model import *
+from . import lie
+from . import model
+
+__all__ = ["lie", "model"]

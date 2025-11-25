@@ -28,6 +28,9 @@ from cyecca.model import (
     param,                      # Time-independent parameter
     symbolic,                   # Decorator for dataclasses
     compose_states,             # Compose multiple state types
+    find_trim,                  # Find trim/equilibrium points
+    linearize_dynamics,         # Linearize dynamics around operating point
+    analyze_modes,              # Modal analysis (eigenvalues, stability)
 )
 ```
 
@@ -361,6 +364,50 @@ model.build(
     f_alg=f_alg,  # Algebraic constraints
     integrator='idas'
 )
+```
+
+## Linearization and Trim
+
+Find equilibrium points and linearize dynamics for stability analysis:
+
+```python
+from cyecca.model import find_trim, linearize_dynamics, analyze_modes
+
+# Find trim/equilibrium point
+def cost_fn(model, x, u, p, x_dot):
+    # Minimize state derivatives at desired operating point
+    return ca.sumsqr(x_dot.as_vec())
+
+def constraints_fn(model, x, u, p, x_dot):
+    # Constrain specific variables (e.g., airspeed = 15 m/s)
+    return [x.v == 15.0]
+
+x_trim, u_trim, stats = find_trim(
+    model,
+    x_guess=model.x0,
+    u_guess=model.u0,
+    cost_fn=cost_fn,
+    constraints_fn=constraints_fn,
+    verbose=True
+)
+
+# Linearize around trim point
+A, B = linearize_dynamics(model, x_trim, u_trim)
+
+# Analyze eigenvalues and stability
+state_names = ["x", "v", "theta", "omega"]
+modes = analyze_modes(A, state_names=state_names)
+
+for mode in modes:
+    print(f"Eigenvalue: {mode['eigenvalue']:.4f}")
+    print(f"Stable: {mode['stable']}")
+    if mode['is_oscillatory']:
+        print(f"Frequency: {mode['frequency_hz']:.2f} Hz")
+        print(f"Period: {mode['period']:.2f} s")
+        print(f"Damping ratio: {mode['damping_ratio']:.3f}")
+    print(f"Time constant: {mode['time_constant']:.2f} s")
+    if 'dominant_states' in mode:
+        print(f"Dominant states: {mode['dominant_states']}")
 ```
 
 ## Pre-built Models

@@ -469,7 +469,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
 
     def _build_rk4_integrator(self, options: dict):
         """Build RK4 integrator."""
-        from .. import integrators
+        from . import integrators
 
         dt_sym = ca.SX.sym("dt")
         N = options.get("N", 10)
@@ -924,7 +924,7 @@ class ModelMX(ModelSX[TState, TInput, TParam]):
 
     def _build_rk4_integrator(self, options: dict):
         """Build RK4 integrator with MX."""
-        from .. import integrators
+        from . import integrators
 
         dt_sym = ca.MX.sym("dt")
         N = options.get("N", 10)

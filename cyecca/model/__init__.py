@@ -49,6 +49,14 @@ from .core import (
     ModelMX,
 )
 
+# Linearization and analysis tools
+from .linearize import (
+    find_trim,
+    linearize_dynamics,
+    analyze_modes,
+    print_trim_details,
+)
+
 __all__ = [
     # Field creators
     "state",
@@ -67,4 +75,9 @@ __all__ = [
     # Model classes
     "ModelSX",
     "ModelMX",
+    # Linearization
+    "find_trim",
+    "linearize_dynamics",
+    "analyze_modes",
+    "print_trim_details",
 ]

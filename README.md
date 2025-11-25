@@ -66,8 +66,8 @@ Complete implementations of SO(2), SO(3), SE(2), SE(3), SE_2(3), and R^n with mu
 ### [Modeling Framework](cyecca/model/README.md)
 Type-safe declarative API for building hybrid dynamical systems with IDE autocomplete.
 
-**Key features:** Continuous/discrete states, events, DAE constraints, hierarchical composition  
-**Use cases:** Flight dynamics, robotics, control systems, hybrid systems
+**Key features:** Continuous/discrete states, events, DAE constraints, hierarchical composition, trim/linearization
+**Use cases:** Flight dynamics, robotics, control systems, hybrid systems, stability analysis
 
 ### [Pre-Built Models](cyecca/models/README.md)
 Ready-to-use dynamics models for robotics and aerospace systems.

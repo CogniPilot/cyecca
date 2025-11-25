@@ -1,3 +1,4 @@
+from __future__ import annotations
 from IPython.display import Image, display
 import os
 from pathlib import Path
@@ -5,6 +6,10 @@ import tempfile
 import casadi as ca
 from casadi import print_operator as print_operator_orig
 import casadi.tools.graph as mod_graph
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pydot
 
 try:
     import pydot
@@ -12,12 +17,11 @@ try:
     PYDOT_AVAILABLE = True
 except ImportError:
     PYDOT_AVAILABLE = False
-    pydot = None
 
 
 def draw_casadi(
     expr: ca.SX or ca.MX, filename: str = None, width: int = 1920, direction: str = "LR"
-) -> pydot.Graph:
+) -> "pydot.Graph":
     """
     Draw a CasADi expression graph.
 

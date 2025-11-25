@@ -21,7 +21,7 @@ class Test_Symbolic(ProfiledTestCase):
         y = sympy.sin(x) + 2
         result, symbols = sympy_to_casadi(y)
         assert isinstance(result, ca.SX)
-        assert 'x' in symbols
+        assert "x" in symbols
 
     def test_casadi_to_sympy(self):
         """Test basic CasADi to SymPy conversion."""
@@ -36,14 +36,16 @@ class Test_Symbolic(ProfiledTestCase):
         x, y, z = sympy.symbols("x y z")
 
         # Create a 6x1 SymPy matrix with complex expressions
-        sympy_matrix = sympy.Matrix([
-            sympy.sin(x) + sympy.cos(y),
-            x**2 + y**2,
-            sympy.exp(z),
-            sympy.sqrt(x**2 + y**2 + z**2),
-            sympy.atan2(y, x),
-            x * y * z
-        ])
+        sympy_matrix = sympy.Matrix(
+            [
+                sympy.sin(x) + sympy.cos(y),
+                x**2 + y**2,
+                sympy.exp(z),
+                sympy.sqrt(x**2 + y**2 + z**2),
+                sympy.atan2(y, x),
+                x * y * z,
+            ]
+        )
 
         # Convert to CasADi
         casadi_vec, symbols = sympy_to_casadi(sympy_matrix)
@@ -56,9 +58,9 @@ class Test_Symbolic(ProfiledTestCase):
         x_val, y_val, z_val = 1.5, 2.3, 0.7
 
         # Create CasADi function for evaluation
-        casadi_func = ca.Function("f",
-                                  [symbols['x'], symbols['y'], symbols['z']],
-                                  [casadi_vec])
+        casadi_func = ca.Function(
+            "f", [symbols["x"], symbols["y"], symbols["z"]], [casadi_vec]
+        )
         casadi_result = casadi_func(x_val, y_val, z_val)
 
         # Compute expected result with SymPy
@@ -66,9 +68,9 @@ class Test_Symbolic(ProfiledTestCase):
         expected_numeric = np.array([float(val) for val in expected])
 
         # Compare results
-        assert np.allclose(np.array(casadi_result).flatten(),
-                          expected_numeric.flatten(),
-                          rtol=1e-10)
+        assert np.allclose(
+            np.array(casadi_result).flatten(), expected_numeric.flatten(), rtol=1e-10
+        )
 
     def test_casadi_vector_to_sympy_matrix(self):
         """Test CasADi SX vector to SymPy Matrix conversion and back."""
@@ -84,7 +86,7 @@ class Test_Symbolic(ProfiledTestCase):
             ca.exp(z),
             ca.sqrt(x**2 + y**2 + z**2),
             ca.atan2(y, x),
-            x * y * z
+            x * y * z,
         )
 
         # Convert to SymPy
@@ -105,24 +107,25 @@ class Test_Symbolic(ProfiledTestCase):
 
         # Evaluate both expressions
         func_original = ca.Function("f_orig", [x, y, z], [casadi_vec])
-        func_roundtrip = ca.Function("f_round",
-                                     [symbols_rt['x'], symbols_rt['y'], symbols_rt['z']],
-                                     [casadi_roundtrip])
+        func_roundtrip = ca.Function(
+            "f_round",
+            [symbols_rt["x"], symbols_rt["y"], symbols_rt["z"]],
+            [casadi_roundtrip],
+        )
 
         result_original = func_original(x_val, y_val, z_val)
         result_roundtrip = func_roundtrip(x_val, y_val, z_val)
 
         # Should be very close after roundtrip
-        assert np.allclose(np.array(result_original),
-                          np.array(result_roundtrip),
-                          rtol=1e-10)
+        assert np.allclose(
+            np.array(result_original), np.array(result_roundtrip), rtol=1e-10
+        )
 
     def test_matrix_operations_conversion(self):
         """Test conversion of matrix operations."""
         # SymPy matrix operations
         x = sympy.symbols("x")
-        A = sympy.Matrix([[sympy.sin(x), sympy.cos(x)],
-                         [sympy.cos(x), -sympy.sin(x)]])
+        A = sympy.Matrix([[sympy.sin(x), sympy.cos(x)], [sympy.cos(x), -sympy.sin(x)]])
         v = sympy.Matrix([x, x**2])
 
         # Matrix-vector multiplication
@@ -137,13 +140,13 @@ class Test_Symbolic(ProfiledTestCase):
 
         # Test numeric evaluation
         x_val = 0.5
-        func = ca.Function("f", [symbols['x']], [result_casadi])
+        func = ca.Function("f", [symbols["x"]], [result_casadi])
         numeric_result = func(x_val)
 
         # Compute expected
         expected = result_sympy.subs(x, x_val)
         expected_numeric = np.array([float(expected[0]), float(expected[1])])
 
-        assert np.allclose(np.array(numeric_result).flatten(),
-                          expected_numeric,
-                          rtol=1e-10)
+        assert np.allclose(
+            np.array(numeric_result).flatten(), expected_numeric, rtol=1e-10
+        )

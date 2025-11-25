@@ -89,7 +89,9 @@ class TestPositionContinuity:
             tp0, tp1 = np.array(tp0).flatten(), np.array(tp1).flatten()
             c0, c1 = np.array(c0).flatten(), np.array(c1).flatten()
 
-            path_x, path_y, _ = evaluate_path(eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R)
+            path_x, path_y, _ = evaluate_path(
+                eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R
+            )
 
             dx = np.diff(path_x)
             dy = np.diff(path_y)
@@ -114,7 +116,9 @@ class TestHeadingContinuity:
             tp0, tp1 = np.array(tp0).flatten(), np.array(tp1).flatten()
             c0, c1 = np.array(c0).flatten(), np.array(c1).flatten()
 
-            _, _, path_psi = evaluate_path(eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R)
+            _, _, path_psi = evaluate_path(
+                eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R
+            )
 
             dpsi = np.diff(path_psi)
             dpsi = np.arctan2(np.sin(dpsi), np.cos(dpsi))  # Wrap to [-pi, pi]
@@ -167,7 +171,9 @@ class TestBoundaryConditions:
             head_err = abs(np.arctan2(np.sin(psi1_out - psi1), np.cos(psi1_out - psi1)))
 
             assert pos_err < tolerance, f"Path {i}: end position error {pos_err:.6f}"
-            assert head_err < tolerance, f"Path {i}: end heading error {np.rad2deg(head_err):.6f}°"
+            assert (
+                head_err < tolerance
+            ), f"Path {i}: end heading error {np.rad2deg(head_err):.6f}°"
 
 
 class TestPathTypes:

@@ -6,9 +6,16 @@ Forward-only, 2D, fixed turn radius R planner.
 
 Usage:
     >>> from cyecca.planning import derive_dubins
+    >>> import casadi as ca
     >>> plan, eval_fn = derive_dubins()
+    >>> p0, psi0 = ca.DM([0, 0]), 0.0  # Start position and heading
+    >>> p1, psi1 = ca.DM([10, 10]), ca.pi/2  # End position and heading
+    >>> R = 5.0  # Turn radius
     >>> cost, type, a1, d, a2, tp0, tp1, c0, c1 = plan(p0, psi0, p1, psi1, R)
+    >>> s = 0.5  # Evaluation point along path (0 to 1)
     >>> x, y, psi = eval_fn(s, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R)
+    >>> float(cost) > 0  # Path cost should be positive
+    True
 
 Functions:
     - derive_dubins() -> (dubins_fixedwing, dubins_eval)
@@ -395,10 +402,18 @@ def derive_dubins():
     )
 
     # Pack cargo
-    cargo_rsl = ca.vertcat(DubinsPathType.RSL, a1_rsl, d_rsl, a2_rsl, t0_rsl, t1_rsl, cr0, cl1)
-    cargo_lsr = ca.vertcat(DubinsPathType.LSR, a1_lsr, d_lsr, a2_lsr, t0_lsr, t1_lsr, cl0, cr1)
-    cargo_lsl = ca.vertcat(DubinsPathType.LSL, a1_lsl, d_lsl, a2_lsl, t0_lsl, t1_lsl, cl0, cl1)
-    cargo_rsr = ca.vertcat(DubinsPathType.RSR, a1_rsr, d_rsr, a2_rsr, t0_rsr, t1_rsr, cr0, cr1)
+    cargo_rsl = ca.vertcat(
+        DubinsPathType.RSL, a1_rsl, d_rsl, a2_rsl, t0_rsl, t1_rsl, cr0, cl1
+    )
+    cargo_lsr = ca.vertcat(
+        DubinsPathType.LSR, a1_lsr, d_lsr, a2_lsr, t0_lsr, t1_lsr, cl0, cr1
+    )
+    cargo_lsl = ca.vertcat(
+        DubinsPathType.LSL, a1_lsl, d_lsl, a2_lsl, t0_lsl, t1_lsl, cl0, cl1
+    )
+    cargo_rsr = ca.vertcat(
+        DubinsPathType.RSR, a1_rsr, d_rsr, a2_rsr, t0_rsr, t1_rsr, cr0, cr1
+    )
 
     min_cost, best_cargo = casadi_min_with_cargo(
         costs=[cost_rsl, cost_lsr, cost_lsl, cost_rsr],
@@ -481,7 +496,9 @@ def derive_dubins():
 
     # Select segment
     in_arc1 = path_dist <= arc1_len
-    in_straight = ca.logic_and(path_dist > arc1_len, path_dist <= arc1_len + straight_len)
+    in_straight = ca.logic_and(
+        path_dist > arc1_len, path_dist <= arc1_len + straight_len
+    )
 
     x_out = ca.if_else(in_arc1, x1, ca.if_else(in_straight, x2, x3))
     y_out = ca.if_else(in_arc1, y1, ca.if_else(in_straight, y2, y3))
@@ -595,7 +612,9 @@ def plot_dubins_path(p0, psi0, p1, psi1, R, plan, eval_fn, ax=None, n_points=200
 
     # Draw circles
     for c in [c0, c1]:
-        circ = plt.Circle((c[0], c[1]), R, fill=False, color="gray", alpha=0.6, linestyle="--")
+        circ = plt.Circle(
+            (c[0], c[1]), R, fill=False, color="gray", alpha=0.6, linestyle="--"
+        )
         ax.add_patch(circ)
 
     # Evaluate path

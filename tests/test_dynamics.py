@@ -3,7 +3,15 @@
 import casadi as ca
 import numpy as np
 import pytest
-from cyecca.dynamics import ModelMX, ModelSX, input_var, output_var, param, state, symbolic
+from cyecca.dynamics import (
+    ModelMX,
+    ModelSX,
+    input_var,
+    output_var,
+    param,
+    state,
+    symbolic,
+)
 from cyecca.dynamics.composition import SubmodelProxy
 from cyecca.dynamics.integrators import rk4, rk8, build_rk_integrator, integrate_n_steps
 
@@ -14,7 +22,7 @@ class TestQuickStart:
     def test_readme_quickstart_example(self):
         """Verify the mass-spring-damper example from README works correctly."""
         # This is the exact code from the README Quick Start section
-        
+
         @symbolic
         class States:
             x: ca.SX = state(1, 1.0, "position")  # Start at x=1
@@ -44,35 +52,35 @@ class TestQuickStart:
         # Output the full state
         f_y = ca.vertcat(x.x, x.v)
 
-        model.build(f_x=f_x, f_y=f_y, integrator='rk4')
+        model.build(f_x=f_x, f_y=f_y, integrator="rk4")
 
         # Simulate free oscillation from x0=1
         result = model.simulate(0.0, 10.0, 0.01)
-        
+
         # Verify results match expected output
-        final_position = result['x'][0, -1]
-        final_velocity = result['x'][1, -1]
-        
+        final_position = result["x"][0, -1]
+        final_velocity = result["x"][1, -1]
+
         # Check values are close to documented output
         assert abs(final_position - (-0.529209)) < 0.001
         assert abs(final_velocity - 0.323980) < 0.001
-        
+
         # Verify we have the right number of timesteps
-        assert len(result['t']) == 1001  # 0 to 10 with dt=0.01
-        
+        assert len(result["t"]) == 1001  # 0 to 10 with dt=0.01
+
         # Verify initial conditions
-        assert result['x'][0, 0] == pytest.approx(1.0)
-        assert result['x'][1, 0] == pytest.approx(0.0)
-        
+        assert result["x"][0, 0] == pytest.approx(1.0)
+        assert result["x"][1, 0] == pytest.approx(0.0)
+
         # Verify oscillatory behavior (should cross zero at least once)
-        x_pos = result['x'][0, :]
+        x_pos = result["x"][0, :]
         sign_changes = np.sum(np.diff(np.sign(x_pos)) != 0)
         assert sign_changes >= 2  # At least one complete oscillation
-        
+
         # Verify outputs match states
-        assert 'out' in result
-        assert np.allclose(result['out'][0, :], result['x'][0, :])  # position output
-        assert np.allclose(result['out'][1, :], result['x'][1, :])  # velocity output
+        assert "out" in result
+        assert np.allclose(result["out"][0, :], result["x"][0, :])  # position output
+        assert np.allclose(result["out"][1, :], result["x"][1, :])  # velocity output
 
 
 class TestModelCreate:
@@ -343,7 +351,8 @@ class TestHybridFeatures:
         # Continuous state reset at event
         # Position: clamp to ground, velocity: reverse with energy loss
         f_m = ca.vertcat(
-            0.0, -p.e * x.v  # h+ = 0 (clamp to ground)  # v+ = -e * v (reverse and reduce)
+            0.0,
+            -p.e * x.v,  # h+ = 0 (clamp to ground)  # v+ = -e * v (reverse and reduce)
         )
 
         model.build(f_x=f_x, f_c=f_c, f_z=f_z, f_m=f_m, integrator="euler")
@@ -762,28 +771,28 @@ class TestIntegrators:
         x_sym = ca.SX.sym("x", 1)
         u_sym = ca.SX.sym("u", 0)  # No inputs
         p_sym = ca.SX.sym("p", 1)  # k parameter
-        
+
         f_x = -p_sym * x_sym
         f = ca.Function("f", [x_sym, u_sym, p_sym], [f_x])
-        
+
         # Create RK4 integrator with step size 0.1
         h = 0.1
         rk4_step = rk4(f, h)
-        
+
         # Initial conditions
         x0 = ca.DM([1.0])
         u = ca.DM([])
         k = ca.DM([1.0])
-        
+
         # Integrate for 10 steps (total time = 1.0)
         x = x0
         for _ in range(10):
             x = rk4_step(x, u, k)
-        
+
         # Analytical solution: x(t) = x0 * exp(-k*t)
         t_final = 1.0
         x_analytical = float(x0) * np.exp(-float(k) * t_final)
-        
+
         # Check accuracy (RK4 should be quite accurate)
         assert abs(float(x) - x_analytical) < 1e-6
 
@@ -793,24 +802,24 @@ class TestIntegrators:
         x_sym = ca.SX.sym("x", 1)
         u_sym = ca.SX.sym("u", 0)
         p_sym = ca.SX.sym("p", 1)
-        
+
         f_x = -p_sym * x_sym
         f = ca.Function("f", [x_sym, u_sym, p_sym], [f_x])
-        
+
         # Create RK4 with 10 substeps
         h = 1.0
         rk4_step = rk4(f, h, N=10)
-        
+
         x0 = ca.DM([1.0])
         u = ca.DM([])
         k = ca.DM([1.0])
-        
+
         # Single step with substeps
         x_final = rk4_step(x0, u, k)
-        
+
         # Analytical solution at t=1.0
         x_analytical = float(x0) * np.exp(-float(k) * 1.0)
-        
+
         assert abs(float(x_final) - x_analytical) < 1e-6
 
     def test_rk4_with_inputs(self):
@@ -818,27 +827,27 @@ class TestIntegrators:
         x_sym = ca.SX.sym("x", 1)
         u_sym = ca.SX.sym("u", 1)
         p_sym = ca.SX.sym("p", 1)
-        
+
         f_x = u_sym - p_sym * x_sym
         f = ca.Function("f", [x_sym, u_sym, p_sym], [f_x])
-        
+
         h = 0.1
         rk4_step = rk4(f, h)
-        
+
         x0 = ca.DM([0.0])
         u = ca.DM([1.0])  # Constant input
         k = ca.DM([0.5])
-        
+
         # Integrate for several steps
         x = x0
         for _ in range(20):
             x = rk4_step(x, u, k)
-        
+
         # Analytical solution: x(t) = (u/k)*(1 - exp(-k*t)) for x0=0
         # With u=1, k=0.5, t=2.0: x = 2*(1 - exp(-1)) ≈ 1.264
         t_final = 2.0
         x_analytical = (float(u) / float(k)) * (1 - np.exp(-float(k) * t_final))
-        
+
         assert abs(float(x) - x_analytical) < 1e-6
 
     def test_rk8_exponential_decay(self):
@@ -846,24 +855,24 @@ class TestIntegrators:
         x_sym = ca.SX.sym("x", 1)
         u_sym = ca.SX.sym("u", 0)
         p_sym = ca.SX.sym("p", 1)
-        
+
         f_x = -p_sym * x_sym
         f = ca.Function("f", [x_sym, u_sym, p_sym], [f_x])
-        
+
         # Use RK8 with default DOP853 tableau
         h = 0.5
         rk8_step = rk8(f, h)
-        
+
         x0 = ca.DM([1.0])
         u = ca.DM([])
         k = ca.DM([1.0])
-        
+
         # Single large step (RK8 should handle this well)
         x_final = rk8_step(x0, u, k)
-        
+
         # Analytical solution at t=0.5
         x_analytical = float(x0) * np.exp(-float(k) * 0.5)
-        
+
         # RK8 should be very accurate even with large step
         assert abs(float(x_final) - x_analytical) < 1e-8
 
@@ -873,25 +882,25 @@ class TestIntegrators:
         x_sym = ca.SX.sym("x", 1)
         u_sym = ca.SX.sym("u", 0)
         p_sym = ca.SX.sym("p", 1)
-        
+
         f_x = -p_sym * x_sym
         f = ca.Function("f", [x_sym, u_sym, p_sym], [f_x])
-        
+
         # Create one-step integrator
         h = 0.1
         rk4_step = rk4(f, h)
-        
+
         # Create N-step rollout
         N = 10
         rollout = integrate_n_steps(rk4_step, ca.DM([1.0]), ca.DM([]), ca.DM([1.0]), N)
-        
+
         # Execute rollout
         x0 = ca.DM([1.0])
         u = ca.DM([])
         k = ca.DM([1.0])
-        
+
         x_final = rollout(x0, u, k)
-        
+
         # Should match 10 steps of integration
         x_analytical = float(x0) * np.exp(-float(k) * 1.0)
         assert abs(float(x_final) - x_analytical) < 1e-6
@@ -899,30 +908,26 @@ class TestIntegrators:
     def test_build_rk_integrator_custom_tableau(self):
         """Test build_rk_integrator with a custom tableau."""
         # Define simple Euler method as a custom tableau
-        euler_tableau = {
-            "A": [[0.0]],
-            "b": [1.0],
-            "c": [0.0]
-        }
-        
+        euler_tableau = {"A": [[0.0]], "b": [1.0], "c": [0.0]}
+
         x_sym = ca.SX.sym("x", 1)
         u_sym = ca.SX.sym("u", 0)
         p_sym = ca.SX.sym("p", 1)
-        
+
         f_x = -p_sym * x_sym
         f = ca.Function("f", [x_sym, u_sym, p_sym], [f_x])
-        
+
         h = 0.01
         euler_step = build_rk_integrator(f, h, euler_tableau, name="euler")
-        
+
         # Take small steps with Euler method
         x = ca.DM([1.0])
         u = ca.DM([])
         k = ca.DM([1.0])
-        
+
         for _ in range(100):  # 100 steps of 0.01 = t=1.0
             x = euler_step(x, u, k)
-        
+
         # Euler is less accurate but should be reasonable with small steps
         x_analytical = np.exp(-1.0)
         assert abs(float(x) - x_analytical) < 0.01
@@ -933,30 +938,30 @@ class TestIntegrators:
         x_sym = ca.SX.sym("x", 2)  # [position, velocity]
         u_sym = ca.SX.sym("u", 0)
         p_sym = ca.SX.sym("p", 2)  # [k, m]
-        
+
         position = x_sym[0]
         velocity = x_sym[1]
         k = p_sym[0]
         m = p_sym[1]
-        
+
         f_x = ca.vertcat(velocity, -k * position / m)
         f = ca.Function("f", [x_sym, u_sym, p_sym], [f_x])
-        
+
         # Create integrator
         h = 0.01
         rk4_step = rk4(f, h)
-        
+
         # Initial conditions: x=1, v=0
         x0 = ca.DM([1.0, 0.0])
         u = ca.DM([])
         params = ca.DM([1.0, 1.0])  # k=1, m=1 => omega=1
-        
+
         # Integrate for one period (2*pi)
         n_steps = int(2 * np.pi / h)
         x = x0
         for _ in range(n_steps):
             x = rk4_step(x, u, params)
-        
+
         # After one period, should return to initial position
         assert abs(float(x[0]) - 1.0) < 0.01
         assert abs(float(x[1]) - 0.0) < 0.01

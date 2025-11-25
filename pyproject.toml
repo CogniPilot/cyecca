@@ -9,44 +9,18 @@ readme = "README.md"
 python = "~3.12"
 numpy = "~1.26"
 casadi = {version = "^3.6.5"}
-control = "0.10.1"
 scipy = "~1.11"
 sympy = "~1.12"
 beartype = "^0.19.0"
 pydot = "^3.0.3"
-simpy = "^4.1.1"
-protobuf = "^3.20.3"
-synapse-pb = "^0.2.10"
-delimited-protobuf = "^1.0.0"
-pandas = "^2.2.2"
 
 [tool.poetry.group.dev.dependencies]
-slycot = "^0.6.0"
 black = {extras = ["jupyter"], version = "^24.10.0"}
-flake8 = "^7.1.1"
-flake8-pyproject = "^1.2.2"
-ipykernel = "^6.21.1"
-jupyter = "^1.1.1"
-jupyter-client = "^8.3.0"
-jupyter-console = "^6.6.3"
-jupyter-core = "^5.3.1"
 jupyterlab = "^4.3.1"
-lark = "^1.1.6"
-mypy = "^1.0.0"
-pre-commit = "^4.0.1"
-pylint = "^3.3.1"
-snakeviz = "^2.1.1"
 nbmake = "^1.4.1"
 pytest-cov = "^6.0.0"
+pytest-xdist = "^3.6.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.flake8]
-ignore = ['E231', 'E241']
-per-file-ignores = [
-    '__init__.py:F401',
-]
-max-line-length = 88
-count = true

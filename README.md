@@ -60,53 +60,46 @@ model.build(f_x=f_x, integrator='rk4')
 result = model.simulate(0.0, 10.0, 0.01)
 ```
 
-**Learn More:**
-- **[Lie Groups →](cyecca/lie/README.md)** - SO(2), SO(3), SE(2), SE(3), SE_2(3) with examples
-- **[Modeling Framework →](cyecca/model/README.md)** - Hybrid systems, DAE, composition, pre-built models
-- **[Jupyter Notebooks →](notebook/)** - Detailed tutorials and applications
+## Documentation
+
+📚 **[Full Documentation](https://cyecca.readthedocs.io/)** (or build locally with `cd docs && make html`)
+
+**Quick Links:**
+- **[User Guide](docs/user_guide/index.rst)** - Installation, tutorials, concepts
+- **[API Reference](docs/api/index.rst)** - Complete API documentation with doctests
+- **[Jupyter Notebooks](notebook/)** - Interactive examples and applications
 
 ## Modules
 
-### [Lie Groups](cyecca/lie/README.md)
+### Lie Groups (`cyecca.lie`)
 Complete implementations of SO(2), SO(3), SE(2), SE(3), SE_2(3), and R^n with multiple parameterizations.
 
-**Key features:** Group operations, Lie algebra, Jacobians, conversions between representations  
-**Use cases:** Attitude estimation, 3D transformations, IMU preintegration, robot kinematics
+**Key features:** Group operations, Lie algebra, Jacobians, conversions  
+**Docs:** [API Reference](docs/api/lie.rst) | [User Guide](docs/user_guide/lie_groups.rst)
 
-### [Modeling Framework](cyecca/model/README.md)
+### Modeling Framework (`cyecca.model`)
 Type-safe declarative API for building hybrid dynamical systems with IDE autocomplete.
 
-**Key features:** Continuous/discrete states, events, DAE constraints, hierarchical composition, trim/linearization
-**Use cases:** Flight dynamics, robotics, control systems, hybrid systems, stability analysis
+**Key features:** Continuous/discrete states, events, DAE, composition, linearization  
+**Docs:** [API Reference](docs/api/model.rst) | [User Guide](docs/user_guide/modeling.rst)
 
-### [Pre-Built Models](cyecca/models/README.md)
-Ready-to-use dynamics models for robotics and aerospace systems.
-
-**Available models:** Quadrotor, fixed-wing aircraft (3ch/4ch), RDD2 controller, Bezier trajectories  
-**Use cases:** Flight simulation, control design, trajectory planning
+### Pre-Built Models (`cyecca.models`)
+Ready-to-use dynamics models: quadrotor, fixed-wing aircraft, RDD2 controller, Bezier trajectories
 
 ### Other Modules
-- **integrators.py** - RK4, RK8 (DOP853), Euler with adaptive stepping
-- **symbolic.py** - SymPy ↔ CasADi conversion, Taylor series
-- **codegen.py** - C code generation from symbolic expressions
-- **graph.py** - CasADi expression graph visualization
+- **integrators** - RK4, RK8 (DOP853), Euler with adaptive stepping
+- **symbolic** - SymPy ↔ CasADi conversion, Taylor series
+- **codegen** - C code generation for embedded systems
+- **graph** - Expression graph visualization
 
 ## ROS 2 Integration
 
-### [Launch Files & Simulation](launch/README.md)
-ROS 2 launch configurations for running cyecca simulations with visualization.
+Launch files for quadrotor and fixed-wing simulation with RViz visualization, joystick control, and trajectory tracking.
 
-**Available launches:** Quadrotor (RDD2), fixed-wing, RViz viewers  
-**Features:** Joystick control, trajectory tracking, force visualization, IMU simulation
-
-## Examples
-
-See the `notebook/` directory for Jupyter notebooks:
-- **lie/** - Lie group operations, conversions, and applications
-- **ins/** - Inertial navigation, IMU preintegration, invariant filtering
-- **path_planning/** - Bezier curve generation and differential flatness
-- **estimation/** - Attitude estimation and sensor fusion
-- **sim/** - Quadrotor simulation with trajectory tracking
+```bash
+ros2 launch cyecca rdd2_sim.xml        # Quadrotor simulation
+ros2 launch cyecca fixedwing_sim.xml   # Fixed-wing simulation
+```
 
 ## Supported Lie Groups
 

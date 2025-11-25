@@ -20,6 +20,7 @@ jupyterlab = "^4.3.1"
 nbmake = "^1.4.1"
 pytest-cov = "^6.0.0"
 pytest-xdist = "^3.6.0"
+matplotlib = "^3.10.7"
 
 [build-system]
 requires = ["poetry-core"]

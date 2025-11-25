@@ -8,6 +8,7 @@ import casadi.tools.graph as mod_graph
 
 try:
     import pydot
+
     PYDOT_AVAILABLE = True
 except ImportError:
     PYDOT_AVAILABLE = False
@@ -19,7 +20,7 @@ def draw_casadi(
 ) -> pydot.Graph:
     """
     Draw a CasADi expression graph.
-    
+
     Requires pydot to be installed: pip install pydot
     or install cyecca with visualization extras: pip install cyecca[visualization]
     """
@@ -29,7 +30,7 @@ def draw_casadi(
             "Install it with: pip install pydot "
             "or: pip install cyecca[visualization]"
         )
-    
+
     curdir = Path(os.path.abspath(os.getcwd()))
     # dot draw creates a source.dot file, lets move to the tmp directory
     os.chdir(tempfile.gettempdir())

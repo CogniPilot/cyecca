@@ -14,7 +14,7 @@ from cyecca.lie.group_se3 import *
 from cyecca.symbolic import SERIES, SQUARED_SERIES
 
 
-__all__ = ['se23', 'SE23Quat', 'SE23Mrp']
+__all__ = ["se23", "SE23Quat", "SE23Mrp"]
 
 
 @beartype
@@ -68,7 +68,7 @@ class SE23LieAlgebra(LieAlgebra):
         )
 
     def from_Matrix(self, arg: ca.SX) -> SE23LieAlgebraElement:
-        raise NotImplementedError('')
+        raise NotImplementedError("")
 
     def left_jacobian(self, arg: SE23LieAlgebraElement) -> ca.SX:
         Ql_v = se3.elem(ca.vertcat(arg.v_b.param, arg.Omega.param)).left_Q()
@@ -121,9 +121,9 @@ class SE23LieAlgebra(LieAlgebra):
 
 @beartype
 class SE23LieAlgebraElement(LieAlgebraElement):
-    '''
+    """
     This is an SE23 Lie algebra elem
-    '''
+    """
 
     def __init__(self, algebra: SE23LieAlgebra, param: PARAM_TYPE):
         super().__init__(algebra, param)
@@ -185,8 +185,8 @@ class SE23LieGroup(LieGroup):
         X3 = X2 @ X  # TODO, why is there an X3 here, shouldn't it be a function of X?
         o = arg.Omega.param
         theta_sq = ca.dot(o, o)
-        C1 = SQUARED_SERIES['(1 - cos(x))/x^2'](theta_sq)
-        C2 = SQUARED_SERIES['(x - sin(x))/x^3'](theta_sq)
+        C1 = SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq)
+        C2 = SQUARED_SERIES["(x - sin(x))/x^3"](theta_sq)
         return self.from_Matrix(ca.SX.eye(5) + X @ (I + C1 * X + C2 * X @ X))
 
     def calculate_N(self, v: SE23LieAlgebraElement, B: ca.SX) -> ca.SX:
@@ -198,9 +198,9 @@ class SE23LieGroup(LieGroup):
         B = ca.sparsify(B)
         o = omega.param
         theta_sq = ca.dot(o, o)
-        C1 = SQUARED_SERIES['(1 - cos(x))/x^2'](theta_sq)
-        C2 = SQUARED_SERIES['(x - sin(x))/x^3'](theta_sq)
-        C3 = SQUARED_SERIES['(x^2/2 + cos(x) - 1)/x^4'](theta_sq)
+        C1 = SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq)
+        C2 = SQUARED_SERIES["(x - sin(x))/x^3"](theta_sq)
+        C3 = SQUARED_SERIES["(x^2/2 + cos(x) - 1)/x^4"](theta_sq)
         AB = A @ B
         I = ca.SX.eye(n)
         return (
@@ -243,8 +243,8 @@ class SE23LieGroup(LieGroup):
         # Near identity: log(Identity) = 0, so eta = [p, v, 0]
         # Far from identity: use standard formula
         Omega = omega.to_Matrix()
-        A = SQUARED_SERIES['(1 - x*sin(x)/(2*(1 - cos(x))))/x^2'](theta_sq)
-        B = SQUARED_SERIES['1/x^2'](theta_sq)
+        A = SQUARED_SERIES["(1 - x*sin(x)/(2*(1 - cos(x))))/x^2"](theta_sq)
+        B = SQUARED_SERIES["1/x^2"](theta_sq)
         V_inv = ca.SX.eye(3) - Omega / 2 + A * (Omega @ Omega)
 
         # Use if_else for symbolic branching
@@ -273,9 +273,9 @@ class SE23LieGroup(LieGroup):
 
 @beartype
 class SE23LieGroupElement(LieGroupElement):
-    '''
+    """
     This is an SE23 Lie group elem, not necessarily represented as a matrix
-    '''
+    """
 
     def __init__(self, group: SE23LieGroup, param: PARAM_TYPE):
         super().__init__(group, param)

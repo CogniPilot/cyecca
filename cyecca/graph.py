@@ -9,7 +9,7 @@ import pydot
 
 
 def draw_casadi(
-    expr: ca.SX or ca.MX, filename: str = None, width: int = 1920, direction: str = 'LR'
+    expr: ca.SX or ca.MX, filename: str = None, width: int = 1920, direction: str = "LR"
 ) -> pydot.Graph:
     curdir = Path(os.path.abspath(os.getcwd()))
     # dot draw creates a source.dot file, lets move to the tmp directory

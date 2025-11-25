@@ -7,7 +7,7 @@ import casadi as ca
 
 @beartype
 def rk4(f: Callable, t: Union[ca.SX, float, int, ca.DM], y: ca.SX, h: ca.SX) -> ca.SX:
-    '''Runge Kuta 4th order integrator'''
+    """Runge Kuta 4th order integrator"""
     k1 = h * f(t, y)
     k2 = h * f(t + h / 2, y + k1 / 2)
     k3 = h * f(t + h / 2, y + k2 / 2)
@@ -17,7 +17,7 @@ def rk4(f: Callable, t: Union[ca.SX, float, int, ca.DM], y: ca.SX, h: ca.SX) -> 
 
 @beartype
 def sqrt_covariance_predict(W: ca.SX, F: ca.SX, Q: ca.SX) -> ca.SX:
-    '''
+    """
     Finds a sqrt factorization of the continuous time covariance
     propagation equations. Requires solving a linear system of equations
     to keep the sqrt lower triangular.
@@ -32,9 +32,9 @@ def sqrt_covariance_predict(W: ca.SX, F: ca.SX, Q: ca.SX) -> ca.SX:
 
     returns:
     W_dot_sol: sqrt of P deriative, lower triangular
-    '''
+    """
     n_x = F.shape[0]
-    XL = ca.SX.sym('X', ca.Sparsity.lower(n_x))
+    XL = ca.SX.sym("X", ca.Sparsity.lower(n_x))
     X = XL - XL.T
     for i in range(n_x):
         X[i, i] = 0
@@ -64,7 +64,7 @@ def sqrt_covariance_predict(W: ca.SX, F: ca.SX, Q: ca.SX) -> ca.SX:
 
 @beartype
 def sqrt_correct(Rs: ca.SX, H: ca.SX, W: ca.SX) -> Tuple[ca.SX, ca.SX, ca.SX]:
-    '''
+    """
     source: Fast Stable Kalman Filter Algorithms Utilising the Square Root, Steward 98
     Rs: sqrt(R)
     H: measurement matrix
@@ -77,7 +77,7 @@ def sqrt_correct(Rs: ca.SX, H: ca.SX, W: ca.SX) -> Tuple[ca.SX, ca.SX, ca.SX]:
         K: Kalman gain
         Ss: Innovation variance
 
-    '''
+    """
     n_x = H.shape[1]
     n_y = H.shape[0]
     B = ca.sparsify(ca.blockcat(Rs, ca.mtimes(H, W), ca.SX.zeros(n_x, n_y), W))
@@ -93,12 +93,12 @@ def sqrt_correct(Rs: ca.SX, H: ca.SX, W: ca.SX) -> Tuple[ca.SX, ca.SX, ca.SX]:
 
 
 def ldl_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:
-    '''
+    """
     @param P: Symmetric positive definite matrix
     @return:
         L: Lower triangular, unit diagonal
         D: Diagonal
-    '''
+    """
     n = P.shape[0]
     D = ca.SX.zeros(ca.Sparsity.diag(n))
     L = ca.SX.zeros(ca.Sparsity.lower(n))
@@ -116,12 +116,12 @@ def ldl_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:
 
 
 def udu_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:
-    '''
+    """
     @param P: Symmetric positive definite matrix
     @return:
         U: Upper triangular, unit diagonal
         D: Diagonal
-    '''
+    """
     n = P.shape[0]
     P2 = ca.SX(P)
     D = ca.SX.zeros(ca.Sparsity.diag(n))
@@ -139,9 +139,9 @@ def udu_symmetric_decomposition(P: ca.SX) -> Tuple[ca.SX, ca.SX]:
 
 
 def count_ops(s, ops=None, dep=None, invdep=None):
-    '''
+    """
     count ops in expression
-    '''
+    """
     import casadi
     import casadi.tools
 
@@ -151,7 +151,7 @@ def count_ops(s, ops=None, dep=None, invdep=None):
         invdep = {}
 
     op_str = {
-        eval('casadi.' + item): item for item in dir(casadi) if item.startswith('OP_')
+        eval("casadi." + item): item for item in dir(casadi) if item.startswith("OP_")
     }
     if ops is None:
         ops = {}
@@ -169,9 +169,9 @@ def count_ops(s, ops=None, dep=None, invdep=None):
 
         SX__hash__backup = casadi.SX.__hash__
         casadi.SX.__hash__ = getHashSX
-        print('building dependency graph...', end='')
+        print("building dependency graph...", end="")
         dep, invdep = casadi.tools.graph.dependencyGraph(s, dep, invdep)
-        print('done')
+        print("done")
         allnodes = set(dep.keys()).union(set(invdep.keys()))
         n = len(allnodes)
         for i, node in enumerate(allnodes):

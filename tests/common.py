@@ -35,7 +35,7 @@ class ProfiledTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         p = Stats(self.pr)
         p.strip_dirs()
-        p.sort_stats('cumtime')
-        profile_dir = Path('.profile')
+        p.sort_stats("cumtime")
+        profile_dir = Path(".profile")
         profile_dir.mkdir(exist_ok=True)
         p.dump_stats(profile_dir / self.id())

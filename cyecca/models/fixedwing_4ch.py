@@ -1,7 +1,7 @@
-'''
+"""
 Fixed-Wing Vehicle Dynamics for HH Sport Cub S2
 4-channel input control: [Throttle, Aileron, Elevator, Rudder]
-'''
+"""
 
 import casadi as ca
 import numpy as np
@@ -11,9 +11,9 @@ import cyecca.lie as lie
 
 # check steven lewis p184
 def saturate(x, min_val, max_val):
-    '''
+    """
     A casadi function for saturation.
-    '''
+    """
     return ca.if_else(x < min_val, min_val, ca.if_else(x > max_val, max_val, x))
 
 
@@ -23,17 +23,17 @@ def derive_model():
     # Parameters
 
     # p, parameters
-    thr_max = ca.SX.sym('thr_max')  # maximum thrust
-    m = ca.SX.sym('m')  # mass
-    XCG = ca.SX.sym('XCG')  # Center of gravity on longitudinal plane
-    XAC = ca.SX.sym('XAC')  # Aerodynamic Center on longitudinal plane
-    S = ca.SX.sym('S')  # Wing Surface area
-    rho = ca.SX.sym('rho')  # Air Density
-    g = ca.SX.sym('g')  # Gravitational Acceleration (m/s^2)
-    Jx = ca.SX.sym('Jx')  # Moment of Inertia in x direction
-    Jy = ca.SX.sym('Jy')  # Moment of Inertia in y direction
-    Jz = ca.SX.sym('Jz')  # Moment of Inertia in z direction
-    Jxz = ca.SX.sym('Jxz')  # Product of Inertia x and z
+    thr_max = ca.SX.sym("thr_max")  # maximum thrust
+    m = ca.SX.sym("m")  # mass
+    XCG = ca.SX.sym("XCG")  # Center of gravity on longitudinal plane
+    XAC = ca.SX.sym("XAC")  # Aerodynamic Center on longitudinal plane
+    S = ca.SX.sym("S")  # Wing Surface area
+    rho = ca.SX.sym("rho")  # Air Density
+    g = ca.SX.sym("g")  # Gravitational Acceleration (m/s^2)
+    Jx = ca.SX.sym("Jx")  # Moment of Inertia in x direction
+    Jy = ca.SX.sym("Jy")  # Moment of Inertia in y direction
+    Jz = ca.SX.sym("Jz")  # Moment of Inertia in z direction
+    Jxz = ca.SX.sym("Jxz")  # Product of Inertia x and z
 
     J = ca.SX.zeros(3, 3)
     J[0, 0] = Jx
@@ -42,38 +42,38 @@ def derive_model():
     J[0, 2] = Jxz
     J[2, 0] = Jxz
 
-    cbar = ca.SX.sym('cbar')  # mean chord (m)
-    span = ca.SX.sym('span')  # wing span (m)
+    cbar = ca.SX.sym("cbar")  # mean chord (m)
+    span = ca.SX.sym("span")  # wing span (m)
 
     # Control Moment
-    Cm0 = ca.SX.sym('Cm0')  # Coefficient of Moment
-    Clda = ca.SX.sym('Clda')  # roll moment coefficient based on aileron
-    Cldr = ca.SX.sym('Cldr')  # roll moment coefficient based on rudder
-    Cmde = ca.SX.sym('Cmde')  # pitch moment coefficient based on elevator
-    Cndr = ca.SX.sym('Cndr')  # yaw moment coefficient based on rudder
-    Cnda = ca.SX.sym('Cnda')  # yaw moment coefficient based on aileron
-    CYda = ca.SX.sym('CYda')  # Sideforce due to aileron
-    CYdr = ca.SX.sym('CYdr')  # Sideforce due to rudder
+    Cm0 = ca.SX.sym("Cm0")  # Coefficient of Moment
+    Clda = ca.SX.sym("Clda")  # roll moment coefficient based on aileron
+    Cldr = ca.SX.sym("Cldr")  # roll moment coefficient based on rudder
+    Cmde = ca.SX.sym("Cmde")  # pitch moment coefficient based on elevator
+    Cndr = ca.SX.sym("Cndr")  # yaw moment coefficient based on rudder
+    Cnda = ca.SX.sym("Cnda")  # yaw moment coefficient based on aileron
+    CYda = ca.SX.sym("CYda")  # Sideforce due to aileron
+    CYdr = ca.SX.sym("CYdr")  # Sideforce due to rudder
 
     # Longitudinal Stability Coefficients
-    CL0 = ca.SX.sym('CL0')  # Coefficient of lift at zero alpha
-    CLa = ca.SX.sym('CLa')  # Cl_alpha per alpha
-    Cma = ca.SX.sym('Cma')  # Coefficient of Moment due to angle of attack
-    Cmq = ca.SX.sym('Cmq')  # Pitch Damping Derivative Coefficient
-    CD0 = ca.SX.sym('CD0')  # drag coefficient
-    CDCLS = ca.SX.sym('CDCLS')  # Lift-induced drag coefficient
+    CL0 = ca.SX.sym("CL0")  # Coefficient of lift at zero alpha
+    CLa = ca.SX.sym("CLa")  # Cl_alpha per alpha
+    Cma = ca.SX.sym("Cma")  # Coefficient of Moment due to angle of attack
+    Cmq = ca.SX.sym("Cmq")  # Pitch Damping Derivative Coefficient
+    CD0 = ca.SX.sym("CD0")  # drag coefficient
+    CDCLS = ca.SX.sym("CDCLS")  # Lift-induced drag coefficient
 
     # Lateral-Directional Coefficient
-    Cnb = ca.SX.sym('Cnb')  # Cn_beta for yaw stiffness
-    Clp = ca.SX.sym('Clp')  # Roll Damping Derivative Coefficient
+    Cnb = ca.SX.sym("Cnb")  # Cn_beta for yaw stiffness
+    Clp = ca.SX.sym("Clp")  # Roll Damping Derivative Coefficient
     Cnr = ca.SX.sym(
-        'Cnr'
+        "Cnr"
     )  # Yaw Damping Derivative Coefficient wrt to yaw rate (magnitude)
-    Cnp = ca.SX.sym('Cnp')  # Yaw Damping Derivative Coefficient wrt to roll rate
-    Clr = ca.SX.sym('Clr')  # Roll Damping Derivative Coefficient wrt to yaw rate
-    CYb = ca.SX.sym('CYb')  # Sideforce due to sideslip
-    CYr = ca.SX.sym('CYr')  # Sideforce due to yaw rate
-    CYp = ca.SX.sym('CYp')  # Side force due to roll rate
+    Cnp = ca.SX.sym("Cnp")  # Yaw Damping Derivative Coefficient wrt to roll rate
+    Clr = ca.SX.sym("Clr")  # Roll Damping Derivative Coefficient wrt to yaw rate
+    CYb = ca.SX.sym("CYb")  # Sideforce due to sideslip
+    CYr = ca.SX.sym("CYr")  # Sideforce due to yaw rate
+    CYp = ca.SX.sym("CYp")  # Side force due to roll rate
 
     p = ca.vertcat(
         thr_max,
@@ -114,45 +114,45 @@ def derive_model():
     )
 
     p_defaults = {
-        'thr_max': 0.56,  # 0.38 # Maximum thrust (N)
-        'm': 0.057,  # Mass (kg)
-        'XCG': 0.25,  # Center of gravity, nondimensional along-chord
-        'XAC': 0.25,  # Aerodynamic Center
-        'S': 0.05553,  # Wing surface area (m^2)
-        'rho': 1.225,  # Air density at sea level (kg/m^3)
-        'g': 9.81,  # Gravitational acceleration (m/s^2)
+        "thr_max": 0.56,  # 0.38 # Maximum thrust (N)
+        "m": 0.057,  # Mass (kg)
+        "XCG": 0.25,  # Center of gravity, nondimensional along-chord
+        "XAC": 0.25,  # Aerodynamic Center
+        "S": 0.05553,  # Wing surface area (m^2)
+        "rho": 1.225,  # Air density at sea level (kg/m^3)
+        "g": 9.81,  # Gravitational acceleration (m/s^2)
         # Moments of Inertia
-        'Jx': 2.0e-4,  # Roll moment of inertia (kg·m²)
-        'Jy': 2.6e-4,  # Pitch moment of inertia (kg·m²)
-        'Jz': 3.2e-4,  # Yaw moment of inertia (kg·m²)
-        'Jxz': 0.0e-4,  # Product of inertia (kg·m²)
-        'cbar': 0.09,  # Mean aerodynamic chord (m)
-        'span': 0.617,  # Wingspan (m)
+        "Jx": 2.0e-4,  # Roll moment of inertia (kg·m²)
+        "Jy": 2.6e-4,  # Pitch moment of inertia (kg·m²)
+        "Jz": 3.2e-4,  # Yaw moment of inertia (kg·m²)
+        "Jxz": 0.0e-4,  # Product of inertia (kg·m²)
+        "cbar": 0.09,  # Mean aerodynamic chord (m)
+        "span": 0.617,  # Wingspan (m)
         # Control Effectiveness (Converted to radians)
-        'Cm0': 0.0314,  # Zero-lift pitching moment coefficient
-        'Clda': 0.10,  # 0.16,  # Aileron control effectiveness in roll(per rad)
-        'Cldr': 0.05,  # Rudder Control effectiveness in roll
-        'Cmde': 0.9,  # Elevator control effectiveness in pitch(per rad)
-        'Cndr': 0.12,  # Rudder control effectiveness in yaw (per rad)
-        'Cnda': 0.03,  # Aileron control effectiveness in yaw (per rad)
-        'CYda': 0.02,  # Sideforce due to aileron defelction (per rad)
-        'CYdr': -0.12,  # Side force due to rudder deflection (per rad)
+        "Cm0": 0.0314,  # Zero-lift pitching moment coefficient
+        "Clda": 0.10,  # 0.16,  # Aileron control effectiveness in roll(per rad)
+        "Cldr": 0.05,  # Rudder Control effectiveness in roll
+        "Cmde": 0.9,  # Elevator control effectiveness in pitch(per rad)
+        "Cndr": 0.12,  # Rudder control effectiveness in yaw (per rad)
+        "Cnda": 0.03,  # Aileron control effectiveness in yaw (per rad)
+        "CYda": 0.02,  # Sideforce due to aileron defelction (per rad)
+        "CYdr": -0.12,  # Side force due to rudder deflection (per rad)
         # Longitudinal Stability
-        'CL0': 0.20,  # Adjusted lift coefficient at zero AoA
-        'CLa': 5.2,  # Lift slope (per rad)
-        'Cma': -0.60,  # Pitching moment due to AoA (per rad) (equilibrium at AoA = ~3.0deg)
-        'Cmq': -18.0,  # Pitch damping (per rad/s)
-        'CD0': 0.09,  # Parasitic drag coefficient
-        'CDCLS': 0.062,  # Lift-induced drag coefficient
+        "CL0": 0.20,  # Adjusted lift coefficient at zero AoA
+        "CLa": 5.2,  # Lift slope (per rad)
+        "Cma": -0.60,  # Pitching moment due to AoA (per rad) (equilibrium at AoA = ~3.0deg)
+        "Cmq": -18.0,  # Pitch damping (per rad/s)
+        "CD0": 0.09,  # Parasitic drag coefficient
+        "CDCLS": 0.062,  # Lift-induced drag coefficient
         # Lateral-Directional Stability
-        'Cnb': 0.10,  # Yaw stiffness (per rad)
-        'Clp': -1.30,  # Roll damping per rad/s
-        'Cnr': -0.12,  # Yaw damping per rad/s
-        'Cnp': -0.10,  # Yaw damping due to roll rate
-        'Clr': 0.10,  # Roll damping due to yaw rate
-        'CYb': -0.65,  # Sideforce due to sideslip (per rad)
-        'CYr': 0.25,  # Sideforce due to yaw rate (per rad/s)
-        'CYp': 0.15,  # Side force due to roll rate (per rad/s)
+        "Cnb": 0.10,  # Yaw stiffness (per rad)
+        "Clp": -1.30,  # Roll damping per rad/s
+        "Cnr": -0.12,  # Yaw damping per rad/s
+        "Cnp": -0.10,  # Yaw damping due to roll rate
+        "Clr": 0.10,  # Roll damping due to yaw rate
+        "CYb": -0.65,  # Sideforce due to sideslip (per rad)
+        "CYr": 0.25,  # Sideforce due to yaw rate (per rad/s)
+        "CYp": 0.15,  # Side force due to roll rate (per rad/s)
     }
 
     ##############################################################################################
@@ -177,10 +177,10 @@ def derive_model():
     # n: wind frame (aligned with relative wind, x axis aligned with velocity)
 
     # states
-    position_w = ca.SX.sym('position_w', 3)  # position in world frame
-    velocity_b = ca.SX.sym('velocity_b', 3)  # velocity in body frame
-    quat_wb = ca.SX.sym('quat_wb', 4)  # Quaternion world - body frame
-    omega_wb_b = ca.SX.sym('omega_wb_b', 3)  # world-body
+    position_w = ca.SX.sym("position_w", 3)  # position in world frame
+    velocity_b = ca.SX.sym("velocity_b", 3)  # velocity in body frame
+    quat_wb = ca.SX.sym("quat_wb", 4)  # Quaternion world - body frame
+    omega_wb_b = ca.SX.sym("omega_wb_b", 3)  # world-body
 
     x = ca.vertcat(
         position_w,
@@ -189,27 +189,27 @@ def derive_model():
         omega_wb_b,
     )
     x0_defaults = {
-        'position_w_0': 20.0,
-        'position_w_1': -5.0,
-        'position_w_2': 0.0,
-        'velocity_b_0': 0.0,
-        'velocity_b_1': 0.0,
-        'velocity_b_2': 0.0,
-        'quat_wb_0': 0.0,
-        'quat_wb_1': 0.09,
-        'quat_wb_2': 0.0,
-        'quat_wb_3': 1.0,
-        'omega_wb_b_0': 0.0,
-        'omega_wb_b_1': 0.0,
-        'omega_wb_b_2': 0.0,
+        "position_w_0": 20.0,
+        "position_w_1": -5.0,
+        "position_w_2": 0.0,
+        "velocity_b_0": 0.0,
+        "velocity_b_1": 0.0,
+        "velocity_b_2": 0.0,
+        "quat_wb_0": 0.0,
+        "quat_wb_1": 0.09,
+        "quat_wb_2": 0.0,
+        "quat_wb_3": 1.0,
+        "omega_wb_b_0": 0.0,
+        "omega_wb_b_1": 0.0,
+        "omega_wb_b_2": 0.0,
     }
 
     ##############################################################################################
     # Input AETR
-    ail_cmd = ca.SX.sym('ail_cmd')  # Aileron
-    elev_cmd = ca.SX.sym('elev_cmd')  # Elevator
-    throttle_cmd = ca.SX.sym('throttle_cmd')  # Throttle
-    rud_cmd = ca.SX.sym('rud_cmd')  # Rudder
+    ail_cmd = ca.SX.sym("ail_cmd")  # Aileron
+    elev_cmd = ca.SX.sym("elev_cmd")  # Elevator
+    throttle_cmd = ca.SX.sym("throttle_cmd")  # Throttle
+    rud_cmd = ca.SX.sym("rud_cmd")  # Rudder
     u = ca.vertcat(ail_cmd, elev_cmd, throttle_cmd, rud_cmd)  # input aetr
 
     ##############################################################################################
@@ -377,7 +377,7 @@ def derive_model():
     alg = z
 
     Info = ca.Function(
-        'Info',
+        "Info",
         [x, u, p],
         [
             L_b,
@@ -397,30 +397,30 @@ def derive_model():
             rud_rad,
             Cndr,
         ],
-        ['x', 'u', 'p'],
+        ["x", "u", "p"],
         [
-            'L_b',
-            'D_b',
-            'C_b',
-            'FW_b',
-            'FT_b',
-            'v_b',
-            'v_n',
-            'CL',
-            'CD',
-            'alpha',
-            'qbar',
-            'beta',
-            'ail',
-            'elev',
-            'rud',
-            'Cndr',
+            "L_b",
+            "D_b",
+            "C_b",
+            "FW_b",
+            "FT_b",
+            "v_b",
+            "v_n",
+            "CL",
+            "CD",
+            "alpha",
+            "qbar",
+            "beta",
+            "ail",
+            "elev",
+            "rud",
+            "Cndr",
         ],
     )
 
-    f = ca.Function('f', [x, u, p], [xdot], ['x', 'u', 'p'], ['xdot'])
+    f = ca.Function("f", [x, u, p], [xdot], ["x", "u", "p"], ["xdot"])
 
-    dae = {'x': x, 'ode': f(x, u, p), 'p': p, 'u': u, 'z': z, 'alg': alg}  # set up dae
+    dae = {"x": x, "ode": f(x, u, p), "p": p, "u": u, "z": z, "alg": alg}  # set up dae
 
     p_index = {p[i].name(): i for i in range(p.shape[0])}
     x_index = {x[i].name(): i for i in range(x.shape[0])}
@@ -431,24 +431,24 @@ def derive_model():
 
 
 def sim(model, t, u, x0=None, p=None, plot=True):
-    x0_dict = model['x0_defaults']
+    x0_dict = model["x0_defaults"]
     if x0 is not None:
         for k in x0.keys():
             if not k in x0_dict.keys():
                 raise KeyError(k)
             x0_dict[k] = x0[k]
-    p_dict = model['p_defaults']
+    p_dict = model["p_defaults"]
     if p is not None:
         for k in p.keys():
             if not k in p_dict.keys():
                 raise KeyError(k)
             p_dict[k] = p[k]
-    dae = model['dae']
-    f_int = ca.integrator('test', 'idas', dae, t[0], t)
+    dae = model["dae"]
+    f_int = ca.integrator("test", "idas", dae, t[0], t)
     res = f_int(x0=x0_dict.values(), z0=0, p=p_dict.values(), u=u)
-    res['p'] = p_dict
-    res['yf'] = model['g'](res['xf'], u, p_dict.values())
+    res["p"] = p_dict
+    res["yf"] = model["g"](res["xf"], u, p_dict.values())
 
-    for k in ['xf', 'yf', 'zf']:
+    for k in ["xf", "yf", "zf"]:
         res[k] = np.array(res[k])
     return res

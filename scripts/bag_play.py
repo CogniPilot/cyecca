@@ -9,29 +9,29 @@ from nav_msgs.msg import Odometry
 
 class MinimalPublisher(Node):
     def __init__(self, context: rclpy.Context):
-        super().__init__('minimal_publisher', context=context)
-        self.publisher_ = self.create_publisher(String, 'topic', 10)
+        super().__init__("minimal_publisher", context=context)
+        self.publisher_ = self.create_publisher(String, "topic", 10)
         timer_period = 1  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
         self.i = 0
 
     def timer_callback(self):
         msg = String()
-        msg.data = 'Hello World: %d' % self.i
+        msg.data = "Hello World: %d" % self.i
         self.publisher_.publish(msg)
-        self.get_logger().info('Publishing: '%s'' % msg.data)
+        self.get_logger().info('Publishing: "%s"' % msg.data)
         self.i += 1
 
 
 class MinimalSubscriber(Node):
     def __init__(self, context: rclpy.Context):
-        super().__init__('minimal_subscriber', context=context)
+        super().__init__("minimal_subscriber", context=context)
         self.subscription = self.create_subscription(
-            String, 'topic', self.listener_callback, 10
+            String, "topic", self.listener_callback, 10
         )
 
     def listener_callback(self, msg):
-        self.get_logger().info('I heard: '%s'' % msg.data)
+        self.get_logger().info('I heard: "%s"' % msg.data)
 
 
 def main():
@@ -51,5 +51,5 @@ def main():
         minimal_subscriber.destroy_node()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

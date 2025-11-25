@@ -15,7 +15,7 @@ from cyecca.lie.group_so3 import SO3LieGroupElement, SO3LieAlgebraElement
 
 from cyecca.symbolic import SERIES, SQUARED_SERIES, taylor_series_near_zero
 
-__all__ = ['se3', 'SE3Quat', 'SE3Mrp']
+__all__ = ["se3", "SE3Quat", "SE3Mrp"]
 
 
 @beartype
@@ -77,12 +77,12 @@ class SE3LieAlgebra(LieAlgebra):
         theta_sq = ca.dot(o, o)
 
         Coeff = ca.vertcat(
-            SQUARED_SERIES['(1 - cos(x))/x^2'](theta_sq),  # C0
-            SQUARED_SERIES['(x - sin(x))/x^3'](theta_sq),  # C1
-            SQUARED_SERIES['(x^2 + 2 cos(x) - 2)/(2 x^4)'](theta_sq),  # C2
-            SQUARED_SERIES['(x cos(x) + 2 x - 3 sin(x))/(2 x^5)'](theta_sq),  # C3
-            SQUARED_SERIES['(x^2 + x sin(x) + 4 cos(x) - 4)/(2 x^6)'](theta_sq),  # C4
-            SQUARED_SERIES['(2 - 2 cos(x) - x sin(x))/(2 x^4))'](theta_sq),  # C5
+            SQUARED_SERIES["(1 - cos(x))/x^2"](theta_sq),  # C0
+            SQUARED_SERIES["(x - sin(x))/x^3"](theta_sq),  # C1
+            SQUARED_SERIES["(x^2 + 2 cos(x) - 2)/(2 x^4)"](theta_sq),  # C2
+            SQUARED_SERIES["(x cos(x) + 2 x - 3 sin(x))/(2 x^5)"](theta_sq),  # C3
+            SQUARED_SERIES["(x^2 + x sin(x) + 4 cos(x) - 4)/(2 x^6)"](theta_sq),  # C4
+            SQUARED_SERIES["(2 - 2 cos(x) - x sin(x))/(2 x^4))"](theta_sq),  # C5
         )
 
         Ql = V / 2
@@ -129,9 +129,9 @@ class SE3LieAlgebra(LieAlgebra):
 
 @beartype
 class SE3LieAlgebraElement(LieAlgebraElement):
-    '''
+    """
     This is an SE3 Lie algebra elem
-    '''
+    """
 
     def __init__(self, algebra: SE3LieAlgebra, param: PARAM_TYPE):
         super().__init__(algebra, param)
@@ -217,14 +217,14 @@ class SE3LieGroup(LieGroup):
 
     def from_Matrix(self, arg: ca.SX) -> SE3LieGroupElement:
         assert arg.shape == self.matrix_shape
-        raise NotImplementedError('')
+        raise NotImplementedError("")
 
 
 @beartype
 class SE3LieGroupElement(LieGroupElement):
-    '''
+    """
     This is an SE3 Lie group elem
-    '''
+    """
 
     def __init__(self, group: SE3LieGroup, param: PARAM_TYPE):
         super().__init__(group, param)

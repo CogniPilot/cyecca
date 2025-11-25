@@ -10,12 +10,12 @@ from cyecca.symbolic import casadi_to_sympy
 import sympy
 
 __all__ = [
-    'LieAlgebraElement',
-    'LieAlgebra',
-    'LieGroupElement',
-    'LieGroup',
-    'SCALAR_TYPE',
-    'PARAM_TYPE',
+    "LieAlgebraElement",
+    "LieAlgebra",
+    "LieGroupElement",
+    "LieGroup",
+    "SCALAR_TYPE",
+    "PARAM_TYPE",
 ]
 
 SCALAR_TYPE = Union[ca.SX, ca.DM, float, int]
@@ -24,9 +24,9 @@ PARAM_TYPE = Union[ca.SX, ca.DM]
 
 @beartype
 class LieAlgebraElement:
-    '''
+    """
     This is a generic Lie algebra elem, not necessarily represented as a matrix
-    '''
+    """
 
     def __init__(self, algebra: LieAlgebra, param: PARAM_TYPE):
         self.algebra = algebra
@@ -34,11 +34,11 @@ class LieAlgebraElement:
         assert self.param.shape == (self.algebra.n_param, 1)
 
     def ad(self) -> ca.SX:
-        '''returns the adjoint as a linear operator on the parameter vector'''
+        """returns the adjoint as a linear operator on the parameter vector"""
         return self.algebra.adjoint(self)
 
     def vee(self) -> ca.SX:
-        '''maps from Lie algebra to its parameters as a vector'''
+        """maps from Lie algebra to its parameters as a vector"""
         return self.algebra.vee(self)
 
     def left_jacobian(self) -> ca.SX:
@@ -92,34 +92,34 @@ class LieAlgebraElement:
         return group.exp(self)
 
     def __repr__(self) -> str:
-        return '{:s}: {:s}'.format(repr(self.algebra), repr(self.param))
+        return "{:s}: {:s}".format(repr(self.algebra), repr(self.param))
 
 
 @beartype
 class LieAlgebra(ABC):
-    '''
+    """
     This is a generic Lie algebra, not necessarily represented as a matrix
-    '''
+    """
 
     def __init__(self, n_param: int, matrix_shape: tuple[int, int]):
         self.n_param = n_param
         self.matrix_shape = matrix_shape
 
     def __mul__(self, other: LieAlgebra) -> LieAlgebraDirectProduct:
-        '''
+        """
         Implements Direct Product of Lie Algebras
-        '''
+        """
         return LieAlgebraDirectProduct(algebras=[self, other])
 
     @abstractmethod
     def elem(self, param: PARAM_TYPE) -> LieAlgebraElement: ...
 
     def wedge(self, arg: PARAM_TYPE) -> LieAlgebraElement:
-        '''given a parameter vector, creates a LieAlgebraElement'''
+        """given a parameter vector, creates a LieAlgebraElement"""
         return self.elem(param=arg)
 
     def vee(self, arg: LieAlgebraElement) -> ca.SX:
-        '''given a LieAlgebraElement, returns a parameter vector'''
+        """given a LieAlgebraElement, returns a parameter vector"""
         return arg.param
 
     def left_jacobian(self, arg: LieAlgebraElement) -> ca.SX: ...
@@ -169,9 +169,9 @@ class LieAlgebra(ABC):
 
 @beartype
 class LieGroupElement:
-    '''
+    """
     This is a generic Lie group elem, not necessarily represented as a matrix
-    '''
+    """
 
     def __init__(self, group: LieGroup, param: PARAM_TYPE):
         self.group = group
@@ -185,11 +185,11 @@ class LieGroupElement:
         self, other: Union[LieGroupElement, LieAlgebraElement]
     ) -> LieGroupElement:
         if isinstance(other, LieGroupElement):
-            if hasattr(self.group, 'addition'):
+            if hasattr(self.group, "addition"):
                 return self.group.addition(self, other)
             else:
                 raise TypeError(
-                    '{:s} does not support addition'.format(
+                    "{:s} does not support addition".format(
                         self.group.__class__.__name__
                     )
                 )
@@ -200,11 +200,11 @@ class LieGroupElement:
         self, other: Union[LieGroupElement, LieAlgebraElement]
     ) -> LieGroupElement:
         if isinstance(other, LieGroupElement):
-            if hasattr(self.group, 'subtraction'):
+            if hasattr(self.group, "subtraction"):
                 return self.group.subtraction(self, other)
             else:
                 raise TypeError(
-                    '{:s} does not support subtraction'.format(
+                    "{:s} does not support subtraction".format(
                         self.group.__class__.__name__
                     )
                 )
@@ -242,14 +242,14 @@ class LieGroupElement:
         return self.group.log(arg=self)
 
     def __repr__(self) -> str:
-        return '{:s}: {:s}'.format(repr(self.group), repr(self.param))
+        return "{:s}: {:s}".format(repr(self.group), repr(self.param))
 
 
 @beartype
 class LieGroup(ABC):
-    '''
+    """
     This is a generic Lie group, not necessarily represented as a matrix
-    '''
+    """
 
     def __init__(
         self, algebra: LieAlgebra, n_param: int, matrix_shape: tuple[int, int]
@@ -262,9 +262,9 @@ class LieGroup(ABC):
         return LieGroupElement(group=self, param=param)
 
     def __mul__(self, other: LieGroup) -> LieGroupDirectProduct:
-        '''
+        """
         Implements Direct Product of Groups
-        '''
+        """
         return LieGroupDirectProduct(groups=[self, other])
 
     @abstractmethod

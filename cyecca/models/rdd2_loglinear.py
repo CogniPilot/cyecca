@@ -48,9 +48,9 @@ ki_z = 0.1  # 1/ integrator time constant in 1/seconds
 
 
 def saturate(x, x_min, x_max):
-    '''
+    """
     saturate a vector
-    '''
+    """
     y = x
     for i in range(x.shape[0]):
         y[i] = ca.if_else(
@@ -60,20 +60,20 @@ def saturate(x, x_min, x_max):
 
 
 def derive_se23_error():
-    '''
+    """
     SE2(3) Error
-    '''
+    """
     # actual pos and vel
-    p_w = ca.SX.sym('p_w', 3)
-    v_w = ca.SX.sym('v_w', 3)
+    p_w = ca.SX.sym("p_w", 3)
+    v_w = ca.SX.sym("v_w", 3)
     # actual attitude, expressed as quaternion
-    q_wb = ca.SX.sym('q_wb', 4)
+    q_wb = ca.SX.sym("q_wb", 4)
     X = SE23Quat.elem(ca.vertcat(p_w, v_w, q_wb))
 
     # reference input
-    p_rw = ca.SX.sym('p_rw', 3)
-    v_rw = ca.SX.sym('v_rw', 3)
-    q_r = ca.SX.sym('q_r', 4)
+    p_rw = ca.SX.sym("p_rw", 3)
+    v_rw = ca.SX.sym("v_rw", 3)
+    q_r = ca.SX.sym("q_r", 4)
     X_r = SE23Quat.elem(ca.vertcat(p_rw, v_rw, q_r))
 
     #  Left invariant error in Lie group and Lie algebra
@@ -81,32 +81,32 @@ def derive_se23_error():
     zeta = eta.log()
 
     f_se23_error = ca.Function(
-        'se23_error',
+        "se23_error",
         [p_w, v_w, q_wb, p_rw, v_rw, q_r],
         [zeta.param],
-        ['p_w', 'v_w', 'q_wb', 'p_rw', 'v_rw', 'q_r'],
-        ['zeta'],
+        ["p_w", "v_w", "q_wb", "p_rw", "v_rw", "q_r"],
+        ["zeta"],
     )
 
-    eqs = {'se23_error': f_se23_error}
+    eqs = {"se23_error": f_se23_error}
     return eqs
 
 
 def derive_so3_attitude_control():
-    '''
+    """
     Attitude control loop
 
     Given desired attitude, and attitude, find desired angular velocity
-    '''
+    """
 
     # INPUT CONSTANTS
     # -------------------------------
-    kp = ca.SX.sym('kp', 3)
+    kp = ca.SX.sym("kp", 3)
 
     # INPUT VARIABLES
     # -------------------------------
-    q = ca.SX.sym('q', 4)  # actual quat
-    q_r = ca.SX.sym('q_r', 4)  # quat setpoint
+    q = ca.SX.sym("q", 4)  # actual quat
+    q_r = ca.SX.sym("q_r", 4)  # quat setpoint
 
     # CALC
     # -------------------------------
@@ -121,10 +121,10 @@ def derive_so3_attitude_control():
     # FUNCTION
     # -------------------------------
     f_attitude_control = ca.Function(
-        'so3_attitude_control', [kp, q, q_r], [omega], ['kp', 'q', 'q_r'], ['omega']
+        "so3_attitude_control", [kp, q, q_r], [omega], ["kp", "q", "q_r"], ["omega"]
     )
 
-    return {'so3_attitude_control': f_attitude_control}
+    return {"so3_attitude_control": f_attitude_control}
 
 
 def adC_matrix():
@@ -141,14 +141,14 @@ from scipy.linalg import solve_continuous_are
 
 
 def lqr(A, B, Q, R):
-    '''
+    """
     Solve the continuous time LQR controller for a system dx/dt = A x + B u.
 
     Returns K, X, eigVals
     - K: state feedback gain
     - X: solution to Riccati equation
     - eigVals: closed loop eigenvalues
-    '''
+    """
     # Solve the continuous-time Algebraic Riccati Equation (ARE)
     X = solve_continuous_are(A, B, Q, R)
 
@@ -187,15 +187,15 @@ def se23_solve_control():
 
 
 def derive_outerloop_control():
-    '''
+    """
     Given the position, velocity ,and acceleration set points, find the
     desired attitude and thrust.
-    '''
+    """
 
     # INPUT CONSTANTS
     # -------------------------------
-    thrust_trim = ca.SX.sym('thrust_trim')
-    kp = ca.SX.sym('kp', 3)
+    thrust_trim = ca.SX.sym("thrust_trim")
+    kp = ca.SX.sym("kp", 3)
 
     # INPUT VARIABLES
     # -------------------------------
@@ -203,11 +203,11 @@ def derive_outerloop_control():
     # inputs: position trajectory, velocity trajectory, desired Yaw vel, dt
     # state inputs: position, orientation, velocity, and angular velocity
     # outputs: thrust force, angular errors
-    zeta = ca.SX.sym('zeta', 9)
-    at_w = ca.SX.sym('at_w', 3)
-    q_wb = SO3Quat.elem(ca.SX.sym('q_wb', 4))  # orientation
-    z_i = ca.SX.sym('z_i', 3)  # z velocity error integral
-    dt = ca.SX.sym('dt')  # time step
+    zeta = ca.SX.sym("zeta", 9)
+    at_w = ca.SX.sym("at_w", 3)
+    q_wb = SO3Quat.elem(ca.SX.sym("q_wb", 4))  # orientation
+    z_i = ca.SX.sym("z_i", 3)  # z velocity error integral
+    dt = ca.SX.sym("dt")  # time step
 
     # CALC
     # -------------------------------
@@ -289,40 +289,40 @@ def derive_outerloop_control():
     # FUNCTION
     # -------------------------------
     f_get_u = ca.Function(
-        'se23_control',
+        "se23_control",
         [thrust_trim, kp, zeta, at_w, q_wb.param, z_i, dt],
         [nT, z_i_2, u_omega, q_sp.param],
-        ['thrust_trim', 'kp', 'zeta', 'at_w', 'q_wb', 'z_i', 'dt'],
-        ['nT', 'z_i_2', 'u_omega', 'q_sp'],
+        ["thrust_trim", "kp", "zeta", "at_w", "q_wb", "z_i", "dt"],
+        ["nT", "z_i_2", "u_omega", "q_sp"],
     )
 
     f_se23_attitude_control = ca.Function(
-        'se23_attitude_control', [kp, zeta], [u_omega], ['kp', 'zeta'], ['omega']
+        "se23_attitude_control", [kp, zeta], [u_omega], ["kp", "zeta"], ["omega"]
     )
 
     return {
-        'se23_control': f_get_u,
-        'se23_attitude_control': f_se23_attitude_control,
+        "se23_control": f_get_u,
+        "se23_attitude_control": f_se23_attitude_control,
     }
 
 
 def generate_code(eqs: dict, filename, dest_dir: str, **kwargs):
-    '''
+    """
     Generate C Code from python CasADi functions.
-    '''
+    """
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(exist_ok=True)
     p = {
-        'verbose': True,
-        'mex': False,
-        'cpp': False,
-        'main': False,
-        'with_header': True,
-        'with_mem': False,
-        'with_export': False,
-        'with_import': False,
-        'include_math': True,
-        'avoid_stack': True,
+        "verbose": True,
+        "mex": False,
+        "cpp": False,
+        "main": False,
+        "with_header": True,
+        "with_mem": False,
+        "with_export": False,
+        "with_import": False,
+        "include_math": True,
+        "avoid_stack": True,
     }
     for k, v in kwargs.items():
         assert k in p.keys()
@@ -334,19 +334,19 @@ def generate_code(eqs: dict, filename, dest_dir: str, **kwargs):
     gen.generate(str(dest_dir) + os.sep)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('dest_dir')
+    parser.add_argument("dest_dir")
     args = parser.parse_args()
 
-    print('generating casadi equations in {:s}'.format(args.dest_dir))
+    print("generating casadi equations in {:s}".format(args.dest_dir))
     eqs = {}
     eqs.update(derive_so3_attitude_control())
     eqs.update(derive_outerloop_control())
     eqs.update(derive_se23_error())
 
     for name, eq in eqs.items():
-        print('eq: ', name)
+        print("eq: ", name)
 
-    generate_code(eqs, filename='rdd2_loglinear.c', dest_dir=args.dest_dir)
-    print('complete')
+    generate_code(eqs, filename="rdd2_loglinear.c", dest_dir=args.dest_dir)
+    print("complete")

@@ -11,6 +11,278 @@ The `cyecca.model` module provides a declarative API for building dynamical syst
 - **Hierarchical Composition**: Build complex systems from simpler subsystems
 - **Event Detection**: Zero-crossing detection for hybrid dynamics
 
+---
+
+## Feature Implementation Status
+
+This section tracks the implementation status of DAE (Differential-Algebraic Equation) features in the modeling framework.
+
+### ✅ Fully Implemented
+
+#### Continuous States (x)
+- **Status:** ✅ Complete
+- **Description:** `dx/dt = f_x(x, u, p, ...)`
+- **API:** `state()` field creator, `f_x` in `build()`
+- **Integrators:** RK4, Euler (working), IDAS (stub)
+- **Usage:**
+  ```python
+  @symbolic
+  class States:
+      x: ca.SX = state(1, 0.0, "position (m)")
+      v: ca.SX = state(1, 0.0, "velocity (m/s)")
+  
+  model.build(f_x=ca.vertcat(x.v, (u.F - p.c * x.v) / p.m))
+  ```
+
+#### Inputs (u)
+- **Status:** ✅ Complete
+- **Description:** Control signals, external forcing
+- **API:** `input_var()` field creator
+- **Usage:**
+  ```python
+  @symbolic
+  class Inputs:
+      F: ca.SX = input_var(desc="force (N)")
+  ```
+
+#### Parameters (p)
+- **Status:** ✅ Complete
+- **Description:** Time-independent constants
+- **API:** `param()` field creator
+- **Usage:**
+  ```python
+  @symbolic
+  class Params:
+      m: float = param(default=1.0, desc="mass (kg)")
+      c: float = param(default=0.1, desc="damping (Ns/m)")
+  ```
+
+#### Outputs (y)
+- **Status:** ✅ Complete
+- **Description:** Observables/diagnostics `y = f_y(x, u, p)`
+- **API:** `output_var()` field creator, `f_y` in `build()`
+- **Usage:**
+  ```python
+  @symbolic
+  class Outputs:
+      energy: ca.SX = output_var(desc="total energy (J)")
+  
+  model.build(f_x=f_x, f_y=0.5 * p.m * x.v**2)
+  ```
+
+#### Quadrature States (q)
+- **Status:** ✅ Complete
+- **Description:** Path integrals `dq/dt = f_q(x, u, p)`
+- **API:** `quadrature_var()` field creator, `f_q` in `build()`
+- **Integration:** RK4/Euler during `simulate()`
+- **Usage:**
+  ```python
+  @symbolic
+  class Quadratures:
+      cost: ca.SX = quadrature_var(desc="accumulated cost")
+  
+  model.build(f_x=f_x, f_q=u.F**2)  # Minimize control effort
+  ```
+
+#### Discrete States (z)
+- **Status:** ✅ Complete (event-triggered updates)
+- **Description:** Discrete states updated at zero-crossings `z⁺ = f_z(...)`
+- **API:** `discrete_state()` field creator, `f_z` in `build()`
+- **Event Detection:** Via `detect_events=True` in `simulate()`
+- **Usage:**
+  ```python
+  @symbolic
+  class DiscreteStates:
+      mode: ca.SX = discrete_state(default=0, desc="flight mode")
+  
+  model.build(f_x=f_x, f_z=new_mode, f_c=height_indicator)
+  result = model.simulate(t0, tf, dt, detect_events=True)
+  ```
+
+#### Event Indicators (c)
+- **Status:** ✅ Complete
+- **Description:** Event detection when `c(x, u, p)` crosses zero
+- **API:** `event_indicator()` field creator, `f_c` in `build()`
+- **Detection:** Zero-crossing during integration
+- **Usage:**
+  ```python
+  @symbolic
+  class EventIndicators:
+      ground_contact: ca.SX = event_indicator(desc="z=0 detector")
+  
+  model.build(f_x=f_x, f_c=x.z)  # Trigger when z crosses 0
+  ```
+
+#### Discrete Variables (m)
+- **Status:** ✅ Complete
+- **Description:** Discrete variables (integers/booleans) or state resets `m⁺ = f_m(...)`
+- **API:** `discrete_var()` field creator, `f_m` in `build()`
+- **Dual Purpose:** Can reset discrete vars OR continuous states based on output dimension
+- **Usage:**
+  ```python
+  @symbolic
+  class DiscreteVars:
+      bounce_count: ca.SX = discrete_var(default=0, desc="bounces")
+  
+  # Update discrete variable at event
+  model.build(f_x=f_x, f_m=m.bounce_count + 1, f_c=height)
+  
+  # OR reset continuous states (bouncing ball)
+  model.build(f_x=f_x, f_m=ca.vertcat(x.h, -0.8*x.v), f_c=height)
+  ```
+
+#### Hierarchical Composition
+- **Status:** ✅ Complete
+- **Description:** Build systems from interconnected submodels
+- **API:** `add_submodel()`, `connect()`, `build_composed()`
+- **Usage:**
+  ```python
+  parent = ModelSX.compose({"plant": plant_model, "ctrl": controller})
+  parent.connect(parent.ctrl.outputs.u, parent.plant.inputs.thrust)
+  parent.build_composed(f_x_composed, integrator='rk4')
+  ```
+
+### ⚠️ Partially Implemented
+
+#### Dependent Variables (dep)
+- **Status:** ⚠️ Partial (API exists, integration incomplete)
+- **Description:** Computed quantities `dep = f_dep(x, u, p)` that feed into dynamics
+- **API:** `dependent_var()` field creator, `f_dep` in `build()`
+- **Current State:**
+  - API and function building works (`_build_f_dep`)
+  - Passed to `f_x` in function signatures
+  - **NOT** automatically evaluated in integrators (uses default values)
+  - Would need evaluation before each `f_x` call for full support
+- **Limitation:**
+  ```python
+  # This works for building f_x:
+  dep.lift = 0.5 * p.rho * dep.airspeed**2 * p.S * p.CL
+  f_x = ca.vertcat(..., dep.lift / p.m, ...)
+  
+  # But during integration, dep uses dep0 defaults, not f_dep evaluation
+  # For dynamic dep, compute directly in f_x instead
+  ```
+- **Workaround:** Compute dependent values directly in `f_x` expression rather than as separate `dep` variables
+
+#### Algebraic Variables (z_alg)
+- **Status:** ⚠️ Stub only (API exists, solver not implemented)
+- **Description:** Algebraic constraints `0 = g(x, z_alg, u, p)` for DAE systems
+- **API:** `algebraic_var()` field creator, `f_alg` in `build()`
+- **Current State:**
+  - API exists and function builds
+  - IDAS integrator is stubbed (falls back to RK4)
+  - No algebraic equation solver integrated
+- **Limitation:**
+  ```python
+  # This API works but doesn't solve the constraint:
+  @symbolic
+  class Algebraic:
+      lambda_constraint: ca.SX = algebraic_var(desc="Lagrange multiplier")
+  
+  model.build(f_x=f_x, f_alg=constraint_residual, integrator='idas')
+  # Falls back to RK4, z_alg not solved!
+  ```
+- **Roadmap:** Needs IDAS/SUNDIALS integration for proper DAE solving
+
+### ❌ Not Implemented
+
+#### Advanced Event Handling
+- **Status:** ❌ Not implemented
+- **Missing Features:**
+  - Multiple simultaneous events
+  - Event priority/ordering
+  - Event localization (bisection to find exact crossing time)
+  - Chattering prevention
+- **Current:** Simple sign-change detection between timesteps
+
+#### Symbolic Differentiation for Jacobians
+- **Status:** ❌ Not implemented
+- **Missing:** Automatic Jacobian computation for stiff systems
+- **Impact:** RK4/Euler may be inefficient for stiff ODEs
+- **Workaround:** Use linearization tools for local analysis
+
+#### Time-Varying Parameters
+- **Status:** ❌ Not implemented
+- **Current:** Parameters are constant throughout simulation
+- **Workaround:** Model as inputs with `u_func(t, x, p)`
+
+#### Delay Differential Equations
+- **Status:** ❌ Not implemented
+- **Missing:** `x(t-τ)` terms not supported
+
+#### Partial Differential Equations
+- **Status:** ❌ Not supported
+- **Scope:** Framework is for ODEs/DAEs only
+
+### Integration Methods
+
+| Method | Status | Use Case |
+|--------|--------|----------|
+| **RK4** | ✅ Complete | General purpose, good accuracy |
+| **Euler** | ✅ Complete | Simple systems, fast prototyping |
+| **IDAS** | ❌ Stub only | DAE systems (planned) |
+| **RK8** | ✅ Complete | High-precision trajectories |
+| **Implicit** | ❌ Not implemented | Stiff systems (planned) |
+
+### Recommended Usage Patterns
+
+#### ✅ Well-Supported Workflows
+- Continuous ODE systems with inputs and parameters
+- Hybrid systems with discrete events (bouncing ball, mode switches)
+- Hierarchical model composition (plant + controller)
+- Quadrature integration (cost functionals, energy)
+- Output observation and logging
+- Trim finding and linearization
+
+#### ⚠️ Limited Support
+- DAE systems with algebraic constraints (use ODE reformulation instead)
+- Systems with complex dependent variable chains (inline computations in `f_x`)
+
+#### ❌ Not Recommended
+- Stiff systems requiring implicit integration
+- Systems with time delays
+- PDE systems
+- High-frequency discrete events (use continuous approximations)
+
+### Future Roadmap
+
+#### Short Term
+1. Complete dependent variable evaluation in integrators
+2. Add event localization (bisection)
+3. Document composition patterns better
+
+#### Medium Term
+1. IDAS integration for DAE support
+2. Implicit integrators (BDF, Radau)
+3. Adaptive timestepping
+
+#### Long Term
+1. Automatic Jacobian computation
+2. Symbolic sensitivity analysis
+3. Code generation optimization
+
+### Testing Coverage
+
+| Feature | Unit Tests | Integration Tests | Examples |
+|---------|------------|-------------------|----------|
+| Continuous states | ✅ | ✅ | ✅ |
+| Inputs/Outputs | ✅ | ✅ | ✅ |
+| Parameters | ✅ | ✅ | ✅ |
+| Quadratures | ✅ | ✅ | ⚠️ |
+| Discrete states | ✅ | ✅ | ⚠️ |
+| Event indicators | ✅ | ✅ | ✅ (bouncing ball) |
+| Composition | ✅ | ✅ | ⚠️ |
+| Dependent vars | ⚠️ | ❌ | ❌ |
+| Algebraic vars | ⚠️ | ❌ | ❌ |
+
+### Version History
+
+- **v0.1.0** (Current): Core ODE, events, composition, linearization
+- **Planned v0.2.0**: Full DAE support, implicit integrators
+- **Planned v0.3.0**: Advanced event handling, sensitivity analysis
+
+---
+
 ## System Components
 
 ```python

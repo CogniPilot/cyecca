@@ -32,9 +32,7 @@ Example:
 
     model = ModelSX.create(States, Inputs, Params)
 
-    x = model.x()
-    u = model.u()
-    p = model.p()
+    x, u, p = model.x, model.u, model.p
 
     f_x = ca.vertcat(x.v, u.thrust / p.m - p.g)
     model.build(f_x=f_x, integrator='rk4')

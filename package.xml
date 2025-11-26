@@ -13,6 +13,7 @@
   <depend>rclcpp</depend>
   <depend>rclpy</depend>
   <depend>python3-beartype</depend>
+  <depend>python3-scipy</depend>
   <depend>python3-sympy</depend>
 
   <test_depend>ament_cmake_pytest</test_depend>

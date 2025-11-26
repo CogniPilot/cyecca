@@ -37,7 +37,7 @@ X = lie.SE3Quat.elem(ca.DM([1, 2, 3, 1, 0, 0, 0]))  # position + quaternion
 X_inv = X.inverse()
 
 # Type-safe modeling with full autocomplete
-from cyecca.dynamics import ModelSX, state, input_var, param, output_var, symbolic
+from cyecca.dynamics import ModelSX, state, input_var, param, output_var, symbolic, EmptyOutputs
 
 @symbolic
 class States:
@@ -59,7 +59,10 @@ class Outputs:
     position: ca.SX = output_var(desc="position output")
     velocity: ca.SX = output_var(desc="velocity output")
 
-model = ModelSX.create(States, Inputs, Params, output_type=Outputs)
+# Note: If you don't need outputs, use EmptyOutputs instead:
+#   model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
+
+model = ModelSX.create(States, Inputs, Params, Outputs)
 x, u, p, y = model.x, model.u, model.p, model.y
 
 # Mass-spring-damper: mx'' + cx' + kx = F
@@ -71,12 +74,16 @@ f_y = ca.vertcat(x.x, x.v)
 model.build(f_x=f_x, f_y=f_y, integrator='rk4')
 
 # Simulate free oscillation from x0=1
-result = model.simulate(0.0, 10.0, 0.01)
+model = model.simulate(0.0, 10.0, 0.01)
 # Output:
 #   Final position: -0.529209
 #   Final velocity: 0.323980
-#   result['out'][0, :] contains position trajectory
-#   result['out'][1, :] contains velocity trajectory
+#   Access via: model.trajectory.x.x[0, -1] (position)
+#              model.trajectory.x.v[0, -1] (velocity)
+#
+# To compute outputs during simulation (optional, costs performance):
+#   model = model.simulate(0.0, 10.0, 0.01, compute_output=True)
+#   model.trajectory.y.position[0, :] # output trajectory
 ```
 
 ## Documentation

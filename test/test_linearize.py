@@ -4,7 +4,7 @@ import casadi as ca
 import numpy as np
 import pytest
 
-from cyecca.dynamics import ModelSX, analyze_modes, find_trim, input_var, linearize_dynamics, param, state, symbolic
+from cyecca.dynamics import EmptyOutputs, ModelSX, analyze_modes, find_trim, input_var, linearize_dynamics, param, state, symbolic
 
 
 def simple_oscillator_classes():
@@ -40,7 +40,7 @@ def simple_oscillator():
     """
     States, Inputs, Params = simple_oscillator_classes()
 
-    model = ModelSX.create(States, Inputs, Params)
+    model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
 
     # Dynamics: spring-mass-damper with external force
     x = model.x.x

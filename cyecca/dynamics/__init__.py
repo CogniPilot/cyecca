@@ -9,22 +9,54 @@ Main components:
 - Models: ModelSX/ModelMX for building and simulating systems
 
 Quick Start:
-    from cyecca.dynamics import ModelSX, state, input_var, param, symbolic
+    import casadi as ca
+    from cyecca.dynamics import ModelSX, state, input_var, param, output_var, symbolic, EmptyOutputs
 
     @symbolic
     class States:
-        x: ca.SX = state(1, 0.0, "position")
+        x: ca.SX = state(1, 1.0, "position")
         v: ca.SX = state(1, 0.0, "velocity")
 
-    model = ModelSX.create(States, Inputs, Params)
-    model.build(f_x=f_x, integrator='rk4')
-    result = model.simulate(0.0, 10.0, 0.01)
+    @symbolic
+    class Inputs:
+        F: ca.SX = input_var(desc="force")
+
+    @symbolic
+    class Params:
+        m: ca.SX = param(1.0, "mass")
+        k: ca.SX = param(1.0, "spring constant")
+        c: ca.SX = param(0.1, "damping")
+
+    @symbolic
+    class Outputs:
+        position: ca.SX = output_var(desc="position")
+        velocity: ca.SX = output_var(desc="velocity")
+
+    # If you don't need outputs, use EmptyOutputs to avoid boilerplate:
+    #   model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
+    
+    model = ModelSX.create(States, Inputs, Params, Outputs)
+    x, u, p, y = model.x, model.u, model.p, model.y
+    
+    # Mass-spring-damper: mx'' + cx' + kx = F
+    f_x = ca.vertcat(x.v, (u.F - p.c * x.v - p.k * x.x) / p.m)
+    f_y = ca.vertcat(x.x, x.v)
+    
+    model.build(f_x=f_x, f_y=f_y, integrator='rk4')
+    model = model.simulate(0.0, 10.0, 0.01, compute_output=True)
+    
+    # Access trajectory data with full type safety:
+    import matplotlib.pyplot as plt
+    traj = model.trajectory
+    plt.plot(traj.t, traj.x.x, label='position')  # plots all components
+    plt.plot(traj.t, traj.x.v, label='velocity')
+    plt.plot(traj.t, traj.y.position, '--', label='output')
 
 See README.md for detailed documentation and examples.
 """
 
 # Model classes
-from .core import ModelMX, ModelSX
+from .core import EmptyOutputs, ModelMX, ModelSX
 
 # Decorators
 from .decorators import compose_states, symbolic
@@ -64,6 +96,7 @@ __all__ = [
     # Model classes
     "ModelSX",
     "ModelMX",
+    "EmptyOutputs",
     # Linearization
     "find_trim",
     "linearize_dynamics",

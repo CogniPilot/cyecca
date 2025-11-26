@@ -4,7 +4,16 @@ import casadi as ca
 import numpy as np
 import pytest
 
-from cyecca.dynamics import ModelMX, ModelSX, input_var, output_var, param, state, symbolic
+from cyecca.dynamics import (
+    EmptyOutputs,
+    ModelMX,
+    ModelSX,
+    input_var,
+    output_var,
+    param,
+    state,
+    symbolic,
+)
 from cyecca.dynamics.composition import SubmodelProxy
 from cyecca.dynamics.integrators import build_rk_integrator, integrate_n_steps, rk4, rk8
 
@@ -48,32 +57,32 @@ class TestQuickStart:
         model.build(f_x=f_x, f_y=f_y, integrator="rk4")
 
         # Simulate free oscillation from x0=1
-        result = model.simulate(0.0, 10.0, 0.01)
+        model = model.simulate(0.0, 10.0, 0.01, compute_output=True)
 
         # Verify results match expected output
-        final_position = result["x"][0, -1]
-        final_velocity = result["x"][1, -1]
+        final_position = model.trajectory.x.x[-1]
+        final_velocity = model.trajectory.x.v[-1]
 
         # Check values are close to documented output
         assert abs(final_position - (-0.529209)) < 0.001
         assert abs(final_velocity - 0.323980) < 0.001
 
         # Verify we have the right number of timesteps
-        assert len(result["t"]) == 1001  # 0 to 10 with dt=0.01
+        assert len(model.trajectory.t) == 1001  # 0 to 10 with dt=0.01
 
         # Verify initial conditions
-        assert result["x"][0, 0] == pytest.approx(1.0)
-        assert result["x"][1, 0] == pytest.approx(0.0)
+        assert model.trajectory.x.x[0] == pytest.approx(1.0)
+        assert model.trajectory.x.v[0] == pytest.approx(0.0)
 
         # Verify oscillatory behavior (should cross zero at least once)
-        x_pos = result["x"][0, :]
+        x_pos = model.trajectory.x.x
         sign_changes = np.sum(np.diff(np.sign(x_pos)) != 0)
         assert sign_changes >= 2  # At least one complete oscillation
 
         # Verify outputs match states
-        assert "out" in result
-        assert np.allclose(result["out"][0, :], result["x"][0, :])  # position output
-        assert np.allclose(result["out"][1, :], result["x"][1, :])  # velocity output
+        assert model.trajectory.y is not None
+        assert np.allclose(model.trajectory.y.position, model.trajectory.x.x)  # position output
+        assert np.allclose(model.trajectory.y.velocity, model.trajectory.x.v)  # velocity output
 
 
 class TestModelCreate:
@@ -94,7 +103,7 @@ class TestModelCreate:
         class Params:
             m: ca.SX = param(1.0)
 
-        model = ModelSX.create(States, Inputs, Params)
+        model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
         model.build(f_x=ca.SX.zeros(1))
 
         # Check types are created
@@ -157,7 +166,7 @@ class TestModelCreate:
         class Params:
             k: ca.SX = param(2.5)
 
-        model = ModelSX.create(States, Inputs, Params)
+        model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
         model.build(f_x=ca.SX.zeros(3))
 
         # Check vector field
@@ -182,7 +191,7 @@ class TestModelCreate:
         class Params:
             pass
 
-        model = ModelSX.create(States, Inputs, Params)
+        model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
         model.build(f_x=ca.SX.zeros(1))
 
         assert hasattr(model, "u")
@@ -234,29 +243,27 @@ class TestSimulation:
         class Params:
             k: ca.SX = param(1.0, "decay rate")
 
-        model = ModelSX.create(States, Inputs, Params)
+        model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
         # dx/dt = -k*x (exponential decay)
         model.build(f_x=-model.p.k * model.x.x)
 
-        result = model.simulate(
+        model = model.simulate(
             t0=0.0,
             tf=1.0,
             dt=0.1,
-            u_func=lambda t, x, p: model.u0.as_vec(),
-            p_vec=model.p0.as_vec(),
+            u_func=lambda t, model: model.u0.as_vec(),
         )
 
-        assert "t" in result
-        assert "x" in result
-        assert len(result["t"]) > 0
-
-        # result["x"] has shape (n_states, n_timesteps), so transpose
-        x_traj = result["x"].T  # Now shape is (n_timesteps, n_states)
+        # Use new trajectory API
+        traj = model.trajectory
+        assert traj.t is not None
+        assert traj.x is not None
+        assert len(traj.t) > 0
 
         # Final value should be less than initial (decay)
         # For dx/dt = -k*x with x(0) = 1, solution is x(t) = e^(-t)
         # At t=1, x ≈ 0.368
-        final_val = float(x_traj[-1, 0])
+        final_val = float(traj.x.x[-1])
         assert final_val < 0.5, f"Expected decay but got {final_val}"
 
 
@@ -319,6 +326,7 @@ class TestHybridFeatures:
             States,
             Inputs,
             Params,
+            EmptyOutputs,
             discrete_state_type=DiscreteStates,
             event_indicator_type=EventIndicators,
         )
@@ -472,6 +480,7 @@ class TestHybridFeatures:
             States,
             Inputs,
             Params,
+            EmptyOutputs,
             discrete_state_type=DiscreteStates,
             event_indicator_type=EventIndicators,
         )
@@ -488,13 +497,14 @@ class TestHybridFeatures:
         model.build(f_x=f_x, f_c=f_c, f_z=f_z, f_m=f_m, integrator="euler")
 
         # Simulate for 5 seconds with event detection
-        result = model.simulate(t0=0.0, tf=5.0, dt=0.01, detect_events=True)
+        model = model.simulate(t0=0.0, tf=5.0, dt=0.01, detect_events=True)
 
-        # Extract results
-        t = result["t"]
-        h = result["x"][0, :]
-        v = result["x"][1, :]
-        num_bounces = result["z"][0, :]
+        # Extract results using new trajectory API
+        traj = model.trajectory
+        t = traj.t
+        h = traj.x.h
+        v = traj.x.v
+        num_bounces = traj.z.num_bounces
 
         # Verify physics
         assert len(t) > 0
@@ -551,7 +561,7 @@ class TestHybridFeatures:
             g: ca.SX = param(9.81, "gravity [m/s^2]")
             e: ca.SX = param(0.9, "restitution [-]")
 
-        model = ModelSX.create(States, Inputs, Params)
+        model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
 
         x, p = model.x, model.p
         f_x = ca.vertcat(x.v, -p.g)
@@ -559,10 +569,10 @@ class TestHybridFeatures:
         model.build(f_x=f_x, integrator="rk4", integrator_options={"N": 10})
 
         # Simulate without event detection (continuous fall)
-        result = model.simulate(t0=0.0, tf=1.0, dt=0.01, detect_events=False)
+        model = model.simulate(t0=0.0, tf=1.0, dt=0.01, detect_events=False)
 
-        h = result["x"][0, :]
-        v = result["x"][1, :]
+        h = model.trajectory.x.h
+        v = model.trajectory.x.v
 
         # Total energy: E = mgh + 0.5mv^2 (with m=1)
         g = 9.81
@@ -599,7 +609,7 @@ class TestModelComposition:
         class IntegratorParams:
             pass
 
-        integrator = ModelSX.create(IntegratorStates, IntegratorInputs, IntegratorParams)
+        integrator = ModelSX.create(IntegratorStates, IntegratorInputs, IntegratorParams, EmptyOutputs)
         x_int = integrator.x
         u_int = integrator.u
         integrator.build(f_x=u_int.u)
@@ -702,8 +712,8 @@ class TestModelComposition:
         class Params:
             pass
 
-        parent = ModelSX.create(States, Inputs, Params)
-        child = ModelSX.create(States, Inputs, Params)
+        parent = ModelSX.create(States, Inputs, Params, EmptyOutputs)
+        child = ModelSX.create(States, Inputs, Params, EmptyOutputs)
 
         # Add submodel
         parent.add_submodel("child", child)
@@ -731,9 +741,9 @@ class TestModelComposition:
         class Outputs:
             y: ca.SX = output_var(desc="output")
 
-        parent = ModelSX.create(States, Inputs, Params)
+        parent = ModelSX.create(States, Inputs, Params, EmptyOutputs)
         child1 = ModelSX.create(States, Inputs, Params, Outputs)
-        child2 = ModelSX.create(States, Inputs, Params)
+        child2 = ModelSX.create(States, Inputs, Params, EmptyOutputs)
 
         # Build simple dynamics
         child1.build(f_x=ca.SX.zeros(1), f_y=child1.x.x)

@@ -64,7 +64,25 @@ from .fields import (
 __all__ = [
     "ModelSX",
     "ModelMX",
+    "Trajectory",
+    "EmptyOutputs",
 ]
+
+
+@symbolic
+class EmptyOutputs:
+    """Empty outputs class for models without outputs.
+    
+    Use this instead of defining an empty @symbolic class Outputs: pass
+    to avoid boilerplate while being explicit about having no outputs.
+    
+    Example:
+        from cyecca.dynamics import ModelSX, EmptyOutputs
+        
+        model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
+    """
+    pass
+
 
 # Type variables for generic model classes
 TState = TypeVar("TState")
@@ -77,6 +95,166 @@ TQuadrature = TypeVar("TQuadrature")
 TDiscreteState = TypeVar("TDiscreteState")
 TDiscreteVar = TypeVar("TDiscreteVar")
 TEventIndicator = TypeVar("TEventIndicator")
+
+# Type variables for trajectory classes
+TStateTrajectory = TypeVar("TStateTrajectory")
+TOutputTrajectory = TypeVar("TOutputTrajectory")
+TDiscreteStateTrajectory = TypeVar("TDiscreteStateTrajectory")
+TDiscreteVarTrajectory = TypeVar("TDiscreteVarTrajectory")
+TQuadratureTrajectory = TypeVar("TQuadratureTrajectory")
+
+
+def _create_trajectory_class(original_class, class_suffix="Trajectory"):
+    """Create a trajectory version of a dataclass where each field is an array.
+    
+    For a field that was (dim, 1), it becomes (n_steps, dim).
+    This enables convenient matplotlib plotting: plt.plot(traj.t, traj.x.p) plots all components.
+    
+    Parameters
+    ----------
+    original_class : type
+        The original dataclass with _field_info
+    class_suffix : str
+        Suffix to append to class name
+        
+    Returns
+    -------
+    type
+        New dataclass with array fields
+    """
+    if not hasattr(original_class, '_field_info'):
+        raise ValueError(f"Class {original_class} must have _field_info attribute")
+    
+    # Build new class with array fields
+    new_class_name = original_class.__name__ + class_suffix
+    
+    # Create class dynamically with proper field storage
+    class_dict = {
+        '__annotations__': {},
+        '_original_class': original_class,
+        '_field_info': {},
+    }
+    
+    # Add fields as numpy arrays
+    for fname, finfo in original_class._field_info.items():
+        class_dict['__annotations__'][fname] = np.ndarray
+        class_dict['_field_info'][fname] = finfo.copy()
+    
+    # Add from_matrix classmethod to construct from simulation results
+    @classmethod
+    def from_matrix(cls, matrix: np.ndarray):
+        """Create trajectory from matrix (n_states x n_steps).
+        
+        Parameters
+        ----------
+        matrix : np.ndarray
+            State matrix with shape (n_states, n_steps)
+            
+        Returns
+        -------
+        instance
+            Trajectory instance with fields populated as (n_steps, dim) arrays
+        """
+        instance = cls()
+        offset = 0
+        for fname, finfo in cls._field_info.items():
+            dim = finfo['dim']
+            if dim == 1:
+                # Single dimension: extract row and transpose to (n_steps,)
+                setattr(instance, fname, matrix[offset:offset+1, :].T.squeeze())
+                offset += 1
+            else:
+                # Multi-dimension: extract rows and transpose to (n_steps, dim)
+                setattr(instance, fname, matrix[offset:offset+dim, :].T)
+                offset += dim
+        return instance
+    
+    class_dict['from_matrix'] = from_matrix
+    
+    # Create the new class
+    TrajClass = type(new_class_name, (), class_dict)
+    
+    return TrajClass
+
+
+@dataclass
+class Trajectory(Generic[TStateTrajectory, TDiscreteStateTrajectory, TDiscreteVarTrajectory, 
+                         TQuadratureTrajectory, TOutputTrajectory]):
+    """Container for simulation trajectory data with type-safe field access.
+    
+    Holds time history and state/output trajectories from simulation.
+    Each state field becomes an array with shape (n_steps, dim) for convenient plotting.
+    
+    The generic type parameters ensure full type safety and autocomplete for all fields.
+    
+    Example
+    -------
+    >>> model = model.simulate(0, 10, 0.01)  # doctest: +SKIP
+    >>> traj = model.trajectory  # doctest: +SKIP
+    >>> plt.plot(traj.t, traj.x.p)  # Plot all position components  # doctest: +SKIP
+    """
+    
+    t: np.ndarray = field(default_factory=lambda: np.array([]))
+    x: TStateTrajectory | None = None  # State trajectory with full type info
+    z: TDiscreteStateTrajectory | None = None  # Discrete state trajectory  
+    m: TDiscreteVarTrajectory | None = None  # Discrete variable trajectory
+    q: TQuadratureTrajectory | None = None  # Quadrature trajectory
+    y: TOutputTrajectory | None = None  # Output trajectory
+    
+    @classmethod
+    def from_history(cls, sim_history: dict, model: 'ModelSX'):
+        """Create Trajectory from simulation history dict.
+        
+        Parameters
+        ----------
+        sim_history : dict
+            Dictionary with 't', 'x', and optionally 'z', 'm', 'q', 'y' arrays
+        model : ModelSX
+            Model instance with type information
+            
+        Returns
+        -------
+        Trajectory
+            Trajectory instance with typed field access
+        """
+        traj = cls()
+        traj.t = sim_history['t']
+        
+        # Create state trajectory class if not already cached
+        if not hasattr(model, '_StateTrajectory'):
+            model._StateTrajectory = _create_trajectory_class(model.state_type, "Trajectory")
+        
+        traj.x = model._StateTrajectory.from_matrix(sim_history['x'])
+        
+        if 'z' in sim_history and model.discrete_state_type is not None:
+            if not hasattr(model, '_DiscreteStateTrajectory'):
+                model._DiscreteStateTrajectory = _create_trajectory_class(
+                    model.discrete_state_type, "Trajectory"
+                )
+            traj.z = model._DiscreteStateTrajectory.from_matrix(sim_history['z'])
+        
+        if 'm' in sim_history and model.discrete_var_type is not None:
+            if not hasattr(model, '_DiscreteVarTrajectory'):
+                model._DiscreteVarTrajectory = _create_trajectory_class(
+                    model.discrete_var_type, "Trajectory"
+                )
+            traj.m = model._DiscreteVarTrajectory.from_matrix(sim_history['m'])
+        
+        if 'q' in sim_history and model.quadrature_type is not None:
+            if not hasattr(model, '_QuadratureTrajectory'):
+                model._QuadratureTrajectory = _create_trajectory_class(
+                    model.quadrature_type, "Trajectory"
+                )
+            traj.q = model._QuadratureTrajectory.from_matrix(sim_history['q'])
+        
+        if 'y' in sim_history and model.output_type is not None:
+            if not hasattr(model, '_OutputTrajectory'):
+                model._OutputTrajectory = _create_trajectory_class(
+                    model.output_type, "Trajectory"
+                )
+            traj.y = model._OutputTrajectory.from_matrix(sim_history['y'])
+        
+        return traj
 
 
 @beartype
@@ -126,7 +304,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         state_type: type[TState],
         input_type: type[TInput],
         param_type: type[TParam],
-        output_type: type[TOutput] | None = None,
+        output_type: type[TOutput],
         algebraic_type: type[TAlgebraic] | None = None,
         dependent_type: type[TDependent] | None = None,
         quadrature_type: type[TQuadrature] | None = None,
@@ -160,10 +338,11 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         self.u0 = input_type.numeric()
         self.p0 = param_type.numeric()
 
+        # Create required output
+        self.y = output_type.symbolic(ca.SX)
+        self.y0 = output_type.numeric()
+
         # Create optional types if provided
-        if output_type:
-            self.y = output_type.symbolic(ca.SX)
-            self.y0 = output_type.numeric()
 
         if algebraic_type:
             self.z_alg = algebraic_type.symbolic(ca.SX)
@@ -194,12 +373,25 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
             """Helper for accessing signals in connect() calls."""
 
             def __init__(self, prefix: str, obj):
-                self._prefix = prefix
-                self._obj = obj
+                object.__setattr__(self, '_prefix', prefix)
+                object.__setattr__(self, '_obj', obj)
 
             def __getattr__(self, attr: str):
-                if hasattr(self._obj, attr):
-                    return ModelSX.SignalRef(self._prefix, attr)
+                # Handle special attributes that deepcopy/pickle looks for
+                if attr in ('__setstate__', '__getstate__', '__dict__',
+                           '__getnewargs__', '__getnewargs_ex__'):
+                    raise AttributeError(attr)
+                
+                # Avoid infinite recursion by checking object dict directly
+                try:
+                    obj = object.__getattribute__(self, '_obj')
+                    # Check if attribute exists in obj's type annotations
+                    if hasattr(type(obj), '__annotations__') and \
+                       attr in type(obj).__annotations__:
+                        return ModelSX.SignalRef(
+                            object.__getattribute__(self, '_prefix'), attr)
+                except AttributeError:
+                    pass
                 raise AttributeError(f"Signal '{attr}' not found")
 
         self.inputs = ConnectionHelper("u", self.u)
@@ -212,7 +404,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         state_type: type[TState],
         input_type: type[TInput],
         param_type: type[TParam],
-        output_type: type[TOutput] = None,
+        output_type: type[TOutput],
         **kwargs,
     ):
         """Create a fully-typed model instance with automatic type inference.
@@ -223,7 +415,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
             state_type: Dataclass decorated with @symbolic
             input_type: Dataclass decorated with @symbolic
             param_type: Dataclass decorated with @symbolic
-            output_type: Optional output type dataclass
+            output_type: Output type dataclass decorated with @symbolic
             **kwargs: Optional types (algebraic_type, dependent_type, etc.)
 
         Returns:
@@ -236,6 +428,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
             x = model.x()  # x has full autocomplete
             u = model.u()  # u has full autocomplete
             p = model.p()  # p has full autocomplete
+            y = model.y()  # y has full autocomplete
         """
         return cls(state_type, input_type, param_type, output_type=output_type, **kwargs)
 
@@ -865,93 +1058,118 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         tf: float,
         dt: float,
         u_func: Callable = None,
-        p_vec=None,
-        x0_vec=None,
         detect_events: bool = False,
+        compute_output: bool = False,
     ):
         """Simulate model from t0 to tf with event detection.
 
-        Args:
-            t0: Initial time
-            tf: Final time
-            dt: Timestep
-            u_func: Optional control function (t, x, p) -> u_vec
-            p_vec: Optional parameter vector (uses p0 if None)
-            x0_vec: Optional initial state vector (uses x0 if None)
-            detect_events: Whether to detect and handle zero-crossings
+        Takes the current model state (x, p, z, m, q) and returns an updated copy.
 
-        Returns:
-            Dictionary with 't', 'x', and optionally 'z', 'm', 'q', 'out' arrays
+        Parameters
+        ----------
+        t0 : float
+            Initial time
+        tf : float
+            Final time
+        dt : float
+            Timestep
+        u_func : Callable, optional
+            Control function (t, model) -> u_vec. If None, uses u0.
+        detect_events : bool, optional
+            Whether to detect and handle zero-crossings
+        compute_output : bool, optional
+            Whether to compute outputs during simulation. Default False for efficiency.
+            If False, trajectory.y will be None.
+
+        Returns
+        -------
+        ModelSX
+            Copy of the model with updated state after simulation
+            
+        Raises
+        ------
+        RuntimeError
+            If NaN or Inf detected in state during simulation
         """
         if not hasattr(self, "f_step"):
             raise ValueError("Model not built. Call build() first.")
 
-        # Handle composed models
-        if hasattr(self, "_composed") and self._composed:
-            p_vec = self.p0.as_vec() if p_vec is None else p_vec
-            x_curr = self.x0_composed if x0_vec is None else x0_vec
-        else:
-            p_vec = self.p0.as_vec() if p_vec is None else p_vec
-            x_curr = self.x0.as_vec() if x0_vec is None else x0_vec
+        # Create a copy to avoid modifying the original
+        result_model = copy.deepcopy(self)
 
-        z_curr = self.z0.as_vec() if self.z is not None else None
-        m_curr = self.m0.as_vec() if self.m is not None else None
-        q_curr = self.q0.as_vec() if self.q is not None else None
+        # Get initial values from the model
+        if hasattr(result_model, "_composed") and result_model._composed:
+            x_curr = result_model.x0_composed
+        else:
+            x_curr = result_model.x0.as_vec()
+
+        p_vec = result_model.p0.as_vec()
+        z_curr = result_model.z0.as_vec() if result_model.z is not None else None
+        m_curr = result_model.m0.as_vec() if result_model.m is not None else None
+        q_curr = result_model.q0.as_vec() if result_model.q is not None else None
 
         t_hist = [t0]
         x_hist = [x_curr]
-        if self.z is not None:
+        if result_model.z is not None:
             z_hist = [z_curr]
-        if self.m is not None:
+        if result_model.m is not None:
             m_hist = [m_curr]
-        if self.q is not None:
+        if result_model.q is not None:
             q_hist = [q_curr]
-        out_hist = [] if hasattr(self, "f_y") else None
+        y_hist = [] if (compute_output and hasattr(result_model, "f_y")) else None
 
         # Track previous event indicator for zero-crossing detection
         c_prev = None
-        if detect_events and hasattr(self, "f_c"):
-            args = self._build_eval_args(x_curr, z_curr, m_curr, self.u0.as_vec(), p_vec)
-            c_prev = float(self.f_c(*args))
+        if detect_events and hasattr(result_model, "f_c"):
+            args = result_model._build_eval_args(x_curr, z_curr, m_curr, result_model.u0.as_vec(), p_vec)
+            c_prev = float(result_model.f_c(*args))
 
         t = t0
         while t < tf - dt / 2:
             # Get control
             if u_func is not None:
-                u_curr = u_func(t, x_curr, p_vec)
+                u_curr = u_func(t, result_model)
             else:
-                u_curr = self.u0.as_vec()
+                u_curr = result_model.u0.as_vec()
 
             # Evaluate outputs before step
-            if out_hist is not None:
-                args = self._build_eval_args(x_curr, z_curr, m_curr, u_curr, p_vec)
-                out_val = self.f_y(*args)
-                out_hist.append(out_val)
+            if y_hist is not None:
+                args = result_model._build_eval_args(x_curr, z_curr, m_curr, u_curr, p_vec)
+                y_val = result_model.f_y(*args)
+                y_hist.append(y_val)
 
             # Integration step - build arguments for f_step
             step_args = [x_curr]
-            if self.z is not None:
+            if result_model.z is not None:
                 step_args.append(z_curr)
-            if self.m is not None:
+            if result_model.m is not None:
                 step_args.append(m_curr)
             step_args.extend([u_curr, p_vec, dt])
 
-            x_next = self.f_step(*step_args)
+            x_next = result_model.f_step(*step_args)
+
+            # Check for invalid values (NaN/Inf)
+            x_next_full = ca.DM(x_next).full().flatten()
+            if np.any(np.isnan(x_next_full)) or np.any(np.isinf(x_next_full)):
+                raise RuntimeError(
+                    f"NaN or Inf detected in state at t={t + dt:.6f}s during simulation. "
+                    f"State values: {x_next_full}"
+                )
 
             # Check for events
-            if detect_events and hasattr(self, "f_c"):
-                args = self._build_eval_args(x_next, z_curr, m_curr, u_curr, p_vec)
-                c_curr = float(self.f_c(*args))
+            if detect_events and hasattr(result_model, "f_c"):
+                args = result_model._build_eval_args(x_next, z_curr, m_curr, u_curr, p_vec)
+                c_curr = float(result_model.f_c(*args))
 
                 # Detect zero-crossing
                 if c_prev is not None and c_prev > 0 and c_curr <= 0:
                     # Event occurred!
-                    if hasattr(self, "f_z") and z_curr is not None:
-                        z_curr = self.f_z(*args)
-                    if hasattr(self, "f_m"):
+                    if hasattr(result_model, "f_z") and z_curr is not None:
+                        z_curr = result_model.f_z(*args)
+                    if hasattr(result_model, "f_m"):
                         # f_m can reset either discrete variables or continuous states
                         # Check output dimension to determine which
-                        m_reset = self.f_m(*args)
+                        m_reset = result_model.f_m(*args)
                         if m_curr is not None and m_reset.size1() == m_curr.size1():
                             # Reset discrete variables
                             m_curr = m_reset
@@ -965,42 +1183,109 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
                 c_prev = c_curr
 
             # Integrate quadratures if present
-            if self.q is not None and hasattr(self, "f_q"):
-                args = self._build_eval_args(x_curr, z_curr, m_curr, u_curr, p_vec)
-                dq_dt = self.f_q(*args)
+            if result_model.q is not None and hasattr(result_model, "f_q"):
+                args = result_model._build_eval_args(x_curr, z_curr, m_curr, u_curr, p_vec)
+                dq_dt = result_model.f_q(*args)
                 q_curr = q_curr + dt * dq_dt
 
             # Store
             t += dt
             t_hist.append(t)
             x_hist.append(x_next)
-            if self.z is not None:
+            if result_model.z is not None:
                 z_hist.append(z_curr)
-            if self.m is not None:
+            if result_model.m is not None:
                 m_hist.append(m_curr)
-            if self.q is not None:
+            if result_model.q is not None:
                 q_hist.append(q_curr)
 
             x_curr = x_next
 
         # Final output
-        if out_hist is not None:
-            args = self._build_eval_args(x_curr, z_curr, m_curr, u_curr, p_vec)
-            out_val = self.f_y(*args)
-            out_hist.append(out_val)
+        if y_hist is not None:
+            args = result_model._build_eval_args(x_curr, z_curr, m_curr, u_curr, p_vec)
+            y_val = result_model.f_y(*args)
+            y_hist.append(y_val)
 
-        # Build result dictionary
-        result = {"t": np.array(t_hist), "x": ca.hcat(x_hist).full()}
-        if self.z is not None:
-            result["z"] = ca.hcat(z_hist).full()
-        if self.m is not None:
-            result["m"] = ca.hcat(m_hist).full()
-        if self.q is not None:
-            result["q"] = ca.hcat(q_hist).full()
-        if out_hist is not None:
-            result["out"] = ca.hcat(out_hist).full()
+        # Update the result model with final state
+        if hasattr(result_model, "_composed") and result_model._composed:
+            result_model.x0_composed = x_curr
+        else:
+            result_model.x0 = result_model.state_type.from_vec(x_curr)
+        
+        if z_curr is not None:
+            result_model.z0 = result_model.discrete_state_type.from_vec(z_curr)
+        if m_curr is not None:
+            result_model.m0 = result_model._vec_to_discrete_var(m_curr)
+        if q_curr is not None:
+            result_model.q0 = result_model._vec_to_quadrature(q_curr)
 
-        return result
+        # Store history as dict for backward compatibility
+        result_model._sim_history = {
+            "t": np.array(t_hist), 
+            "x": ca.hcat(x_hist).full()
+        }
+        if result_model.z is not None:
+            result_model._sim_history["z"] = ca.hcat(z_hist).full()
+        if result_model.m is not None:
+            result_model._sim_history["m"] = ca.hcat(m_hist).full()
+        if result_model.q is not None:
+            result_model._sim_history["q"] = ca.hcat(q_hist).full()
+        if y_hist is not None:
+            result_model._sim_history["y"] = ca.hcat(y_hist).full()
+        
+        # Create typed Trajectory object
+        result_model._trajectory = Trajectory.from_history(result_model._sim_history, result_model)
+
+        return result_model
+    
+    @property
+    def trajectory(self) -> Trajectory:
+        """Access simulation results as typed Trajectory object.
+        
+        Returns
+        -------
+        Trajectory
+            Trajectory with typed field access for plotting and analysis
+            
+        Example
+        -------
+        >>> model = model.simulate(0, 10, 0.01)  # doctest: +SKIP
+        >>> plt.plot(model.trajectory.t, model.trajectory.x.p[0, :])  # doctest: +SKIP
+        """
+        if not hasattr(self, '_trajectory'):
+            if hasattr(self, '_sim_history'):
+                self._trajectory = Trajectory.from_history(self._sim_history, self)
+            else:
+                raise ValueError("No simulation history available. Run simulate() first.")
+        return self._trajectory
+
+    @property
+    def y_current(self):
+        """Evaluate outputs at current state (x0, u0, p0).
+        
+        Returns
+        -------
+        Output dataclass instance
+            Current outputs evaluated at x0, u0, p0
+            
+        Example
+        -------
+        >>> model = model.simulate(0, 10, 0.01)  # doctest: +SKIP
+        >>> print(model.y_current.ail)  # Access current aileron output  # doctest: +SKIP
+        """
+        if not hasattr(self, 'f_y'):
+            raise ValueError("Model has no output function (f_y)")
+        
+        # Evaluate output function at current state
+        result = self.f_y(
+            x=self._state_to_vec(self.x0),
+            u=self.u0.as_vec(),
+            p=self.p0.as_vec()
+        )
+        
+        # Convert output vector to dataclass
+        return self.output_type.from_vec(result['y'])
 
     def _build_eval_args(self, x, z, m, u, p):
         """Build argument list for function evaluation.

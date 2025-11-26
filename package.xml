@@ -2,10 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>cyecca</name>
-  <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <version>0.2.8</version>
+  <description>Estimation and Control with Computer Algebra systems</description>
   <maintainer email="james.goppert@gmail.com">jgoppert</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>
@@ -14,8 +14,6 @@
   <depend>rclpy</depend>
   <depend>python3-beartype</depend>
   <depend>python3-sympy</depend>
-  <!-- Optional: only needed for old estimator code -->
-  <!-- <depend>python3-matplotlib</depend> -->
 
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>

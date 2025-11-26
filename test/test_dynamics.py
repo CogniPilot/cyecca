@@ -4,15 +4,7 @@ import casadi as ca
 import numpy as np
 import pytest
 
-from cyecca.dynamics import (
-    ModelMX,
-    ModelSX,
-    input_var,
-    output_var,
-    param,
-    state,
-    symbolic,
-)
+from cyecca.dynamics import ModelMX, ModelSX, input_var, output_var, param, state, symbolic
 from cyecca.dynamics.composition import SubmodelProxy
 from cyecca.dynamics.integrators import build_rk_integrator, integrate_n_steps, rk4, rk8
 

@@ -1,6 +1,6 @@
 """Type-safe CasADi modeling framework with full hybrid DAE support.
 
-This package provides a declarative API for building hybrid dynamical systems 
+This package provides a declarative API for building hybrid dynamical systems
 without dynamic class generation. Full autocomplete and type safety throughout.
 
 Main components:
@@ -24,16 +24,10 @@ See README.md for detailed documentation and examples.
 """
 
 # Model classes
-from .core import (
-    ModelMX,
-    ModelSX,
-)
+from .core import ModelMX, ModelSX
 
 # Decorators
-from .decorators import (
-    compose_states,
-    symbolic,
-)
+from .decorators import compose_states, symbolic
 
 # Field creators
 from .fields import (
@@ -50,12 +44,7 @@ from .fields import (
 )
 
 # Linearization and analysis tools
-from .linearize import (
-    analyze_modes,
-    find_trim,
-    linearize_dynamics,
-    print_trim_details,
-)
+from .linearize import analyze_modes, find_trim, linearize_dynamics, print_trim_details
 
 __all__ = [
     # Field creators

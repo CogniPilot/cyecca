@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cyecca"
-version = "0.2.7"
+version = "0.3.0"
 description = "Symbolic Estimation and Control with Computer Algebra - A Lie group library for robotics built on CasADi"
 authors = ["James Goppert <james.goppert@gmail.com>"]
 readme = "README.md"

@@ -1052,6 +1052,15 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
             else []
         )
 
+    def _update_state_in_place(self, target_obj, new_obj):
+        """Update target object fields in-place from new object.
+
+        Preserves object identity while updating all field values.
+        Used to maintain external references (e.g., adapters) during in-place simulation.
+        """
+        for field_name in new_obj.__dataclass_fields__:
+            setattr(target_obj, field_name, getattr(new_obj, field_name))
+
     def simulate(
         self,
         t0: float,
@@ -1060,10 +1069,12 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         u_func: Callable = None,
         detect_events: bool = False,
         compute_output: bool = False,
+        in_place: bool = False,
     ):
         """Simulate model from t0 to tf with event detection.
 
-        Takes the current model state (x, p, z, m, q) and returns an updated copy.
+        Takes the current model state (x, p, z, m, q) and returns an updated copy
+        (or updates in-place if in_place=True).
 
         Parameters
         ----------
@@ -1080,11 +1091,15 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         compute_output : bool, optional
             Whether to compute outputs during simulation. Default False for efficiency.
             If False, trajectory.y will be None.
+        in_place : bool, optional
+            If True, update this model's state directly instead of returning a copy.
+            Useful for real-time simulation where creating copies is expensive.
+            Default False for backward compatibility.
 
         Returns
         -------
         ModelSX
-            Copy of the model with updated state after simulation
+            Copy of the model with updated state after simulation (or self if in_place=True)
             
         Raises
         ------
@@ -1094,8 +1109,8 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         if not hasattr(self, "f_step"):
             raise ValueError("Model not built. Call build() first.")
 
-        # Create a copy to avoid modifying the original
-        result_model = copy.deepcopy(self)
+        # Create a copy unless in_place is True
+        result_model = self if in_place else copy.deepcopy(self)
 
         # Get initial values from the model
         if hasattr(result_model, "_composed") and result_model._composed:
@@ -1211,14 +1226,32 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         if hasattr(result_model, "_composed") and result_model._composed:
             result_model.x0_composed = x_curr
         else:
-            result_model.x0 = result_model.state_type.from_vec(x_curr)
+            new_state = result_model.state_type.from_vec(x_curr)
+            if in_place:
+                result_model._update_state_in_place(result_model.x0, new_state)
+            else:
+                result_model.x0 = new_state
         
         if z_curr is not None:
-            result_model.z0 = result_model.discrete_state_type.from_vec(z_curr)
+            new_z = result_model.discrete_state_type.from_vec(z_curr)
+            if in_place and hasattr(result_model, 'z0'):
+                result_model._update_state_in_place(result_model.z0, new_z)
+            else:
+                result_model.z0 = new_z
+                
         if m_curr is not None:
-            result_model.m0 = result_model._vec_to_discrete_var(m_curr)
+            new_m = result_model._vec_to_discrete_var(m_curr)
+            if in_place and hasattr(result_model, 'm0'):
+                result_model._update_state_in_place(result_model.m0, new_m)
+            else:
+                result_model.m0 = new_m
+                
         if q_curr is not None:
-            result_model.q0 = result_model._vec_to_quadrature(q_curr)
+            new_q = result_model._vec_to_quadrature(q_curr)
+            if in_place and hasattr(result_model, 'q0'):
+                result_model._update_state_in_place(result_model.q0, new_q)
+            else:
+                result_model.q0 = new_q
 
         # Store history as dict for backward compatibility
         result_model._sim_history = {

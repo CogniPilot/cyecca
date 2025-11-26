@@ -1279,13 +1279,13 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         
         # Evaluate output function at current state
         result = self.f_y(
-            x=self._state_to_vec(self.x0),
+            x=self.x0.as_vec(),
             u=self.u0.as_vec(),
             p=self.p0.as_vec()
         )
         
         # Convert output vector to dataclass
-        return self.output_type.from_vec(result['y'])
+        return self.output_type.from_vec(result)
 
     def _build_eval_args(self, x, z, m, u, p):
         """Build argument list for function evaluation.

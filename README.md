@@ -78,12 +78,13 @@ model = model.simulate(0.0, 10.0, 0.01)
 # Output:
 #   Final position: -0.529209
 #   Final velocity: 0.323980
-#   Access via: model.trajectory.x.x[0, -1] (position)
-#              model.trajectory.x.v[0, -1] (velocity)
+#   Access via: model.trajectory.x.x[-1] (final position)
+#              model.trajectory.x.v[-1] (final velocity)
+#              model.trajectory.x.x (full position trajectory, shape: n_steps)
 #
 # To compute outputs during simulation (optional, costs performance):
 #   model = model.simulate(0.0, 10.0, 0.01, compute_output=True)
-#   model.trajectory.y.position[0, :] # output trajectory
+#   model.trajectory.y.position # output trajectory
 ```
 
 ## Documentation

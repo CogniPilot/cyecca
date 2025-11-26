@@ -754,9 +754,10 @@ class TestModelComposition:
         # Test connection API using string paths
         parent.connect("child2.u.u", "child1.y.y")
 
-        # Verify connection was stored
-        assert "child2" in parent._input_connections
-        assert "child2.u.u" in parent._input_connections["child2"]
+        # Verify connection was stored using public API
+        connections = parent.get_connections("child2")
+        assert "child2.u.u" in connections
+        assert connections["child2.u.u"] == "child1.y.y"
 
 
 class TestIntegrators:

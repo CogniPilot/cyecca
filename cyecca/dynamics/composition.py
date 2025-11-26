@@ -240,6 +240,29 @@ class CompositionMixin:
                 self._input_connections[target_model] = {}
             self._input_connections[target_model][target_str] = source_str
 
+    def get_connections(self, target_model: str = None):
+        """Get input connections for a submodel.
+        
+        Args:
+            target_model: Name of the target submodel. If None, returns all connections.
+            
+        Returns:
+            dict: Dictionary mapping target signals to source signals.
+                  If target_model is None, returns nested dict {model: {target: source}}.
+                  
+        Example:
+            >>> parent.connect("child2.u.u", "child1.y.y")  # doctest: +SKIP
+            >>> parent.get_connections("child2")  # doctest: +SKIP
+            {'child2.u.u': 'child1.y.y'}
+        """
+        if not hasattr(self, "_input_connections"):
+            return {} if target_model is None else {}
+        
+        if target_model is None:
+            return dict(self._input_connections)
+        
+        return dict(self._input_connections.get(target_model, {}))
+
     def build_composed(self, integrator: str = "rk4", integrator_options: dict = None):
         """Build a composed model from added submodels.
 

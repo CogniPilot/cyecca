@@ -53,12 +53,13 @@ Build a simple mass-spring-damper system:
    model.build(f_x=f_x, integrator='rk4')
    
    # Simulate (uses default initial conditions from States/Inputs/Params)
-   result = model.simulate(t0=0.0, tf=10.0, dt=0.01)
+   model = model.simulate(t0=0.0, tf=10.0, dt=0.01)
    
-   # Plot results
+   # Plot results - access via trajectory attribute
    import matplotlib.pyplot as plt
-   plt.plot(result['t'], result['x'][0, :], label='position')
-   plt.plot(result['t'], result['x'][1, :], label='velocity')
+   traj = model.trajectory
+   plt.plot(traj.t, traj.x.x, label='position')  # shape: (n_steps,)
+   plt.plot(traj.t, traj.x.v, label='velocity')  # shape: (n_steps,)
    plt.legend()
    plt.show()
 

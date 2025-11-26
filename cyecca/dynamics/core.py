@@ -191,7 +191,7 @@ class Trajectory(Generic[TStateTrajectory, TDiscreteStateTrajectory, TDiscreteVa
     -------
     >>> model = model.simulate(0, 10, 0.01)  # doctest: +SKIP
     >>> traj = model.trajectory  # doctest: +SKIP
-    >>> plt.plot(traj.t, traj.x.p)  # Plot all position components  # doctest: +SKIP
+    >>> plt.plot(traj.t, traj.x.p)  # Plot all position components (n_steps, dim)  # doctest: +SKIP
     """
     
     t: np.ndarray = field(default_factory=lambda: np.array([]))
@@ -1251,7 +1251,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         Example
         -------
         >>> model = model.simulate(0, 10, 0.01)  # doctest: +SKIP
-        >>> plt.plot(model.trajectory.t, model.trajectory.x.p[0, :])  # doctest: +SKIP
+        >>> plt.plot(model.trajectory.t, model.trajectory.x.p)  # doctest: +SKIP
         """
         if not hasattr(self, '_trajectory'):
             if hasattr(self, '_sim_history'):

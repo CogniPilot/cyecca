@@ -106,7 +106,14 @@ Example: Bouncing ball with restitution coefficient
    f_m = ca.vertcat(x.h, -0.8 * x.v)
    
    model.build(f_x=f_x, f_c=f_c, f_m=f_m)
-   result = model.simulate(0, 10, 0.01, detect_events=True)
+   model = model.simulate(0, 10, 0.01, detect_events=True)
+   
+   # Access results via trajectory attribute
+   traj = model.trajectory
+   # traj.t - time points
+   # traj.x.h - height trajectory
+   # traj.x.v - velocity trajectory
+   # traj.z.bounces - discrete state trajectory
 
 Linearization & Analysis
 ------------------------

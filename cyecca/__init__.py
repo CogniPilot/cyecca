@@ -1,5 +1,3 @@
-from . import lie
-from . import dynamics
-from . import planning
+from . import dynamics, lie, planning
 
 __all__ = ["lie", "dynamics", "planning"]

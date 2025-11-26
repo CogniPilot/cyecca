@@ -1,14 +1,16 @@
 import argparse
 import os
-import numpy as np
 from pathlib import Path
+
 import casadi as ca
+import numpy as np
+
 import cyecca.lie as lie
-from cyecca.lie.group_so3 import so3, SO3Quat, SO3EulerB321, SO3Dcm
-from cyecca.models.bezier import derive_dcm_to_quat
 from cyecca.lie.group_se23 import SE23Quat, se23
-from cyecca.symbolic import SERIES
+from cyecca.lie.group_so3 import SO3Dcm, SO3EulerB321, SO3Quat, so3
+from cyecca.models.bezier import derive_dcm_to_quat
 from cyecca.models.rdd2 import saturatem
+from cyecca.symbolic import SERIES
 
 # print('python: ', sys.executable)
 
@@ -53,9 +55,7 @@ def saturate(x, x_min, x_max):
     """
     y = x
     for i in range(x.shape[0]):
-        y[i] = ca.if_else(
-            x[i] > x_max[i], x_max[i], ca.if_else(x[i] < x_min[i], x_min[i], x[i])
-        )
+        y[i] = ca.if_else(x[i] > x_max[i], x_max[i], ca.if_else(x[i] < x_min[i], x_min[i], x[i]))
     return y
 
 
@@ -120,9 +120,7 @@ def derive_so3_attitude_control():
 
     # FUNCTION
     # -------------------------------
-    f_attitude_control = ca.Function(
-        "so3_attitude_control", [kp, q, q_r], [omega], ["kp", "q", "q_r"], ["omega"]
-    )
+    f_attitude_control = ca.Function("so3_attitude_control", [kp, q, q_r], [omega], ["kp", "q", "q_r"], ["omega"])
 
     return {"so3_attitude_control": f_attitude_control}
 
@@ -245,14 +243,8 @@ def derive_outerloop_control():
     z_i_2 = z_i + zeta[0:3] * dt
     z_i_2 = saturatem(
         z_i_2,
-        -thrust_trim
-        * ca.vertcat(
-            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
-        ),
-        thrust_trim
-        * ca.vertcat(
-            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
-        ),
+        -thrust_trim * ca.vertcat(x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z),
+        thrust_trim * ca.vertcat(x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z),
     )
 
     # trim throttle
@@ -296,9 +288,7 @@ def derive_outerloop_control():
         ["nT", "z_i_2", "u_omega", "q_sp"],
     )
 
-    f_se23_attitude_control = ca.Function(
-        "se23_attitude_control", [kp, zeta], [u_omega], ["kp", "zeta"], ["omega"]
-    )
+    f_se23_attitude_control = ca.Function("se23_attitude_control", [kp, zeta], [u_omega], ["kp", "zeta"], ["omega"])
 
     return {
         "se23_control": f_get_u,

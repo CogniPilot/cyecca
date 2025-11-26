@@ -27,9 +27,7 @@ def taylor_series_near_zero(x, f, order=6, eps=1e-4, verbose=False):
     if verbose:
         print("f_series: ", f_series, "\nf:", f)
     f, _ = sympy_to_casadi(f, symbols=symbols)
-    f = ca.Function(
-        "f", [symbols["x"]], [ca.if_else(ca.fabs(symbols["x"]) < eps, f_series, f)]
-    )
+    f = ca.Function("f", [symbols["x"]], [ca.if_else(ca.fabs(symbols["x"]) < eps, f_series, f)])
     return f
 
 
@@ -45,9 +43,7 @@ def sympy_to_casadi(f, f_dict=None, symbols=None, cse=False, verbose=False):
 def _sympy_parser(f, f_dict=None, symbols=None, depth=0, cse=False, verbose=False):
     if f_dict is None:
         f_dict = {}
-    prs = lambda f: _sympy_parser(
-        f=f, f_dict=f_dict, symbols=symbols, depth=depth + 1, cse=False, verbose=verbose
-    )
+    prs = lambda f: _sympy_parser(f=f, f_dict=f_dict, symbols=symbols, depth=depth + 1, cse=False, verbose=verbose)
     f_type = type(f)
     dict_keys = list(f_dict.keys())
     if verbose:
@@ -124,9 +120,7 @@ def _sympy_parser(f, f_dict=None, symbols=None, depth=0, cse=False, verbose=Fals
         for i in range(len(dict_keys)):
             return f_dict[dict_keys[i]](prs(f.args[0]))
     else:
-        raise NotImplementedError(
-            "unhandled type: {:s} {:s}".format(str(f_type), str(f))
-        )
+        raise NotImplementedError("unhandled type: {:s} {:s}".format(str(f_type), str(f)))
 
 
 def casadi_to_sympy(expr, syms=None):
@@ -391,42 +385,24 @@ def derive_series(input_squared=False):
 
     # return series dictionary
     return {
-        "cos(x)": taylor_series_near_zero(
-            u, cos_x
-        ),  # necessary for series of cos(sqrt(x))
+        "cos(x)": taylor_series_near_zero(u, cos_x),  # necessary for series of cos(sqrt(x))
         "sin(x)/x": taylor_series_near_zero(u, sin_x / x),
         "x/sin(x)": taylor_series_near_zero(u, x / sin_x),
         "(1 - cos(x))/x": taylor_series_near_zero(u, (1 - cos_x) / x),
         "(1 - cos(x))/x^2": taylor_series_near_zero(u, (1 - cos_x) / x2),
         "(x - sin(x))/x^3": taylor_series_near_zero(u, (x - sin_x) / x3),
-        "(1 - x*sin(x)/(2*(1 - cos(x))))/x^2": taylor_series_near_zero(
-            u, (1 - x * sin_x / (2 * (1 - cos_x))) / x2
-        ),
-        "(-x^2/2 - cos(x) + 1)/x^2": taylor_series_near_zero(
-            u, (-x2 / 2 - cos_x + 1) / x2
-        ),
-        "(x^2/2 + cos(x) - 1)/x^4": taylor_series_near_zero(
-            u, (x2 / 2 + cos_x - 1) / x4
-        ),
+        "(1 - x*sin(x)/(2*(1 - cos(x))))/x^2": taylor_series_near_zero(u, (1 - x * sin_x / (2 * (1 - cos_x))) / x2),
+        "(-x^2/2 - cos(x) + 1)/x^2": taylor_series_near_zero(u, (-x2 / 2 - cos_x + 1) / x2),
+        "(x^2/2 + cos(x) - 1)/x^4": taylor_series_near_zero(u, (x2 / 2 + cos_x - 1) / x4),
         "1/x^2": taylor_series_near_zero(u, 1 / x2),
-        "(2 - x cos(x))/(2 x^2)": taylor_series_near_zero(
-            u, (2 - x * cos_x) / (2 * x2)
-        ),
-        "1/x^2 + sin(x)/(2 x (cos(x) - 1))": taylor_series_near_zero(
-            u, 1 / x2 + sin_x / (2 * x * (cos_x - 1))
-        ),
-        "(x^2 + 2 cos(x) - 2)/(2 x^4)": taylor_series_near_zero(
-            u, (x2 + 2 * cos_x - 2) / (2 * x4)
-        ),
-        "(x cos(x) + 2 x - 3 sin(x))/(2 x^5)": taylor_series_near_zero(
-            u, (x * cos_x + 2 * x - 3 * sin_x) / (2 * x5)
-        ),
+        "(2 - x cos(x))/(2 x^2)": taylor_series_near_zero(u, (2 - x * cos_x) / (2 * x2)),
+        "1/x^2 + sin(x)/(2 x (cos(x) - 1))": taylor_series_near_zero(u, 1 / x2 + sin_x / (2 * x * (cos_x - 1))),
+        "(x^2 + 2 cos(x) - 2)/(2 x^4)": taylor_series_near_zero(u, (x2 + 2 * cos_x - 2) / (2 * x4)),
+        "(x cos(x) + 2 x - 3 sin(x))/(2 x^5)": taylor_series_near_zero(u, (x * cos_x + 2 * x - 3 * sin_x) / (2 * x5)),
         "(x^2 + x sin(x) + 4 cos(x) - 4)/(2 x^6)": taylor_series_near_zero(
             u, (x2 + x * sin_x + 4 * cos_x - 4) / (2 * x6)
         ),
-        "(2 - 2 cos(x) - x sin(x))/(2 x^4))": taylor_series_near_zero(
-            u, (2 - 2 * cos_x - x * sin_x) / (2 * x4)
-        ),
+        "(2 - 2 cos(x) - x sin(x))/(2 x^4))": taylor_series_near_zero(u, (2 - 2 * cos_x - x * sin_x) / (2 * x4)),
         "tan(x/4)/x": taylor_series_near_zero(u, tan(x / 4) / x),
         "4 atan(x)/x": taylor_series_near_zero(u, 4 * atan(x) / x),
     }

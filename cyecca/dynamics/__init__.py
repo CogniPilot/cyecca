@@ -23,37 +23,37 @@ Quick Start:
 See README.md for detailed documentation and examples.
 """
 
-# Field creators
-from .fields import (
-    state,
-    algebraic_var,
-    dependent_var,
-    quadrature_var,
-    discrete_state,
-    discrete_var,
-    event_indicator,
-    param,
-    input_var,
-    output_var,
+# Model classes
+from .core import (
+    ModelMX,
+    ModelSX,
 )
 
 # Decorators
 from .decorators import (
-    symbolic,
     compose_states,
+    symbolic,
 )
 
-# Model classes
-from .core import (
-    ModelSX,
-    ModelMX,
+# Field creators
+from .fields import (
+    algebraic_var,
+    dependent_var,
+    discrete_state,
+    discrete_var,
+    event_indicator,
+    input_var,
+    output_var,
+    param,
+    quadrature_var,
+    state,
 )
 
 # Linearization and analysis tools
 from .linearize import (
+    analyze_modes,
     find_trim,
     linearize_dynamics,
-    analyze_modes,
     print_trim_details,
 )
 

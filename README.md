@@ -88,7 +88,9 @@ The full documentation includes:
 - Comprehensive Lie groups guide with examples
 - Modeling framework guide (hybrid systems, DAE, composition)
 - Complete API reference (auto-generated from docstrings)
-- [Jupyter Notebooks](notebook/) - Interactive examples in this repo
+
+**Interactive Examples:**
+See [cyecca_notebooks](https://github.com/CogniPilot/cyecca_notebooks) for Jupyter notebooks with tutorials and demonstrations.
 
 **Build locally:**
 ```bash

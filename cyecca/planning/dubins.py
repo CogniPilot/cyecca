@@ -388,32 +388,16 @@ def derive_dubins():
     cr1, cl1 = compute_turn_centers(p1, psi1, R)
 
     # All four path candidates
-    a1_rsl, d_rsl, a2_rsl, t0_rsl, t1_rsl, cost_rsl = compute_rsl_path(
-        p0, psi0, p1, psi1, cr0, cl1, R
-    )
-    a1_lsr, d_lsr, a2_lsr, t0_lsr, t1_lsr, cost_lsr = compute_lsr_path(
-        p0, psi0, p1, psi1, cl0, cr1, R
-    )
-    a1_lsl, d_lsl, a2_lsl, t0_lsl, t1_lsl, cost_lsl = compute_lsl_path(
-        p0, psi0, p1, psi1, cl0, cl1, R
-    )
-    a1_rsr, d_rsr, a2_rsr, t0_rsr, t1_rsr, cost_rsr = compute_rsr_path(
-        p0, psi0, p1, psi1, cr0, cr1, R
-    )
+    a1_rsl, d_rsl, a2_rsl, t0_rsl, t1_rsl, cost_rsl = compute_rsl_path(p0, psi0, p1, psi1, cr0, cl1, R)
+    a1_lsr, d_lsr, a2_lsr, t0_lsr, t1_lsr, cost_lsr = compute_lsr_path(p0, psi0, p1, psi1, cl0, cr1, R)
+    a1_lsl, d_lsl, a2_lsl, t0_lsl, t1_lsl, cost_lsl = compute_lsl_path(p0, psi0, p1, psi1, cl0, cl1, R)
+    a1_rsr, d_rsr, a2_rsr, t0_rsr, t1_rsr, cost_rsr = compute_rsr_path(p0, psi0, p1, psi1, cr0, cr1, R)
 
     # Pack cargo
-    cargo_rsl = ca.vertcat(
-        DubinsPathType.RSL, a1_rsl, d_rsl, a2_rsl, t0_rsl, t1_rsl, cr0, cl1
-    )
-    cargo_lsr = ca.vertcat(
-        DubinsPathType.LSR, a1_lsr, d_lsr, a2_lsr, t0_lsr, t1_lsr, cl0, cr1
-    )
-    cargo_lsl = ca.vertcat(
-        DubinsPathType.LSL, a1_lsl, d_lsl, a2_lsl, t0_lsl, t1_lsl, cl0, cl1
-    )
-    cargo_rsr = ca.vertcat(
-        DubinsPathType.RSR, a1_rsr, d_rsr, a2_rsr, t0_rsr, t1_rsr, cr0, cr1
-    )
+    cargo_rsl = ca.vertcat(DubinsPathType.RSL, a1_rsl, d_rsl, a2_rsl, t0_rsl, t1_rsl, cr0, cl1)
+    cargo_lsr = ca.vertcat(DubinsPathType.LSR, a1_lsr, d_lsr, a2_lsr, t0_lsr, t1_lsr, cl0, cr1)
+    cargo_lsl = ca.vertcat(DubinsPathType.LSL, a1_lsl, d_lsl, a2_lsl, t0_lsl, t1_lsl, cl0, cl1)
+    cargo_rsr = ca.vertcat(DubinsPathType.RSR, a1_rsr, d_rsr, a2_rsr, t0_rsr, t1_rsr, cr0, cr1)
 
     min_cost, best_cargo = casadi_min_with_cargo(
         costs=[cost_rsl, cost_lsr, cost_lsl, cost_rsr],
@@ -496,9 +480,7 @@ def derive_dubins():
 
     # Select segment
     in_arc1 = path_dist <= arc1_len
-    in_straight = ca.logic_and(
-        path_dist > arc1_len, path_dist <= arc1_len + straight_len
-    )
+    in_straight = ca.logic_and(path_dist > arc1_len, path_dist <= arc1_len + straight_len)
 
     x_out = ca.if_else(in_arc1, x1, ca.if_else(in_straight, x2, x3))
     y_out = ca.if_else(in_arc1, y1, ca.if_else(in_straight, y2, y3))
@@ -612,9 +594,7 @@ def plot_dubins_path(p0, psi0, p1, psi1, R, plan, eval_fn, ax=None, n_points=200
 
     # Draw circles
     for c in [c0, c1]:
-        circ = plt.Circle(
-            (c[0], c[1]), R, fill=False, color="gray", alpha=0.6, linestyle="--"
-        )
+        circ = plt.Circle((c[0], c[1]), R, fill=False, color="gray", alpha=0.6, linestyle="--")
         ax.add_patch(circ)
 
     # Evaluate path

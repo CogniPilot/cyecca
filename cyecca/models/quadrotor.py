@@ -150,9 +150,7 @@ def derive_model():
     tau_inv = ca.SX.zeros(4, 1)
 
     for i in range(n_motor):
-        tau_inv[i] = ca.if_else(
-            omega_motor_cmd[i] - omega_motor[i] > 0, 1.0 / tau_up, 1.0 / tau_down
-        )
+        tau_inv[i] = ca.if_else(omega_motor_cmd[i] - omega_motor[i] > 0, 1.0 / tau_up, 1.0 / tau_down)
     derivative_omega_motor = tau_inv * (omega_motor_cmd - omega_motor)
 
     # sum of forces and moments
@@ -199,9 +197,7 @@ def derive_model():
     for i in range(n_motor):
         thrust = CT * omega_motor[i] ** 2
         Fi_b = thrust * zAxis
-        ri_b = l_motor[i] * ca.vertcat(
-            ca.cos(theta_motor[i]), ca.sin(theta_motor[i]), 0
-        )
+        ri_b = l_motor[i] * ca.vertcat(ca.cos(theta_motor[i]), ca.sin(theta_motor[i]), 0)
         Mi_b = (
             ca.cross(ri_b, Fi_b)  # moment due to thrust
             - CM * dir_motor[i] * thrust * zAxis  # moment due prop torque

@@ -1,10 +1,12 @@
 """Tests for symbolic conversions between SymPy and CasADi."""
 
-from cyecca.symbolic import sympy_to_casadi, casadi_to_sympy
-from beartype import beartype
-import sympy
 import casadi as ca
 import numpy as np
+import sympy
+from beartype import beartype
+
+from cyecca.symbolic import casadi_to_sympy, sympy_to_casadi
+
 from .common import ProfiledTestCase, SX_close
 
 
@@ -58,9 +60,7 @@ class Test_Symbolic(ProfiledTestCase):
         x_val, y_val, z_val = 1.5, 2.3, 0.7
 
         # Create CasADi function for evaluation
-        casadi_func = ca.Function(
-            "f", [symbols["x"], symbols["y"], symbols["z"]], [casadi_vec]
-        )
+        casadi_func = ca.Function("f", [symbols["x"], symbols["y"], symbols["z"]], [casadi_vec])
         casadi_result = casadi_func(x_val, y_val, z_val)
 
         # Compute expected result with SymPy
@@ -68,9 +68,7 @@ class Test_Symbolic(ProfiledTestCase):
         expected_numeric = np.array([float(val) for val in expected])
 
         # Compare results
-        assert np.allclose(
-            np.array(casadi_result).flatten(), expected_numeric.flatten(), rtol=1e-10
-        )
+        assert np.allclose(np.array(casadi_result).flatten(), expected_numeric.flatten(), rtol=1e-10)
 
     def test_casadi_vector_to_sympy_matrix(self):
         """Test CasADi SX vector to SymPy Matrix conversion and back."""
@@ -117,9 +115,7 @@ class Test_Symbolic(ProfiledTestCase):
         result_roundtrip = func_roundtrip(x_val, y_val, z_val)
 
         # Should be very close after roundtrip
-        assert np.allclose(
-            np.array(result_original), np.array(result_roundtrip), rtol=1e-10
-        )
+        assert np.allclose(np.array(result_original), np.array(result_roundtrip), rtol=1e-10)
 
     def test_matrix_operations_conversion(self):
         """Test conversion of matrix operations."""
@@ -147,6 +143,4 @@ class Test_Symbolic(ProfiledTestCase):
         expected = result_sympy.subs(x, x_val)
         expected_numeric = np.array([float(expected[0]), float(expected[1])])
 
-        assert np.allclose(
-            np.array(numeric_result).flatten(), expected_numeric, rtol=1e-10
-        )
+        assert np.allclose(np.array(numeric_result).flatten(), expected_numeric, rtol=1e-10)

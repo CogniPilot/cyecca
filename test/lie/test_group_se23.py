@@ -1,10 +1,11 @@
 import casadi as ca
-from ..common import SX_close, ProfiledTestCase, is_finite
+import numpy as np
+import scipy.linalg
+from beartype import beartype
 
 from cyecca.lie.group_se23 import SE23Mrp, se23
-from beartype import beartype
-import scipy.linalg
-import numpy as np
+
+from ..common import ProfiledTestCase, SX_close, is_finite
 
 
 @beartype
@@ -78,9 +79,7 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl, x), x, ca.DM.zeros(9))))
 
         Jl_inv = omega.left_jacobian_inv()
-        self.assertTrue(
-            is_finite(ca.substitute(ca.jacobian(Jl_inv, x), x, ca.DM.zeros(9)))
-        )
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl_inv, x), x, ca.DM.zeros(9))))
 
         I_check = ca.substitute(Jl @ Jl_inv, x, ca.DM.zeros(9))
         self.assertTrue(SX_close(I_check, ca.DM.eye(9)))
@@ -92,9 +91,7 @@ class Test_LieGroupSE23Mrp(ProfiledTestCase):
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr, x), x, ca.DM.zeros(9))))
 
         Jr_inv = omega.right_jacobian_inv()
-        self.assertTrue(
-            is_finite(ca.substitute(ca.jacobian(Jr_inv, x), x, ca.DM.zeros(9)))
-        )
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr_inv, x), x, ca.DM.zeros(9))))
 
         I_check = ca.substitute(Jr @ Jr_inv, x, ca.DM.zeros(9))
         self.assertTrue(SX_close(I_check, ca.DM.eye(9)))

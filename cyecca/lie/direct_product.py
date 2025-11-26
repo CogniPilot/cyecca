@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import casadi as ca
-from cyecca.lie.base import *
 from beartype import beartype
 from beartype.typing import List, Union
+
+from cyecca.lie.base import *
 
 
 @beartype
@@ -39,10 +40,7 @@ class LieAlgebraDirectProduct(LieAlgebra):
         return param[start:stop]
 
     def sub_elems(self, arg: LieAlgebraDirectProductElement) -> List[LieAlgebraElement]:
-        return [
-            self.algebras[i].elem(self.sub_param(i=i, param=arg.param))
-            for i in range(len(self.algebras))
-        ]
+        return [self.algebras[i].elem(self.sub_param(i=i, param=arg.param)) for i in range(len(self.algebras))]
 
     def bracket(
         self,
@@ -56,12 +54,8 @@ class LieAlgebraDirectProduct(LieAlgebra):
     ) -> LieAlgebraDirectProductElement:
         return LieAlgebraDirectProductElement(algebra=self, param=left * right.param)
 
-    def addition(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
-        return LieAlgebraDirectProductElement(
-            algebra=self, param=left.param + right.param
-        )
+    def addition(self, left: LieAlgebraElement, right: LieAlgebraElement) -> LieAlgebraElement:
+        return LieAlgebraDirectProductElement(algebra=self, param=left.param + right.param)
 
     def adjoint(self, arg: LieAlgebraElement) -> ca.SX:
         return ca.diagcat(*[x.ad() for x in self.sub_elems(arg)])
@@ -110,9 +104,7 @@ class LieGroupDirectProduct(LieGroup):
             matrix_shape[0] += group.matrix_shape[0]
             matrix_shape[1] += group.matrix_shape[1]
 
-        super().__init__(
-            algebra=algebra, n_param=n_param, matrix_shape=tuple(matrix_shape)
-        )
+        super().__init__(algebra=algebra, n_param=n_param, matrix_shape=tuple(matrix_shape))
 
     def elem(self, param: PARAM_TYPE) -> LieGroupDirectProductElement:
         return LieGroupDirectProductElement(group=self, param=param)
@@ -127,10 +119,7 @@ class LieGroupDirectProduct(LieGroup):
         return LieGroupDirectProduct(groups=self.groups + [other])
 
     def sub_elems(self, arg: LieGroupDirectProductElement) -> List[LieGroupElement]:
-        return [
-            self.groups[i].elem(self.sub_param(i=i, param=arg.param))
-            for i in range(len(self.groups))
-        ]
+        return [self.groups[i].elem(self.sub_param(i=i, param=arg.param)) for i in range(len(self.groups))]
 
     def sub_param(self, i: int, param: PARAM_TYPE) -> ca.SX:
         start = self.subparam_start[i]
@@ -142,19 +131,10 @@ class LieGroupDirectProduct(LieGroup):
     ) -> LieGroupDirectProductElement:
         return LieGroupDirectProductElement(
             group=self,
-            param=ca.vertcat(
-                *[
-                    (X1 * X2).param
-                    for X1, X2 in zip(
-                        self.sub_elems(arg=left), self.sub_elems(arg=right)
-                    )
-                ]
-            ),
+            param=ca.vertcat(*[(X1 * X2).param for X1, X2 in zip(self.sub_elems(arg=left), self.sub_elems(arg=right))]),
         )
 
-    def inverse(
-        self, arg: LieGroupDirectProductElement
-    ) -> LieGroupDirectProductElement:
+    def inverse(self, arg: LieGroupDirectProductElement) -> LieGroupDirectProductElement:
         return LieGroupDirectProductElement(
             group=self,
             param=ca.vertcat(*[X.inverse().param for X in self.sub_elems(arg)]),
@@ -173,12 +153,7 @@ class LieGroupDirectProduct(LieGroup):
         algebra = arg.algebra  # type: LieAlgebraDirectProduct
         return LieGroupDirectProductElement(
             group=self,
-            param=ca.vertcat(
-                *[
-                    x1.exp(group=group).param
-                    for group, x1 in zip(self.groups, algebra.sub_elems(arg))
-                ]
-            ),
+            param=ca.vertcat(*[x1.exp(group=group).param for group, x1 in zip(self.groups, algebra.sub_elems(arg))]),
         )
 
     def log(self, arg: LieGroupDirectProductElement) -> LieAlgebraDirectProductElement:

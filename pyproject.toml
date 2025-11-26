@@ -19,6 +19,7 @@ visualization = ["pydot"]
 
 [tool.poetry.group.dev.dependencies]
 black = {extras = ["jupyter"], version = "^24.10.0"}
+isort = "^5.13.0"
 jupyterlab = "^4.3.1"
 nbmake = "^1.4.1"
 pytest-cov = "^6.0.0"
@@ -32,6 +33,26 @@ sphinx-autodoc-typehints = "^2.0.0"
 addopts = "--doctest-modules --doctest-continue-on-failure"
 doctest_optionflags = "NORMALIZE_WHITESPACE ELLIPSIS"
 testpaths = ["cyecca", "tests"]
+
+[tool.black]
+line-length = 120
+target-version = ['py310', 'py311', 'py312']
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | build
+  | install
+  | log
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_gitignore = true
+extend_skip_glob = ["build/*", "install/*", "log/*"]
 
 [build-system]
 requires = ["poetry-core"]

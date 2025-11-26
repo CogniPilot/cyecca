@@ -1,8 +1,10 @@
 import argparse
 import os
 from pathlib import Path
+
 import casadi as ca
-from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321, SO3Dcm
+
+from cyecca.lie.group_so3 import SO3Dcm, SO3EulerB321, SO3Quat
 
 
 class Bezier:
@@ -26,9 +28,7 @@ class Bezier:
     def deriv(self, m=1):
         D = ca.SX(self.P)
         for j in range(0, m):
-            D = (self.n - j) * ca.horzcat(
-                *[D[:, i + 1] - D[:, i] for i in range(self.n - j)]
-            )
+            D = (self.n - j) * ca.horzcat(*[D[:, i + 1] - D[:, i] for i in range(self.n - j)])
         return Bezier(D / self.T**m, self.T)
 
 
@@ -78,12 +78,8 @@ def derive_bezier7():
     P_sol = (A_inv @ b).T
 
     return {
-        "bezier7_solve": ca.Function(
-            "bezier7_solve", [wp_0, wp_1, T], [P_sol], ["wp_0", "wp_1", "T"], ["P"]
-        ),
-        "bezier7_traj": ca.Function(
-            "bezier7_traj", [t, T, P], [r], ["t", "T", "P"], ["r"]
-        ),
+        "bezier7_solve": ca.Function("bezier7_solve", [wp_0, wp_1, T], [P_sol], ["wp_0", "wp_1", "T"], ["P"]),
+        "bezier7_traj": ca.Function("bezier7_traj", [t, T, P], [r], ["t", "T", "P"], ["r"]),
     }
 
 
@@ -127,9 +123,7 @@ def derive_bezier3():
     P_sol = (A_inv @ b).T
 
     functions = [
-        ca.Function(
-            "bezier3_solve", [wp_0, wp_1, T], [P_sol], ["wp_0", "wp_1", "T"], ["P"]
-        ),
+        ca.Function("bezier3_solve", [wp_0, wp_1, T], [P_sol], ["wp_0", "wp_1", "T"], ["P"]),
         ca.Function("bezier3_traj", [t, T, P], [r], ["t", "T", "P"], ["r"]),
     ]
 
@@ -191,17 +185,13 @@ def derive_ref():
 
     yb_e = ca.cross(zb_e, xc_e)
     N_yb_e = ca.norm_2(yb_e)
-    yb_e = ca.if_else(
-        N_yb_e > tol, yb_e / N_yb_e, yh
-    )  # normalize y_b, can have singularity when z_b and x_c aligned
+    yb_e = ca.if_else(N_yb_e > tol, yb_e / N_yb_e, yh)  # normalize y_b, can have singularity when z_b and x_c aligned
     xb_e = ca.cross(yb_e, zb_e)
 
     # T_dot = ca.dot(m*s_e, zb_e)
     C_be = ca.hcat([xb_e, yb_e, zb_e])
     C_eb = C_be.T
-    C_dot_be = (ca.jacobian(C_be, a_e) @ j_e).reshape((3, 3)) + (
-        ca.jacobian(C_be, psi) * psi_dot
-    ).reshape((3, 3))
+    C_dot_be = (ca.jacobian(C_be, a_e) @ j_e).reshape((3, 3)) + (ca.jacobian(C_be, psi) * psi_dot).reshape((3, 3))
     omega_skew = C_eb @ C_dot_be
     p = omega_skew[2, 1]
     q = omega_skew[0, 2]

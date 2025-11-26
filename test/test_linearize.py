@@ -3,15 +3,16 @@
 import casadi as ca
 import numpy as np
 import pytest
+
 from cyecca.dynamics import (
     ModelSX,
+    analyze_modes,
+    find_trim,
     input_var,
+    linearize_dynamics,
     param,
     state,
     symbolic,
-    find_trim,
-    linearize_dynamics,
-    analyze_modes,
 )
 
 

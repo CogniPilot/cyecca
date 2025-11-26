@@ -1,8 +1,6 @@
-from beartype import beartype
-from beartype.typing import Tuple, Union, Callable
-
-
 import casadi as ca
+from beartype import beartype
+from beartype.typing import Callable, Tuple, Union
 
 
 @beartype
@@ -150,9 +148,7 @@ def count_ops(s, ops=None, dep=None, invdep=None):
     if invdep is None:
         invdep = {}
 
-    op_str = {
-        eval("casadi." + item): item for item in dir(casadi) if item.startswith("OP_")
-    }
+    op_str = {eval("casadi." + item): item for item in dir(casadi) if item.startswith("OP_")}
     if ops is None:
         ops = {}
 

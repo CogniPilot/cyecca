@@ -5,8 +5,9 @@ Fixed-Wing Vehicle Dynamics for HH Sport Cub S2
 
 import casadi as ca
 import numpy as np
-from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321
+
 import cyecca.lie as lie
+from cyecca.lie.group_so3 import SO3EulerB321, SO3Quat
 
 
 # check steven lewis p184
@@ -66,9 +67,7 @@ def derive_model():
     # Lateral-Directional Coefficient
     Cnb = ca.SX.sym("Cnb")  # Cn_beta for yaw stiffness
     Clp = ca.SX.sym("Clp")  # Roll Damping Derivative Coefficient
-    Cnr = ca.SX.sym(
-        "Cnr"
-    )  # Yaw Damping Derivative Coefficient wrt to yaw rate (magnitude)
+    Cnr = ca.SX.sym("Cnr")  # Yaw Damping Derivative Coefficient wrt to yaw rate (magnitude)
     Cnp = ca.SX.sym("Cnp")  # Yaw Damping Derivative Coefficient wrt to roll rate
     Clr = ca.SX.sym("Clr")  # Roll Damping Derivative Coefficient wrt to yaw rate
     CYb = ca.SX.sym("CYb")  # Sideforce due to sideslip
@@ -215,16 +214,12 @@ def derive_model():
     ##############################################################################################
     # Velocities and Aerodynamic Angles
     V_b = ca.norm_2(velocity_b)  # body-frame speed
-    V_b = ca.if_else(
-        ca.fabs(V_b) < tol_v, tol_v, V_b
-    )  # avoid singularities at low airspeed
+    V_b = ca.if_else(ca.fabs(V_b) < tol_v, tol_v, V_b)  # avoid singularities at low airspeed
     alpha = ca.atan2(-velocity_b[2], velocity_b[0])  # angle-of-attack
     beta = ca.asin(ca.fmin(ca.fmax(velocity_b[1] / V_b, -1.0), 1.0))  # sideslip angle
 
     # rotation from body to wind frame
-    euler_bn = lie.SO3EulerB321.elem(
-        ca.vertcat(beta, -alpha, 0.0)
-    )  # Euler elements for wind frame
+    euler_bn = lie.SO3EulerB321.elem(ca.vertcat(beta, -alpha, 0.0))  # Euler elements for wind frame
     euler_nb = lie.SO3EulerB321.elem(ca.vertcat(-beta, alpha, 0.0))
     q_nb = lie.SO3Quat.from_Euler(euler_nb)
     q_bn = q_nb.inverse()
@@ -254,30 +249,20 @@ def derive_model():
     # Aerodynamic Forces and Moments
 
     CL = CL0 + CLa * alpha  # Lift Coefficient
-    CL = ca.if_else(
-        ca.fabs(alpha) < alpha_stall, CL, 0
-    )  # Stall Model --> set CL to CL0 after stall
+    CL = ca.if_else(ca.fabs(alpha) < alpha_stall, CL, 0)  # Stall Model --> set CL to CL0 after stall
 
     CD = CD0 + CDCLS * CL * CL  # Drag Polar (must be positive)
 
     # (Steven pg 91 eqn 2.3-17a) and (Steven Pg 79 eqn 2.3-8b)
     CC = (
-        -CYb * beta
-        + CYda * ail_rad / (max_defl_ail * DEG2RAD)
-        + CYdr * rud_rad / (max_defl_rud * DEG2RAD)
+        -CYb * beta + CYda * ail_rad / (max_defl_ail * DEG2RAD) + CYdr * rud_rad / (max_defl_rud * DEG2RAD)
     )  # Crosswind Force Coefficient
-    CC += (
-        CYp * span / (2 * V_b) * P
-    )  # Sideforce due to roll rate  #(Steven pg 91 eqn 2.3-17a)
-    CC += (
-        CYr * span / (2 * V_b) * R
-    )  # Sideforce due to yaw rate #(Steven pg 91 eqn 2.3-17a)
+    CC += CYp * span / (2 * V_b) * P  # Sideforce due to roll rate  #(Steven pg 91 eqn 2.3-17a)
+    CC += CYr * span / (2 * V_b) * R  # Sideforce due to yaw rate #(Steven pg 91 eqn 2.3-17a)
 
     ### Using Equation to calculate rotational moment coefficent
     Cl = Clda * ail_rad + (-1) * Cldr * rud_rad  # roll moment coefficient
-    Cm = (
-        Cm0 + Cma * alpha + Cmde * elev_rad + (XAC - XCG) * CL
-    )  # pitch moment coefficient
+    Cm = Cm0 + Cma * alpha + Cmde * elev_rad + (XAC - XCG) * CL  # pitch moment coefficient
     Cn = Cnb * beta + Cndr * rud_rad + (-1) * Cnda * ail_rad  # yaw moment coefficient
 
     # Aerodynamic Forces and Moments
@@ -287,9 +272,7 @@ def derive_model():
     Fs = CC * qbar * S  # Crosswind side Force (Steven pg 80, eqn. 2.3-8b)
 
     # Forces in body frame
-    v_hat = (
-        velocity_b / V_b
-    )  # defining drag this way based on velocity is more numerically stable
+    v_hat = velocity_b / V_b  # defining drag this way based on velocity is more numerically stable
     D_b = -D * v_hat  # Drag opposite to velocity direction
     L_b = q_bn @ (L * zAxis)
     C_b = q_bn @ (Fs * yAxis)
@@ -325,8 +308,7 @@ def derive_model():
         vel_wheel_w = q_wb @ vel_wheel_b
         force_w = ca.if_else(
             pos_wheel_w[2] < 0.0,
-            saturate(-(pos_wheel_w[2]) * 10, -100, 100)
-            * zAxis  # vertical ground spring force
+            saturate(-(pos_wheel_w[2]) * 10, -100, 100) * zAxis  # vertical ground spring force
             - vel_wheel_w[2] * 01.10 * zAxis  # Vertical Component Damping
             - vel_wheel_w[0] * 0.001 * xAxis  # ground damping
             - vel_wheel_w[1] * 0.001 * yAxis,  # ground damping
@@ -341,9 +323,7 @@ def derive_model():
     ###############################################################################################
     # Thrust Force
     throttle = ca.if_else(u[2] > 1e-3, u[2], 1e-3)
-    FT_b = (
-        thr_max * throttle
-    ) * xAxis  # Longitudinal Force assume thrust is directly on the x axis
+    FT_b = (thr_max * throttle) * xAxis  # Longitudinal Force assume thrust is directly on the x axis
     MT_b = ca.SX.zeros(3)  # No thrust moment
 
     ###############################################################################################

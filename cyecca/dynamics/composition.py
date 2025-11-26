@@ -5,10 +5,12 @@ with signal routing between components.
 """
 
 import copy
-from dataclasses import make_dataclass, field as dc_field, fields
+from dataclasses import field as dc_field
+from dataclasses import fields, make_dataclass
+
 import casadi as ca
 
-from .decorators import symbolic, compose_states
+from .decorators import compose_states, symbolic
 
 __all__ = [
     "CompositionMixin",
@@ -48,9 +50,7 @@ class SubmodelProxy:
         elif hasattr(self._model, "y") and hasattr(self._model.y, attr):
             return SignalRef(self._name, attr)
         else:
-            raise AttributeError(
-                f"Signal '{attr}' not found in submodel '{self._name}'"
-            )
+            raise AttributeError(f"Signal '{attr}' not found in submodel '{self._name}'")
 
 
 class CompositionMixin:
@@ -217,9 +217,7 @@ class CompositionMixin:
         source_parts = source_str.split(".")
 
         if len(target_parts) < 2:
-            raise ValueError(
-                f"Invalid target format: {target_str}. Expected 'model.type.field'"
-            )
+            raise ValueError(f"Invalid target format: {target_str}. Expected 'model.type.field'")
 
         target_model = target_parts[0]
 
@@ -285,7 +283,7 @@ class CompositionMixin:
         submodel_inputs = {}
         submodel_outputs = {}
 
-        # First pass: Build preliminary inputs with state connections resolved
+        # First pass: Build preliminary inputs with state and parent input connections resolved
         for name, submodel in self._submodels.items():
             u_sub_dict = {}
             input_conns = self._input_connections.get(name, {})
@@ -296,28 +294,35 @@ class CompositionMixin:
 
                 if full_path in input_conns:
                     source = input_conns[full_path]
-                    parts = source.split(".", 2)
 
-                    if len(parts) >= 3 and parts[1] == "x":
-                        # State connection
-                        source_model, source_type, source_field = parts
-                        if source_model in submodel_states:
-                            u_sub_dict[field_name] = self._extract_field_from_vec(
-                                submodel_states[source_model],
-                                self._submodels[source_model].x,
-                                source_field,
-                            )
+                    if source.startswith("u."):
+                        # Parent input connection
+                        parent_field = source[2:]
+                        if hasattr(self.u, parent_field):
+                            u_sub_dict[field_name] = getattr(self.u, parent_field)
                         else:
                             u_sub_dict[field_name] = getattr(submodel.u0, field_name)
                     else:
-                        u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+                        parts = source.split(".", 2)
+                        if len(parts) >= 3 and parts[1] == "x":
+                            # State connection
+                            source_model, source_type, source_field = parts
+                            if source_model in submodel_states:
+                                u_sub_dict[field_name] = self._extract_field_from_vec(
+                                    submodel_states[source_model],
+                                    self._submodels[source_model].x,
+                                    source_field,
+                                )
+                            else:
+                                u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+                        else:
+                            # Output connection - can't resolve yet, use default
+                            u_sub_dict[field_name] = getattr(submodel.u0, field_name)
                 else:
                     u_sub_dict[field_name] = getattr(submodel.u0, field_name)
 
             u_sub_list = [u_sub_dict[f.name] for f in fields(submodel.u)]
-            submodel_inputs[name] = (
-                ca.vertcat(*u_sub_list) if u_sub_list else ca.DM.zeros(0, 1)
-            )
+            submodel_inputs[name] = ca.vertcat(*u_sub_list) if u_sub_list else ca.DM.zeros(0, 1)
 
         # Evaluate all submodel outputs with preliminary inputs
         for name, submodel in self._submodels.items():
@@ -366,9 +371,7 @@ class CompositionMixin:
                                     source_field,
                                 )
                             else:
-                                u_sub_dict[field_name] = getattr(
-                                    submodel.u0, field_name
-                                )
+                                u_sub_dict[field_name] = getattr(submodel.u0, field_name)
                         else:
                             u_sub_dict[field_name] = getattr(submodel.u0, field_name)
                     else:
@@ -377,9 +380,7 @@ class CompositionMixin:
                     u_sub_dict[field_name] = getattr(submodel.u0, field_name)
 
             u_sub_list = [u_sub_dict[f.name] for f in fields(submodel.u)]
-            submodel_inputs[name] = (
-                ca.vertcat(*u_sub_list) if u_sub_list else ca.DM.zeros(0, 1)
-            )
+            submodel_inputs[name] = ca.vertcat(*u_sub_list) if u_sub_list else ca.DM.zeros(0, 1)
 
         # Evaluate each submodel's dynamics with resolved inputs
         f_x_parts = []
@@ -420,9 +421,7 @@ class CompositionMixin:
             raise ValueError(f"Unknown integrator: {integrator}")
 
         # Update x0 to concatenated initial states
-        x0_parts = [
-            self._submodels[name].x0.as_vec() for name in self._submodels.keys()
-        ]
+        x0_parts = [self._submodels[name].x0.as_vec() for name in self._submodels.keys()]
         self.x0_composed = ca.vertcat(*x0_parts) if x0_parts else ca.DM.zeros(0, 1)
 
         # Create structured initial state with submodel access
@@ -437,9 +436,7 @@ class CompositionMixin:
             )
 
         def _as_vec(self_state):
-            return ca.vertcat(
-                *[getattr(self_state, name).as_vec() for name in self._submodels.keys()]
-            )
+            return ca.vertcat(*[getattr(self_state, name).as_vec() for name in self._submodels.keys()])
 
         def _from_vec(cls_obj, x_vec):
             kwargs = {}
@@ -474,7 +471,171 @@ class CompositionMixin:
         return ca.DM.zeros(1, 1)  # Fallback
 
     def _build_composed_outputs(self, submodel_state_slices, submodel_outputs):
-        """Build output function for composed model (simplified version)."""
-        # This is a simplified placeholder - full implementation would handle
-        # topological sorting of output dependencies
-        pass
+        """Build output function for composed model.
+
+        Creates f_y that evaluates all submodel outputs and routes them to parent outputs
+        according to the output connections defined.
+        """
+        # Create symbolic variables for function signature
+        total_states = sum(end - start for start, end in submodel_state_slices.values())
+        x_combined = ca.SX.sym("x_combined", total_states)
+        u_parent = self.u.as_vec()
+        p_parent = self.p.as_vec()
+
+        # Extract submodel states from combined vector
+        submodel_states = {}
+        for name, (start, end) in submodel_state_slices.items():
+            submodel_states[name] = x_combined[start:end]
+
+        # Build input vectors for each submodel (same logic as in build_composed)
+        submodel_inputs = {}
+
+        # First pass: Build preliminary inputs with state and parent input connections
+        for name, submodel in self._submodels.items():
+            u_sub_dict = {}
+            input_conns = self._input_connections.get(name, {})
+
+            for field_obj in fields(submodel.u):
+                field_name = field_obj.name
+                full_path = f"{name}.u.{field_name}"
+
+                if full_path in input_conns:
+                    source = input_conns[full_path]
+
+                    if source.startswith("u."):
+                        # Parent input connection
+                        parent_field = source[2:]
+                        if hasattr(self.u, parent_field):
+                            u_sub_dict[field_name] = getattr(self.u, parent_field)
+                        else:
+                            u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+                    else:
+                        parts = source.split(".", 2)
+                        if len(parts) >= 3 and parts[1] == "x":
+                            # State connection
+                            source_model, source_type, source_field = parts
+                            if source_model in submodel_states:
+                                u_sub_dict[field_name] = self._extract_field_from_vec(
+                                    submodel_states[source_model],
+                                    self._submodels[source_model].x,
+                                    source_field,
+                                )
+                            else:
+                                u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+                        else:
+                            # Output connection - can't resolve yet, use default
+                            u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+                else:
+                    u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+
+            u_sub_list = [u_sub_dict[f.name] for f in fields(submodel.u)]
+            submodel_inputs[name] = ca.vertcat(*u_sub_list) if u_sub_list else ca.DM.zeros(0, 1)
+
+        # Evaluate all submodel outputs
+        evaluated_outputs = {}
+        for name, submodel in self._submodels.items():
+            if hasattr(submodel, "f_y"):
+                x_sub = submodel_states[name]
+                u_sub = submodel_inputs[name]
+                p_sub = submodel.p0.as_vec()
+                y_sub = submodel.f_y(x_sub, u_sub, p_sub)
+                evaluated_outputs[name] = y_sub
+
+        # Second pass: Resolve output connections and rebuild inputs
+        for name, submodel in self._submodels.items():
+            u_sub_dict = {}
+            input_conns = self._input_connections.get(name, {})
+
+            for field_obj in fields(submodel.u):
+                field_name = field_obj.name
+                full_path = f"{name}.u.{field_name}"
+
+                if full_path in input_conns:
+                    source = input_conns[full_path]
+
+                    if source.startswith("u."):
+                        # Parent input
+                        parent_field = source[2:]
+                        if hasattr(self.u, parent_field):
+                            u_sub_dict[field_name] = getattr(self.u, parent_field)
+                        else:
+                            u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+
+                    elif "." in source:
+                        parts = source.split(".", 2)
+                        if len(parts) >= 3:
+                            source_model, source_type, source_field = parts
+
+                            if source_type == "y" and source_model in evaluated_outputs:
+                                u_sub_dict[field_name] = self._extract_field_from_vec(
+                                    evaluated_outputs[source_model],
+                                    self._submodels[source_model].y,
+                                    source_field,
+                                )
+                            elif source_type == "x" and source_model in submodel_states:
+                                u_sub_dict[field_name] = self._extract_field_from_vec(
+                                    submodel_states[source_model],
+                                    self._submodels[source_model].x,
+                                    source_field,
+                                )
+                            else:
+                                u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+                        else:
+                            u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+                    else:
+                        u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+                else:
+                    u_sub_dict[field_name] = getattr(submodel.u0, field_name)
+
+            u_sub_list = [u_sub_dict[f.name] for f in fields(submodel.u)]
+            submodel_inputs[name] = ca.vertcat(*u_sub_list) if u_sub_list else ca.DM.zeros(0, 1)
+
+        # Re-evaluate outputs with updated inputs (for output-to-input dependencies)
+        for name, submodel in self._submodels.items():
+            if hasattr(submodel, "f_y"):
+                x_sub = submodel_states[name]
+                u_sub = submodel_inputs[name]
+                p_sub = submodel.p0.as_vec()
+                y_sub = submodel.f_y(x_sub, u_sub, p_sub)
+                evaluated_outputs[name] = y_sub
+
+        # Build parent output vector by routing from submodel outputs
+        y_parent_dict = {}
+        for field_obj in fields(self.y):
+            field_name = field_obj.name
+            # Find the source for this output field
+            source_found = False
+
+            for submodel_name, output_conns in self._output_connections.items():
+                for source_path, target_path in output_conns.items():
+                    if target_path == f"y.{field_name}":
+                        # Parse source path: "submodel.y.field"
+                        parts = source_path.split(".", 2)
+                        if len(parts) == 3 and parts[0] in evaluated_outputs:
+                            source_model, source_type, source_field = parts
+                            y_parent_dict[field_name] = self._extract_field_from_vec(
+                                evaluated_outputs[source_model],
+                                self._submodels[source_model].y,
+                                source_field,
+                            )
+                            source_found = True
+                            break
+                if source_found:
+                    break
+
+            if not source_found:
+                # Use default value if no connection found
+                y_parent_dict[field_name] = getattr(self.y, field_name)
+
+        # Build output vector in correct field order
+        y_parent_list = [y_parent_dict[f.name] for f in fields(self.y)]
+        y_parent_combined = ca.vertcat(*y_parent_list) if y_parent_list else ca.DM.zeros(0, 1)
+
+        # Create the composed output function
+        self.f_y = ca.Function(
+            "f_y_composed",
+            [x_combined, u_parent, p_parent],
+            [y_parent_combined],
+            ["x", "u", "p"],
+            ["y"],
+        )

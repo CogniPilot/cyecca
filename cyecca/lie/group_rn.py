@@ -1,13 +1,11 @@
 from __future__ import annotations
 
+import casadi as ca
 import numpy as np
 import numpy.typing as npt
-from numpy import floating
-
-import casadi as ca
-
 from beartype import beartype
 from beartype.typing import Union
+from numpy import floating
 
 from cyecca.lie.base import *
 
@@ -25,14 +23,10 @@ class RnLieAlgebra(LieAlgebra):
     def bracket(self, left: RnLieAlgebraElement, right: RnLieAlgebraElement):
         return self.elem(param=ca.SX(self.n_param, 1))
 
-    def addition(
-        self, left: RnLieAlgebraElement, right: RnLieAlgebraElement
-    ) -> RnLieAlgebraElement:
+    def addition(self, left: RnLieAlgebraElement, right: RnLieAlgebraElement) -> RnLieAlgebraElement:
         return self.elem(param=left.param + right.param)
 
-    def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: RnLieAlgebraElement
-    ) -> RnLieAlgebraElement:
+    def scalar_multiplication(self, left: SCALAR_TYPE, right: RnLieAlgebraElement) -> RnLieAlgebraElement:
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: RnLieAlgebraElement) -> ca.SX:
@@ -70,9 +64,7 @@ class RnLieGroup(LieGroup):
     def elem(self, param: PARAM_TYPE) -> RnLieGroupElement:
         return RnLieGroupElement(group=self, param=param)
 
-    def product(
-        self, left: RnLieGroupElement, right: RnLieGroupElement
-    ) -> RnLieGroupElement:
+    def product(self, left: RnLieGroupElement, right: RnLieGroupElement) -> RnLieGroupElement:
         return self.elem(param=left.param + right.param)
 
     def inverse(self, arg: RnLieGroupElement) -> RnLieGroupElement:

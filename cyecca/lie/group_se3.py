@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import casadi as ca
-
 from beartype import beartype
 from beartype.typing import List, Union
 
 from cyecca.lie.base import *
-
 from cyecca.lie.group_rn import *
 from cyecca.lie.group_rn import R3LieAlgebraElement
-
 from cyecca.lie.group_so3 import *
-from cyecca.lie.group_so3 import SO3LieGroupElement, SO3LieAlgebraElement
-
+from cyecca.lie.group_so3 import SO3LieAlgebraElement, SO3LieGroupElement
 from cyecca.symbolic import SERIES, SQUARED_SERIES, taylor_series_near_zero
 
 __all__ = ["se3", "SE3Quat", "SE3Mrp"]
@@ -28,18 +24,12 @@ class SE3LieAlgebra(LieAlgebra):
 
     def bracket(self, left: SE3LieAlgebraElement, right: SE3LieAlgebraElement):
         c = left.to_Matrix() @ right.to_Matrix() - right.to_Matrix() @ left.to_Matrix()
-        return self.elem(
-            param=ca.vertcat(c[0, 3], c[1, 3], c[2, 3], c[2, 1], c[0, 2], c[1, 0])
-        )
+        return self.elem(param=ca.vertcat(c[0, 3], c[1, 3], c[2, 3], c[2, 1], c[0, 2], c[1, 0]))
 
-    def addition(
-        self, left: SE3LieAlgebraElement, right: SE3LieAlgebraElement
-    ) -> SE3LieAlgebraElement:
+    def addition(self, left: SE3LieAlgebraElement, right: SE3LieAlgebraElement) -> SE3LieAlgebraElement:
         return self.elem(param=left.param + right.param)
 
-    def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: SE3LieAlgebraElement
-    ) -> SE3LieAlgebraElement:
+    def scalar_multiplication(self, left: SCALAR_TYPE, right: SE3LieAlgebraElement) -> SE3LieAlgebraElement:
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: SE3LieAlgebraElement):
@@ -59,9 +49,7 @@ class SE3LieAlgebra(LieAlgebra):
 
     def from_Matrix(self, arg: ca.SX) -> SE3LieAlgebraElement:
         assert arg.shape == self.matrix_shape
-        return self.elem(
-            ca.vertcat(arg[0, 3], arg[1, 3], arg[2, 3], arg[2, 1], arg[0, 2], arg[1, 0])
-        )
+        return self.elem(ca.vertcat(arg[0, 3], arg[1, 3], arg[2, 3], arg[2, 1], arg[0, 2], arg[1, 0]))
 
     def wedge(self, arg: Union[ca.SX, ca.DM]) -> SE3LieAlgebraElement:
         return self.elem(param=arg)
@@ -104,9 +92,7 @@ class SE3LieAlgebra(LieAlgebra):
         Ql = arg.left_Q()
         R_inv = arg.Omega.left_jacobian_inv()
         Z = ca.SX.zeros(3, 3)
-        return ca.sparsify(
-            ca.vertcat(ca.horzcat(R_inv, -R_inv @ Ql @ R_inv), ca.horzcat(Z, R_inv))
-        )
+        return ca.sparsify(ca.vertcat(ca.horzcat(R_inv, -R_inv @ Ql @ R_inv), ca.horzcat(Z, R_inv)))
 
     def right_Q(self, arg: SE3LieAlgebraElement) -> ca.SX:
         return self.left_Q(-arg)
@@ -122,9 +108,7 @@ class SE3LieAlgebra(LieAlgebra):
         Qr = arg.right_Q()
         R_inv = arg.Omega.right_jacobian_inv()
         Z = ca.SX.zeros(3, 3)
-        return ca.sparsify(
-            ca.vertcat(ca.horzcat(R_inv, -R_inv @ Qr @ R_inv), ca.horzcat(Z, R_inv))
-        )
+        return ca.sparsify(ca.vertcat(ca.horzcat(R_inv, -R_inv @ Qr @ R_inv), ca.horzcat(Z, R_inv)))
 
 
 @beartype

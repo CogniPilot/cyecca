@@ -62,9 +62,7 @@ def state(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""
     )
 
 
-def algebraic_var(
-    dim: int = 1, default: Union[float, list, None] = None, desc: str = ""
-):
+def algebraic_var(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
     """Create algebraic variable for DAE constraints: 0 = g(x, z_alg, u, p).
 
     Used for implicit constraints in DAE systems (contact forces, Lagrange
@@ -85,9 +83,7 @@ def algebraic_var(
     )
 
 
-def dependent_var(
-    dim: int = 1, default: Union[float, list, None] = None, desc: str = ""
-):
+def dependent_var(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
     """Create dependent variable: y = f_y(x, u, p) (computed, not stored).
 
     For quantities computed from states but not integrated (energy, forces, etc.).
@@ -107,9 +103,7 @@ def dependent_var(
     )
 
 
-def quadrature_var(
-    dim: int = 1, default: Union[float, list, None] = None, desc: str = ""
-):
+def quadrature_var(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
     """Create quadrature state: dq/dt = integrand(x, u, p) (for cost functions).
 
     Used for tracking accumulated quantities (cost, energy, etc.) that don't
@@ -130,9 +124,7 @@ def quadrature_var(
     )
 
 
-def discrete_state(
-    dim: int = 1, default: Union[float, list, None] = None, desc: str = ""
-):
+def discrete_state(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
     """Create discrete state z(tₑ): updated only at events, constant between.
 
     For variables that jump at events (bounce counter, mode switches, etc.).

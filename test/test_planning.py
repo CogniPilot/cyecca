@@ -5,6 +5,7 @@ Run with: pytest test_planning.py -v
 
 import numpy as np
 import pytest
+
 from cyecca.planning import derive_dubins
 
 
@@ -55,9 +56,7 @@ class TestForwardMotion:
             tp0, tp1 = np.array(tp0).flatten(), np.array(tp1).flatten()
             c0, c1 = np.array(c0).flatten(), np.array(c1).flatten()
 
-            path_x, path_y, path_psi = evaluate_path(
-                eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R, n_points=100
-            )
+            path_x, path_y, path_psi = evaluate_path(eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R, n_points=100)
 
             # Check forward motion
             for j in range(1, len(path_x)):
@@ -89,18 +88,14 @@ class TestPositionContinuity:
             tp0, tp1 = np.array(tp0).flatten(), np.array(tp1).flatten()
             c0, c1 = np.array(c0).flatten(), np.array(c1).flatten()
 
-            path_x, path_y, _ = evaluate_path(
-                eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R
-            )
+            path_x, path_y, _ = evaluate_path(eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R)
 
             dx = np.diff(path_x)
             dy = np.diff(path_y)
             jumps = np.sqrt(dx**2 + dy**2)
             max_jump = np.max(jumps)
 
-            assert (
-                max_jump < max_allowed_jump
-            ), f"Path {i}: position discontinuity detected (max jump: {max_jump:.6f})"
+            assert max_jump < max_allowed_jump, f"Path {i}: position discontinuity detected (max jump: {max_jump:.6f})"
 
 
 class TestHeadingContinuity:
@@ -116,9 +111,7 @@ class TestHeadingContinuity:
             tp0, tp1 = np.array(tp0).flatten(), np.array(tp1).flatten()
             c0, c1 = np.array(c0).flatten(), np.array(c1).flatten()
 
-            _, _, path_psi = evaluate_path(
-                eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R
-            )
+            _, _, path_psi = evaluate_path(eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R)
 
             dpsi = np.diff(path_psi)
             dpsi = np.arctan2(np.sin(dpsi), np.cos(dpsi))  # Wrap to [-pi, pi]
@@ -150,9 +143,7 @@ class TestBoundaryConditions:
             head_err = abs(np.arctan2(np.sin(psi0_out - psi0), np.cos(psi0_out - psi0)))
 
             assert pos_err < tolerance, f"Path {i}: start position error {pos_err:.6f}"
-            assert (
-                head_err < tolerance
-            ), f"Path {i}: start heading error {np.rad2deg(head_err):.6f}°"
+            assert head_err < tolerance, f"Path {i}: start heading error {np.rad2deg(head_err):.6f}°"
 
     def test_end_position_and_heading(self, dubins_functions, random_path_configs):
         plan_fn, eval_fn = dubins_functions
@@ -171,9 +162,7 @@ class TestBoundaryConditions:
             head_err = abs(np.arctan2(np.sin(psi1_out - psi1), np.cos(psi1_out - psi1)))
 
             assert pos_err < tolerance, f"Path {i}: end position error {pos_err:.6f}"
-            assert (
-                head_err < tolerance
-            ), f"Path {i}: end heading error {np.rad2deg(head_err):.6f}°"
+            assert head_err < tolerance, f"Path {i}: end heading error {np.rad2deg(head_err):.6f}°"
 
 
 class TestPathTypes:
@@ -201,9 +190,7 @@ class TestPathTypes:
             path_types_seen.add(int(ct))
 
         # We should see at least 2 different path types in these configs
-        assert (
-            len(path_types_seen) >= 2
-        ), f"Only {len(path_types_seen)} path type(s) generated: {path_types_seen}"
+        assert len(path_types_seen) >= 2, f"Only {len(path_types_seen)} path type(s) generated: {path_types_seen}"
 
 
 class TestPathCost:
@@ -230,9 +217,7 @@ class TestPathCost:
             c0, c1 = np.array(c0).flatten(), np.array(c1).flatten()
 
             # Integrate arc lengths
-            path_x, path_y, _ = evaluate_path(
-                eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R, n_points=1000
-            )
+            path_x, path_y, _ = evaluate_path(eval_fn, p0, psi0, a1, d, a2, tp0, tp1, c0, c1, R, n_points=1000)
 
             dx = np.diff(path_x)
             dy = np.diff(path_y)

@@ -5,8 +5,9 @@ Fixed-Wing Vehicle Dynamics for E-Flite Night Vapor UAV
 
 import casadi as ca
 import numpy as np
-from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321
+
 import cyecca.lie as lie
+from cyecca.lie.group_so3 import SO3EulerB321, SO3Quat
 
 
 # check steven lewis p184 use f16
@@ -53,9 +54,7 @@ def derive_model(coeff_data):
     # Lateral-Directional Coefficient
     Cnb = ca.SX.sym("Cnb")  # Cn_beta for yaw stiffness
     Clp = ca.SX.sym("Clp")  # Roll Damping Derivative Coefficient
-    Cnr = ca.SX.sym(
-        "Cnr"
-    )  # Yaw Damping Derivative Coefficient wrt to yaw rate (magnitude)
+    Cnr = ca.SX.sym("Cnr")  # Yaw Damping Derivative Coefficient wrt to yaw rate (magnitude)
     Cnp = ca.SX.sym("Cnp")  # Yaw Damping Derivative Coefficient wrt to roll rate
     Clr = ca.SX.sym("Clr")  # Roll Damping Derivative Coefficient wrt to yaw rate
     CYb = ca.SX.sym("CYb")  # Sideforce due to sideslip
@@ -183,9 +182,7 @@ def derive_model(coeff_data):
 
     V_b = ca.norm_2(velocity_b)
     V_b = ca.if_else(ca.fabs(V_b) > tol_v, V_b, tol_v)
-    v_bx = ca.if_else(
-        ca.fabs(velocity_b[0]) > tol_v, velocity_b[0], ca.sign(velocity_b[0]) * tol_v
-    )
+    v_bx = ca.if_else(ca.fabs(velocity_b[0]) > tol_v, velocity_b[0], ca.sign(velocity_b[0]) * tol_v)
 
     alpha = ca.atan2(-velocity_b[2], v_bx)  # normalized velocity componenet
     beta = ca.asin(ca.fmin(ca.fmax(velocity_b[1] / (V_b), -1.0), 1.0))
@@ -194,9 +191,7 @@ def derive_model(coeff_data):
     alpha = saturate(alpha, -30 * DEG2RAD, 45 * DEG2RAD)
     beta = saturate(beta, -30 * DEG2RAD, 30 * DEG2RAD)
 
-    euler_n = lie.SO3EulerB321.elem(
-        ca.vertcat(beta, -alpha, 0.0)
-    )  # Euler elements for wind frame
+    euler_n = lie.SO3EulerB321.elem(ca.vertcat(beta, -alpha, 0.0))  # Euler elements for wind frame
     q_bn = lie.SO3Quat.from_Euler(euler_n)
     q_nb = q_bn.inverse()
     q_wb = lie.SO3Quat.elem(quat_wb)
@@ -234,22 +229,14 @@ def derive_model(coeff_data):
     # ##############################################################################################
 
     CL = CL0 + CLa * alpha  # Lift Coefficient
-    CL = ca.if_else(
-        ca.fabs(alpha) < 0.3491, CL, CL0
-    )  # Stall Model --> set CL to CL0 after stall
+    CL = ca.if_else(ca.fabs(alpha) < 0.3491, CL, CL0)  # Stall Model --> set CL to CL0 after stall
 
     CD = CD0 + CDCLS * CL * CL  # Drag Polar
 
     # (Steven pg 91 eqn 2.3-17a) and (Steven Pg 79 eqn 2.3-8b)
-    CC = -CYb * beta + CYdr * rud_rad / (
-        max_defl * DEG2RAD
-    )  # Crosswind Force Coefficient
-    CC += (
-        CYp * span / (2 * V_b) * P
-    )  # Sideforce due to roll rate  #(Steven pg 91 eqn 2.3-17a)
-    CC += (
-        CYr * span / (2 * V_b) * R
-    )  # Sideforce due to yaw rate #(Steven pg 91 eqn 2.3-17a)
+    CC = -CYb * beta + CYdr * rud_rad / (max_defl * DEG2RAD)  # Crosswind Force Coefficient
+    CC += CYp * span / (2 * V_b) * P  # Sideforce due to roll rate  #(Steven pg 91 eqn 2.3-17a)
+    CC += CYr * span / (2 * V_b) * R  # Sideforce due to yaw rate #(Steven pg 91 eqn 2.3-17a)
 
     ### Using Equation to calculate rotational moment coefficent
     Cl = (-1) * Cldr * rud_rad  # roll moment coefficient
@@ -301,9 +288,7 @@ def derive_model(coeff_data):
     L = qbar * S * CL  # Lift force -- wind frame
     W = m * g
     Fs = qbar * S * CC  # Crosswind side Force (Steven pg 80, eqn. 2.3-8b)
-    sign_D = ca.sign(
-        velocity_n[0]
-    )  # Ensure Drag is acting in the opposite direction of wind-frame velocity
+    sign_D = ca.sign(velocity_n[0])  # Ensure Drag is acting in the opposite direction of wind-frame velocity
     D = ca.fabs(D) * sign_D  # Drag
 
     D = saturate(D, -1, 1)
@@ -317,9 +302,7 @@ def derive_model(coeff_data):
     D_b = q_bn @ (-D * xAxis)
     L_b = q_bn @ (L * zAxis)
     S_b = q_bn @ (Fs * yAxis)  # add side force
-    T_b = (
-        thr_max * throttle
-    ) * xAxis  # Longitudinal Force assume thrust is directly on the x axis with thrust damping
+    T_b = (thr_max * throttle) * xAxis  # Longitudinal Force assume thrust is directly on the x axis with thrust damping
     W_b = q_bw @ (-m * g * zAxis)  # Gravitational Force components on body frame
 
     F_b += S_b

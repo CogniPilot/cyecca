@@ -1,11 +1,13 @@
 import argparse
 import os
-import numpy as np
 from pathlib import Path
+
 import casadi as ca
+import numpy as np
+
 import cyecca.lie as lie
-from cyecca.lie.group_so3 import SO3Quat, SO3EulerB321, so3
 from cyecca.lie.group_se23 import SE23Quat, se23
+from cyecca.lie.group_so3 import SO3EulerB321, SO3Quat, so3
 from cyecca.symbolic import SERIES
 
 # parameters
@@ -65,18 +67,10 @@ def derive_control_allocation():
     T_max = n_motors * F_max
     F_min = 0
     A = ca.vertcat(
-        ca.horzcat(
-            1 / n_motors, -1 / (n_motors * l), -1 / (n_motors * l), -1 / (n_motors * Cm)
-        ),
-        ca.horzcat(
-            1 / n_motors, 1 / (n_motors * l), 1 / (n_motors * l), -1 / (n_motors * Cm)
-        ),
-        ca.horzcat(
-            1 / n_motors, 1 / (n_motors * l), -1 / (n_motors * l), 1 / (n_motors * Cm)
-        ),
-        ca.horzcat(
-            1 / n_motors, -1 / (n_motors * l), 1 / (n_motors * l), 1 / (n_motors * Cm)
-        ),
+        ca.horzcat(1 / n_motors, -1 / (n_motors * l), -1 / (n_motors * l), -1 / (n_motors * Cm)),
+        ca.horzcat(1 / n_motors, 1 / (n_motors * l), 1 / (n_motors * l), -1 / (n_motors * Cm)),
+        ca.horzcat(1 / n_motors, 1 / (n_motors * l), -1 / (n_motors * l), 1 / (n_motors * Cm)),
+        ca.horzcat(1 / n_motors, -1 / (n_motors * l), 1 / (n_motors * l), 1 / (n_motors * Cm)),
     )
 
     T_sat = saturate(T, 0, T_max)
@@ -109,9 +103,7 @@ def derive_control_allocation():
             F_moment,
         )
 
-        Fp_sum = saturatem(
-            Fp_moment + Fp_thrust, ca.SX.zeros(n_motors), F_max * ca.SX.ones(n_motors)
-        )
+        Fp_sum = saturatem(Fp_moment + Fp_thrust, ca.SX.zeros(n_motors), F_max * ca.SX.ones(n_motors))
     else:
         Fp_sum = F_sum
 
@@ -164,9 +156,7 @@ def derive_velocity_control():
     cos_yaw = ca.cos(psi_sp1)
     sin_yaw = ca.sin(psi_sp1)
 
-    vw_sp = ca.vertcat(
-        vb[0] * cos_yaw - vb[1] * sin_yaw, vb[0] * sin_yaw + vb[1] * cos_yaw, vb[2]
-    )
+    vw_sp = ca.vertcat(vb[0] * cos_yaw - vb[1] * sin_yaw, vb[0] * sin_yaw + vb[1] * cos_yaw, vb[2])
 
     pw_sp1 = ca.if_else(reset_position, pw, pw_sp + vw_sp * dt)
 
@@ -358,9 +348,7 @@ def derive_attitude_control():
 
     # FUNCTION
     # -------------------------------
-    f_attitude_control = ca.Function(
-        "attitude_control", [kp, q, q_r], [omega], ["kp", "q", "q_r"], ["omega"]
-    )
+    f_attitude_control = ca.Function("attitude_control", [kp, q, q_r], [omega], ["kp", "q", "q_r"], ["omega"])
 
     return {"attitude_control": f_attitude_control}
 
@@ -490,14 +478,8 @@ def derive_position_control():
     z_i_2 = z_i - e_p * dt
     z_i_2 = saturatem(
         z_i_2,
-        -thrust_trim
-        * ca.vertcat(
-            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
-        ),
-        thrust_trim
-        * ca.vertcat(
-            x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z
-        ),
+        -thrust_trim * ca.vertcat(x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z),
+        thrust_trim * ca.vertcat(x_integral_max / ki_x, y_integral_max / ki_y, z_integral_max / ki_z),
     )
 
     # trim throttle
@@ -570,12 +552,8 @@ def derive_common():
     vb1 = ca.SX.sym("vb1", 3)
     vb0 = q.inverse() @ vw0
     vw1 = q @ vb1
-    f_rotate_vector_w_to_b = ca.Function(
-        "rotate_vector_w_to_b", [q.param, vw0], [vb0], ["q", "v_w"], ["v_b"]
-    )
-    f_rotate_vector_b_to_w = ca.Function(
-        "rotate_vector_b_to_w", [q.param, vb1], [vw1], ["q", "v_b"], ["v_w"]
-    )
+    f_rotate_vector_w_to_b = ca.Function("rotate_vector_w_to_b", [q.param, vw0], [vb0], ["q", "v_w"], ["v_b"])
+    f_rotate_vector_b_to_w = ca.Function("rotate_vector_b_to_w", [q.param, vb1], [vw1], ["q", "v_b"], ["v_w"])
     return {
         "rotate_vector_w_to_b": f_rotate_vector_w_to_b,
         "rotate_vector_b_to_w": f_rotate_vector_b_to_w,
@@ -725,9 +703,7 @@ def derive_attitude_init():
 
     # Calculate pitch (rotation about y-axis)
     # pitch = atan2(accel_x, sqrt(accel_y^2 + accel_z^2))
-    pitch = angle_wrap(
-        ca.atan2(ca.sqrt(accel_n[1] ** 2 + accel_n[2] ** 2), accel_n[0]) - ca.pi / 2
-    )
+    pitch = angle_wrap(ca.atan2(ca.sqrt(accel_n[1] ** 2 + accel_n[2] ** 2), accel_n[0]) - ca.pi / 2)
 
     # Calculate roll (rotation about x-axis)
     # roll = atan2(accel_z, accel_y)
@@ -805,9 +781,7 @@ def derive_attitude_estimator():
     mag_earth = q_wb @ mag_b
 
     # Magnetometer error calculation
-    mag_error_w = -angle_wrap(
-        ca.atan2(mag_earth[1], mag_earth[0]) + mag_decl - ca.pi / 2
-    )
+    mag_error_w = -angle_wrap(ca.atan2(mag_earth[1], mag_earth[0]) + mag_decl - ca.pi / 2)
 
     # Check if magnetic heading is not too vertical
     gamma = ca.acos(ca.fmin(ca.fmax(mag_b[2] / ca.norm_2(mag_b), -1.0), 1.0))
@@ -830,9 +804,7 @@ def derive_attitude_estimator():
 
     # Reduce gain when accelerating
     accel_gain_magnitude = 1 - ca.fabs(((accel_norm - g) / (1.01 * threshold * g)))
-    accel_gain_magnitude = ca.if_else(
-        accel_gain_magnitude < 0, 1e-3, accel_gain_magnitude
-    )
+    accel_gain_magnitude = ca.if_else(accel_gain_magnitude < 0, 1e-3, accel_gain_magnitude)
 
     accel_cross = ca.cross(ca.vertcat(0, 0, 1), accel_w_normed)
     accel_cross_norm = ca.fmin(ca.fmax(ca.norm_2(accel_cross), -1.0), 1.0)
@@ -840,10 +812,7 @@ def derive_attitude_estimator():
 
     # Calculate correction
     accel_correction = -(
-        ca.vertcat(accel_error_w[0], accel_error_w[1], 0)
-        * accel_gain
-        * accel_norm_check
-        * accel_gain_magnitude
+        ca.vertcat(accel_error_w[0], accel_error_w[1], 0) * accel_gain * accel_norm_check * accel_gain_magnitude
     )
     correction_w += accel_correction
 

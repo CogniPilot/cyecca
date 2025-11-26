@@ -41,7 +41,4 @@ jobs:
         
       - name: Run tests
         run: poetry run pytest --cov --maxfail=3 -n auto
-        
-      - name: Run notebook tests
-        run: poetry run pytest --nbmake notebook --nbmake-timeout=120 -n auto
 

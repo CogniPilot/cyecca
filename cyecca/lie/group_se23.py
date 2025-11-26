@@ -1,18 +1,16 @@
 from __future__ import annotations
 
+import casadi as ca
 from beartype import beartype
 from beartype.typing import List
-
-import casadi as ca
 
 from cyecca.lie.base import *
 from cyecca.lie.group_rn import *
 from cyecca.lie.group_rn import R3LieAlgebraElement
-from cyecca.lie.group_so3 import *
-from cyecca.lie.group_so3 import SO3LieGroupElement, SO3LieAlgebraElement
 from cyecca.lie.group_se3 import *
+from cyecca.lie.group_so3 import *
+from cyecca.lie.group_so3 import SO3LieAlgebraElement, SO3LieGroupElement
 from cyecca.symbolic import SERIES, SQUARED_SERIES
-
 
 __all__ = ["se23", "SE23Quat", "SE23Mrp"]
 
@@ -41,14 +39,10 @@ class SE23LieAlgebra(LieAlgebra):
             )
         )
 
-    def addition(
-        self, left: SE23LieAlgebraElement, right: SE23LieAlgebraElement
-    ) -> SE23LieAlgebraElement:
+    def addition(self, left: SE23LieAlgebraElement, right: SE23LieAlgebraElement) -> SE23LieAlgebraElement:
         return self.elem(param=left.param + right.param)
 
-    def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: SE23LieAlgebraElement
-    ) -> SE23LieAlgebraElement:
+    def scalar_multiplication(self, left: SCALAR_TYPE, right: SE23LieAlgebraElement) -> SE23LieAlgebraElement:
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: SE23LieAlgebraElement):
@@ -63,9 +57,7 @@ class SE23LieAlgebra(LieAlgebra):
         )
 
     def to_Matrix(self, arg: SE23LieAlgebraElement) -> ca.SX:
-        return ca.vertcat(
-            ca.horzcat(arg.Omega.to_Matrix(), arg.a_b.param, arg.v_b.param), ca.SX(2, 5)
-        )
+        return ca.vertcat(ca.horzcat(arg.Omega.to_Matrix(), arg.a_b.param, arg.v_b.param), ca.SX(2, 5))
 
     def from_Matrix(self, arg: ca.SX) -> SE23LieAlgebraElement:
         raise NotImplementedError("")
@@ -75,11 +67,7 @@ class SE23LieAlgebra(LieAlgebra):
         Ql_a = se3.elem(ca.vertcat(arg.a_b.param, arg.Omega.param)).left_Q()
         R = arg.Omega.left_jacobian()
         Z = ca.SX.zeros(3, 3)
-        return ca.sparsify(
-            ca.vertcat(
-                ca.horzcat(R, Z, Ql_v), ca.horzcat(Z, R, Ql_a), ca.horzcat(Z, Z, R)
-            )
-        )
+        return ca.sparsify(ca.vertcat(ca.horzcat(R, Z, Ql_v), ca.horzcat(Z, R, Ql_a), ca.horzcat(Z, Z, R)))
 
     def left_jacobian_inv(self, arg: SE23LieAlgebraElement) -> ca.SX:
         Ql_v = se3.elem(ca.vertcat(arg.v_b.param, arg.Omega.param)).left_Q()
@@ -99,11 +87,7 @@ class SE23LieAlgebra(LieAlgebra):
         Qr_a = se3.elem(ca.vertcat(arg.a_b.param, arg.Omega.param)).right_Q()
         R = arg.Omega.right_jacobian()
         Z = ca.SX.zeros(3, 3)
-        return ca.sparsify(
-            ca.vertcat(
-                ca.horzcat(R, Z, Qr_v), ca.horzcat(Z, R, Qr_a), ca.horzcat(Z, Z, R)
-            )
-        )
+        return ca.sparsify(ca.vertcat(ca.horzcat(R, Z, Qr_v), ca.horzcat(Z, R, Qr_a), ca.horzcat(Z, Z, R)))
 
     def right_jacobian_inv(self, arg: SE23LieAlgebraElement) -> ca.SX:
         Qr_v = se3.elem(ca.vertcat(arg.v_b.param, arg.Omega.param)).right_Q()
@@ -173,9 +157,7 @@ class SE23LieGroup(LieGroup):
         vx = so3.wedge(arg.v.param).to_Matrix()
         R = arg.R.to_Matrix()
         Z3 = ca.SX(3, 3)
-        return ca.vertcat(
-            ca.horzcat(R, Z3, px @ R), ca.horzcat(Z3, R, vx @ R), ca.horzcat(Z3, Z3, R)
-        )
+        return ca.vertcat(ca.horzcat(R, Z3, px @ R), ca.horzcat(Z3, R, vx @ R), ca.horzcat(Z3, Z3, R))
 
     def exp(self, arg: SE23LieAlgebraElement) -> SE23LieGroupElement:
         X = arg.to_Matrix()
@@ -203,12 +185,7 @@ class SE23LieGroup(LieGroup):
         C3 = SQUARED_SERIES["(x^2/2 + cos(x) - 1)/x^4"](theta_sq)
         AB = A @ B
         I = ca.SX.eye(n)
-        return (
-            A
-            + AB / 2
-            + Omega @ A @ (C1 * I + C2 * B)
-            + Omega @ Omega @ A @ (C2 * I + C3 * B)
-        )
+        return A + AB / 2 + Omega @ A @ (C1 * I + C2 * B) + Omega @ Omega @ A @ (C2 * I + C3 * B)
 
     def exp_mixed(
         self,

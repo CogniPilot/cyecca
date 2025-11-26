@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
 
-from cyecca.models import quadrotor
-from cyecca.models import rdd2, rdd2_loglinear, bezier
-
 import casadi as ca
 import numpy as np
-
 import rclpy
 import rclpy.clock
+from geometry_msgs.msg import (
+    PoseStamped,
+    PoseWithCovarianceStamped,
+    TransformStamped,
+    TwistStamped,
+    TwistWithCovarianceStamped,
+)
+from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-
-from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, PoseStamped
-from geometry_msgs.msg import TwistWithCovarianceStamped, TwistStamped
-from synapse_msgs.msg import BezierTrajectory
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rosgraph_msgs.msg import Clock
-from nav_msgs.msg import Odometry, Path
-from sensor_msgs.msg import Joy, Imu
-from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
+from sensor_msgs.msg import Imu, Joy
+from synapse_msgs.msg import BezierTrajectory
+from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
+from cyecca.models import bezier, quadrotor, rdd2, rdd2_loglinear
 
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-
-qos = QoSProfile(
-    reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=1
-)
+qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=1)
 
 
 class Simulator(Node):
@@ -42,9 +40,7 @@ class Simulator(Node):
         self.pub_pose_sp = self.create_publisher(PoseStamped, "pose_sp", qos)
         self.pub_clock = self.create_publisher(Clock, "clock", qos)
         self.pub_odom = self.create_publisher(Odometry, "odom", qos)
-        self.pub_twist_cov = self.create_publisher(
-            TwistWithCovarianceStamped, "twist_cov", qos
-        )
+        self.pub_twist_cov = self.create_publisher(TwistWithCovarianceStamped, "twist_cov", qos)
         self.pub_twist = self.create_publisher(TwistStamped, "twist", qos)
         self.pub_path = self.create_publisher(Path, "pose_history", qos)
         self.pub_imu = self.create_publisher(Imu, "imu", qos)
@@ -54,9 +50,7 @@ class Simulator(Node):
         # ----------------------------------------------
         # subscriptions
         # ----------------------------------------------
-        self.sub_joy = self.create_subscription(
-            Joy, "/joy", self.joy_callback, qos_profile=qos
-        )
+        self.sub_joy = self.create_subscription(Joy, "/joy", self.joy_callback, qos_profile=qos)
         self.sub_bezier = self.create_subscription(
             BezierTrajectory,
             "/cerebri/in/bezier_trajectory",
@@ -184,15 +178,11 @@ class Simulator(Node):
 
         # setpoints
         self.q_sp = np.array([1, 0, 0, 0], dtype=float)  # quaternion setpoint
-        self.qc_sp = np.array(
-            [1, 0, 0, 0], dtype=float
-        )  # quaternion camera setpoint (based on psi)
+        self.qc_sp = np.array([1, 0, 0, 0], dtype=float)  # quaternion camera setpoint (based on psi)
         self.z_i = 0  # z error integrator
 
         # start main loop on timer
-        self.system_clock = rclpy.clock.Clock(
-            clock_type=rclpy.clock.ClockType.SYSTEM_TIME
-        )
+        self.system_clock = rclpy.clock.Clock(clock_type=rclpy.clock.ClockType.SYSTEM_TIME)
         self.sim_timer = self.create_timer(
             timer_period_sec=self.dt / self.real_time_factor,
             callback=self.timer_callback,
@@ -215,9 +205,7 @@ class Simulator(Node):
         )
         self.est_x = np.array(res, dtype=float).reshape(-1)
 
-        X1, P1 = self.eqs["position_correction"](
-            self.est_x, self.y_gps_pos, self.dt, self.P_temp
-        )
+        X1, P1 = self.eqs["position_correction"](self.est_x, self.y_gps_pos, self.dt, self.P_temp)
         self.est_x = np.array(X1, dtype=float).reshape(-1)
         self.P_temp = np.array(P1, dtype=float)
 
@@ -257,9 +245,7 @@ class Simulator(Node):
         self.omega = self.y_gyro
         self.pw = np.array([self.est_x[0], self.est_x[1], self.est_x[2]], dtype=float)
         self.vw = np.array([self.est_x[3], self.est_x[4], self.est_x[5]], dtype=float)
-        self.vb = np.array(
-            self.eqs["rotate_vector_w_to_b"](self.q, self.vw), dtype=float
-        ).reshape(-1)
+        self.vb = np.array(self.eqs["rotate_vector_w_to_b"](self.q, self.vw), dtype=float).reshape(-1)
 
     def update_position(self):
         if self.control_mode == "mellinger":
@@ -297,20 +283,14 @@ class Simulator(Node):
 
     def update_attitude(self):
         if self.control_mode == "mellinger":
-            self.omega_sp = self.eqs["attitude_control"](
-                self.k_p_att, self.q, self.q_sp
-            )
+            self.omega_sp = self.eqs["attitude_control"](self.k_p_att, self.q, self.q_sp)
         elif self.control_mode == "loglinear":
-            self.omega_sp = self.eqs["so3_attitude_control"](
-                self.k_p_att, self.q, self.q_sp
-            )
+            self.omega_sp = self.eqs["so3_attitude_control"](self.k_p_att, self.q, self.q_sp)
         else:
             raise RuntimeError("unknown control mode: %s" % self.control_mode)
 
     def mode_acro(self):
-        [self.omega_sp, self.thrust] = self.eqs["input_acro"](
-            self.thrust_trim, self.thrust_delta, self.input_aetr
-        )
+        [self.omega_sp, self.thrust] = self.eqs["input_acro"](self.thrust_trim, self.thrust_delta, self.input_aetr)
 
     def mode_auto_level(self):
         [self.q_sp, self.thrust] = self.eqs["input_auto_level"](
@@ -358,18 +338,14 @@ class Simulator(Node):
         self.de0 = de1
 
     def update_control_allocation(self):
-        self.u, Fp, Fm, Ft, Msat = self.eqs["f_alloc"](
-            self.F_max, self.l, self.CM, self.CT, self.thrust, self.M
-        )
+        self.u, Fp, Fm, Ft, Msat = self.eqs["f_alloc"](self.F_max, self.l, self.CM, self.CT, self.thrust, self.M)
 
     def mode_bezier(self):
         if self.bezier_msg is None:
             # no bezier message received yet
             return
 
-        time_start_nsec = (
-            self.bezier_msg.time_start.sec * 1e9 + self.bezier_msg.time_start.nanosec
-        )
+        time_start_nsec = self.bezier_msg.time_start.sec * 1e9 + self.bezier_msg.time_start.nanosec
         time_stop_nsec = time_start_nsec
 
         now = self.get_clock().now()
@@ -377,10 +353,7 @@ class Simulator(Node):
         time_nsec = sec * 1e9 + nanosec
 
         if time_nsec < time_start_nsec:
-            self.get_logger().error(
-                "bezier: time %.3f before start: %.3f"
-                % (time_nsec * 1e-9, time_start_nsec * 1e-9)
-            )
+            self.get_logger().error("bezier: time %.3f before start: %.3f" % (time_nsec * 1e-9, time_start_nsec * 1e-9))
             return
 
         curve_idx = 0
@@ -391,9 +364,7 @@ class Simulator(Node):
             curve = self.bezier_msg.curves[curve_idx]
             curve_prev = self.bezier_msg.curves[curve_idx - 1]
             curve_stop_nsec = curve.time_stop.sec * 1e9 + curve.time_stop.nanosec
-            curve_prev_stop_nsec = (
-                curve_prev.time_stop.sec * 1e9 + curve_prev.time_stop.nanosec
-            )
+            curve_prev_stop_nsec = curve_prev.time_stop.sec * 1e9 + curve_prev.time_stop.nanosec
             if time_nsec < curve_stop_nsec:
                 time_stop_nsec = curve_stop_nsec
                 if curve_idx > 0:
@@ -418,9 +389,9 @@ class Simulator(Node):
             self.PZ[i] = self.bezier_msg.curves[curve_idx].z[i]
         for i in range(4):
             self.Ppsi[i] = self.bezier_msg.curves[curve_idx].yaw[i]
-        [x, y, z, psi, dpsi, ddpsi, self.vw_sp, a, j, s] = self.eqs[
-            "bezier_multirotor"
-        ](t, T, self.PX, self.PY, self.PZ, self.Ppsi)
+        [x, y, z, psi, dpsi, ddpsi, self.vw_sp, a, j, s] = self.eqs["bezier_multirotor"](
+            t, T, self.PX, self.PY, self.PZ, self.Ppsi
+        )
 
         [_, q_att, self.omega, _, M, _] = self.eqs["f_ref"](
             psi,
@@ -482,19 +453,14 @@ class Simulator(Node):
         elif msg.buttons[2] == 1:
             new_mode = "bezier"
         if new_mode != self.input_mode:
-            self.get_logger().info(
-                "mode changed from: %s to %s" % (self.input_mode, new_mode)
-            )
+            self.get_logger().info("mode changed from: %s to %s" % (self.input_mode, new_mode))
             self.input_mode = new_mode
         if msg.buttons[4] == 1:
             new_control_mode = "loglinear"
         elif msg.buttons[5] == 1:
             new_control_mode = "mellinger"
         if new_control_mode != self.control_mode:
-            self.get_logger().info(
-                "control mode changed from: %s to %s"
-                % (self.control_mode, new_control_mode)
-            )
+            self.get_logger().info("control mode changed from: %s to %s" % (self.control_mode, new_control_mode))
             self.control_mode = new_control_mode
 
     def bezier_callback(self, msg: BezierTrajectory):
@@ -567,9 +533,7 @@ class Simulator(Node):
         """
         try:
             # opts = {'abstol': 1e-9,'reltol':1e-9,'fsens_err_con': True,'calc_ic':True,'calc_icB':True}
-            f_int = ca.integrator(
-                "test", "cvodes", self.model["dae"], self.t, self.t + self.dt
-            )
+            f_int = ca.integrator("test", "cvodes", self.model["dae"], self.t, self.t + self.dt)
             res = f_int(x0=self.x, z0=0, p=self.p, u=self.u)
         except RuntimeError as e:
             print(e)
@@ -586,18 +550,10 @@ class Simulator(Node):
         # store states and measurements
         # ---------------------------------------------------------------------
         self.x = np.array(res["xf"]).reshape(-1)
-        res["yf_gyro"] = self.model["g_gyro"](
-            res["xf"], self.u, self.p, np.random.randn(3), self.dt
-        )
-        res["yf_accel"] = self.model["g_accel"](
-            res["xf"], self.u, self.p, np.random.randn(3), self.dt
-        )
-        res["yf_mag"] = self.model["g_mag"](
-            res["xf"], self.u, self.p, np.random.randn(3), self.dt
-        )
-        res["yf_gps_pos"] = self.model["g_gps_pos"](
-            res["xf"], self.u, self.p, np.random.randn(3), self.dt
-        )
+        res["yf_gyro"] = self.model["g_gyro"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        res["yf_accel"] = self.model["g_accel"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        res["yf_mag"] = self.model["g_mag"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
+        res["yf_gps_pos"] = self.model["g_gps_pos"](res["xf"], self.u, self.p, np.random.randn(3), self.dt)
         self.y_gyro = np.array(res["yf_gyro"]).reshape(-1)
         self.y_mag = np.array(res["yf_mag"]).reshape(-1)
         self.y_accel = np.array(res["yf_accel"]).reshape(-1)
@@ -685,9 +641,7 @@ class Simulator(Node):
                 [self.P[2], self.P[4], self.P[5]],
             ]
         )
-        P_pose_full = np.block(
-            [[1e-2 * np.eye(3), np.zeros((3, 3))], [np.zeros((3, 3)), P_full]]
-        )
+        P_pose_full = np.block([[1e-2 * np.eye(3), np.zeros((3, 3))], [np.zeros((3, 3)), P_full]])
 
         # ------------------------------------
         # publish simulation clock

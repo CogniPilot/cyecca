@@ -4,12 +4,11 @@ from abc import ABC, abstractmethod
 from enum import Enum
 
 import casadi as ca
-
 from beartype import beartype
 from beartype.typing import List, Union
 
 from cyecca.lie.base import *
-from cyecca.lie.group_rn import R3LieGroupElement, R3LieAlgebraElement
+from cyecca.lie.group_rn import R3LieAlgebraElement, R3LieGroupElement
 from cyecca.symbolic import SERIES, SQUARED_SERIES
 
 __all__ = [
@@ -38,20 +37,14 @@ class SO3LieAlgebra(LieAlgebra):
     def elem(self, param: PARAM_TYPE) -> SO3LieAlgebraElement:
         return SO3LieAlgebraElement(algebra=self, param=param)
 
-    def bracket(
-        self, left: SO3LieAlgebraElement, right: SO3LieAlgebraElement
-    ) -> SO3LieAlgebraElement:
+    def bracket(self, left: SO3LieAlgebraElement, right: SO3LieAlgebraElement) -> SO3LieAlgebraElement:
         c = left.to_Matrix() @ right.to_Matrix() - right.to_Matrix() @ left.to_Matrix()
         return self.elem(param=ca.vertcat(c[2, 1], c[0, 2], c[1, 0]))
 
-    def addition(
-        self, left: SO3LieAlgebraElement, right: SO3LieAlgebraElement
-    ) -> SO3LieAlgebraElement:
+    def addition(self, left: SO3LieAlgebraElement, right: SO3LieAlgebraElement) -> SO3LieAlgebraElement:
         return self.elem(param=left.param + right.param)
 
-    def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: SO3LieAlgebraElement
-    ) -> SO3LieAlgebraElement:
+    def scalar_multiplication(self, left: SCALAR_TYPE, right: SO3LieAlgebraElement) -> SO3LieAlgebraElement:
         return self.elem(param=left * right.param)
 
     def adjoint(self, left: SO3LieAlgebraElement) -> ca.SX:
@@ -177,26 +170,20 @@ class SO3LieGroup(LieGroup):
     An abstract SO3 Lie Group
     """
 
-    def product(
-        self, left: SO3LieGroupElement, right: SO3LieGroupElement
-    ) -> SO3LieGroupElement:
+    def product(self, left: SO3LieGroupElement, right: SO3LieGroupElement) -> SO3LieGroupElement:
         """
         Default product uses matrix conversion
         """
         return self.from_Matrix(left.to_Matrix() @ right.to_Matrix())
 
-    def product_r3(
-        self, left: SO3LieGroupElement, right: R3LieAlgebraElement
-    ) -> R3LieAlgebraElement:
+    def product_r3(self, left: SO3LieGroupElement, right: R3LieAlgebraElement) -> R3LieAlgebraElement:
         """
         Vector rotation for algebra r3, uses to_Matrix
         """
         v = left.to_Matrix() @ right.param
         return R3LieAlgebraElement(algebra=right.algebra, param=v)
 
-    def product_vector(
-        self, left: SO3LieGroupElement, right: Union[ca.SX, ca.DM]
-    ) -> ca.SX:
+    def product_vector(self, left: SO3LieGroupElement, right: Union[ca.SX, ca.DM]) -> ca.SX:
         """
         Vector product, uses matrix conversion
         """
@@ -377,9 +364,7 @@ class SO3EulerLieGroup(SO3LieGroup):
             # Left Jacobian is Jr @ R_eb
             return Jr @ R_eb
         else:
-            raise NotImplementedError(
-                f"left_jacobian not implemented for {self.euler_type}, {self.sequence}"
-            )
+            raise NotImplementedError(f"left_jacobian not implemented for {self.euler_type}, {self.sequence}")
 
     def right_jacobian(self, arg: SO3EulerLieGroupElement) -> ca.SX:
         """
@@ -418,9 +403,7 @@ class SO3EulerLieGroup(SO3LieGroup):
             )
             return J
         else:
-            raise NotImplementedError(
-                f"right_jacobian not implemented for {self.euler_type}, {self.sequence}"
-            )
+            raise NotImplementedError(f"right_jacobian not implemented for {self.euler_type}, {self.sequence}")
 
     def to_Matrix(self, arg: SO3EulerLieGroupElement) -> ca.SX:
         m = ca.SX.eye(3)
@@ -456,14 +439,10 @@ class SO3EulerLieGroup(SO3LieGroup):
             param = ca.if_else(
                 cond1,
                 ca.vertcat(psi1, theta, phi1),
-                ca.if_else(
-                    cond2, ca.vertcat(psi2, theta, phi2), ca.vertcat(psi3, theta, phi3)
-                ),
+                ca.if_else(cond2, ca.vertcat(psi2, theta, phi2), ca.vertcat(psi3, theta, phi3)),
             )
         else:
-            raise NotImplementedError(
-                f"from_Matrix not implemented for {self.euler_type}, {self.sequence}"
-            )
+            raise NotImplementedError(f"from_Matrix not implemented for {self.euler_type}, {self.sequence}")
         return SO3EulerLieGroupElement(group=self, param=param)
 
     def from_Dcm(self, arg: SO3DcmLieGroupElement) -> SO3EulerLieGroupElement:
@@ -494,9 +473,7 @@ class SO3QuatLieGroup(SO3LieGroup):
     def elem(self, param: PARAM_TYPE) -> SO3QuatLieGroupElement:
         return SO3QuatLieGroupElement(group=self, param=param)
 
-    def product(
-        self, left: SO3QuatLieGroupElement, right: SO3QuatLieGroupElement
-    ) -> SO3QuatLieGroupElement:
+    def product(self, left: SO3QuatLieGroupElement, right: SO3QuatLieGroupElement) -> SO3QuatLieGroupElement:
         """
         provide a more efficient product
         """
@@ -669,9 +646,7 @@ class SO3MrpLieGroup(SO3LieGroup):
     def elem(self, param: PARAM_TYPE) -> SO3MrpLieGroupElement:
         return SO3MrpLieGroupElement(group=self, param=param)
 
-    def product(
-        self, left: SO3MrpLieGroupElement, right: SO3MrpLieGroupElement
-    ) -> SO3MrpLieGroupElement:
+    def product(self, left: SO3MrpLieGroupElement, right: SO3MrpLieGroupElement) -> SO3MrpLieGroupElement:
         """
         Provide a move efficient product
         """
@@ -761,9 +736,7 @@ class SO3MrpLieGroup(SO3LieGroup):
         return self.from_Matrix(arg.to_Matrix())
 
 
-SO3EulerB321 = SO3EulerLieGroup(
-    euler_type=EulerType.body_fixed, sequence=[Axis.z, Axis.y, Axis.x]
-)
+SO3EulerB321 = SO3EulerLieGroup(euler_type=EulerType.body_fixed, sequence=[Axis.z, Axis.y, Axis.x])
 
 
 @beartype

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import casadi as ca
-
 from beartype import beartype
 from beartype.typing import List
 
@@ -20,19 +19,13 @@ class SO2LieAlgebra(LieAlgebra):
     def elem(self, param: PARAM_TYPE) -> SO2LieAlgebraElement:
         return SO2LieAlgebraElement(algebra=self, param=param)
 
-    def bracket(
-        self, left: SO2LieAlgebraElement, right: SO2LieAlgebraElement
-    ) -> SO2LieAlgebraElement:
+    def bracket(self, left: SO2LieAlgebraElement, right: SO2LieAlgebraElement) -> SO2LieAlgebraElement:
         return self.elem(param=ca.DM([0]))
 
-    def addition(
-        self, left: SO2LieAlgebraElement, right: SO2LieAlgebraElement
-    ) -> SO2LieAlgebraElement:
+    def addition(self, left: SO2LieAlgebraElement, right: SO2LieAlgebraElement) -> SO2LieAlgebraElement:
         return self.elem(param=left.param + right.param)
 
-    def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: SO2LieAlgebraElement
-    ) -> SO2LieAlgebraElement:
+    def scalar_multiplication(self, left: SCALAR_TYPE, right: SO2LieAlgebraElement) -> SO2LieAlgebraElement:
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: SO2LieAlgebraElement) -> ca.SX:
@@ -73,17 +66,13 @@ class SO2LieGroup(LieGroup):
     def elem(self, param: PARAM_TYPE) -> SO2LieGroupElement:
         return SO2LieGroupElement(group=self, param=param)
 
-    def product(
-        self, left: SO2LieGroupElement, right: SO2LieGroupElement
-    ) -> SO2LieGroupElement:
+    def product(self, left: SO2LieGroupElement, right: SO2LieGroupElement) -> SO2LieGroupElement:
         """
         Default product uses matrix conversion
         """
         return self.elem(left.param + right.param)
 
-    def product_r2(
-        self, left: SO2LieGroupElement, right: R2LieAlgebraElement
-    ) -> R2LieAlgebraElement:
+    def product_r2(self, left: SO2LieGroupElement, right: R2LieAlgebraElement) -> R2LieAlgebraElement:
         """
         Vector rotation for algebra r2, uses to_Matrix
         """

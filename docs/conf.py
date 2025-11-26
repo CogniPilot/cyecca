@@ -54,9 +54,7 @@ matplotlib.use('Agg')  # Non-interactive backend for testing
 import matplotlib.pyplot as plt
 """
 
-doctest_default_flags = (
-    0 | __import__("doctest").ELLIPSIS | __import__("doctest").NORMALIZE_WHITESPACE
-)
+doctest_default_flags = 0 | __import__("doctest").ELLIPSIS | __import__("doctest").NORMALIZE_WHITESPACE
 
 # Intersphinx mapping
 intersphinx_mapping = {

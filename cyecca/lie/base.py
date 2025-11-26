@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import casadi as ca
-
 from abc import ABC, abstractmethod
+
+import casadi as ca
+import sympy
 from beartype import beartype
 from beartype.typing import List, Union
 
 from cyecca.symbolic import casadi_to_sympy
-import sympy
 
 __all__ = [
     "LieAlgebraElement",
@@ -65,9 +65,7 @@ class LieAlgebraElement:
     def __eq__(self, other: LieAlgebraElement) -> ca.SX:
         return ca.logic_all(ca.eq(self.param, other.param))
 
-    def __mul__(
-        self, right: Union[LieAlgebraElement, SCALAR_TYPE]
-    ) -> LieAlgebraElement:
+    def __mul__(self, right: Union[LieAlgebraElement, SCALAR_TYPE]) -> LieAlgebraElement:
         if isinstance(right, LieAlgebraElement):
             return self.algebra.bracket(left=self, right=right)
         elif isinstance(right, SCALAR_TYPE):
@@ -134,25 +132,17 @@ class LieAlgebra(ABC):
 
     def right_Q(self, vb: LieAlgebraElement, omega: LieAlgebraElement) -> ca.SX: ...
 
-    def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: LieAlgebraElement
-    ) -> LieAlgebraElement:
+    def scalar_multiplication(self, left: SCALAR_TYPE, right: LieAlgebraElement) -> LieAlgebraElement:
         return LieGroupElement(self.groups[i], self.sub_param(i=i, param=arg.param))
 
     @abstractmethod
-    def bracket(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement: ...
+    def bracket(self, left: LieAlgebraElement, right: LieAlgebraElement) -> LieAlgebraElement: ...
 
     @abstractmethod
-    def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: LieAlgebraElement
-    ) -> LieAlgebraElement: ...
+    def scalar_multiplication(self, left: SCALAR_TYPE, right: LieAlgebraElement) -> LieAlgebraElement: ...
 
     @abstractmethod
-    def addition(
-        self, left: LieAlgebraElement, right: LieAlgebraElement
-    ) -> LieAlgebraElement: ...
+    def addition(self, left: LieAlgebraElement, right: LieAlgebraElement) -> LieAlgebraElement: ...
 
     @abstractmethod
     def adjoint(self, arg: LieAlgebraElement) -> ca.SX: ...
@@ -181,33 +171,21 @@ class LieGroupElement:
     def inverse(self) -> LieGroupElement:
         return self.group.inverse(arg=self)
 
-    def __add__(
-        self, other: Union[LieGroupElement, LieAlgebraElement]
-    ) -> LieGroupElement:
+    def __add__(self, other: Union[LieGroupElement, LieAlgebraElement]) -> LieGroupElement:
         if isinstance(other, LieGroupElement):
             if hasattr(self.group, "addition"):
                 return self.group.addition(self, other)
             else:
-                raise TypeError(
-                    "{:s} does not support addition".format(
-                        self.group.__class__.__name__
-                    )
-                )
+                raise TypeError("{:s} does not support addition".format(self.group.__class__.__name__))
         elif isinstance(other, LieAlgebraElement):
             return self * other.exp(self.group)
 
-    def __sub__(
-        self, other: Union[LieGroupElement, LieAlgebraElement]
-    ) -> LieGroupElement:
+    def __sub__(self, other: Union[LieGroupElement, LieAlgebraElement]) -> LieGroupElement:
         if isinstance(other, LieGroupElement):
             if hasattr(self.group, "subtraction"):
                 return self.group.subtraction(self, other)
             else:
-                raise TypeError(
-                    "{:s} does not support subtraction".format(
-                        self.group.__class__.__name__
-                    )
-                )
+                raise TypeError("{:s} does not support subtraction".format(self.group.__class__.__name__))
         elif isinstance(other, LieAlgebraElement):
             return self * (-other).exp(self.group)
 
@@ -251,9 +229,7 @@ class LieGroup(ABC):
     This is a generic Lie group, not necessarily represented as a matrix
     """
 
-    def __init__(
-        self, algebra: LieAlgebra, n_param: int, matrix_shape: tuple[int, int]
-    ):
+    def __init__(self, algebra: LieAlgebra, n_param: int, matrix_shape: tuple[int, int]):
         self.algebra = algebra
         self.n_param = n_param
         self.matrix_shape = matrix_shape
@@ -268,9 +244,7 @@ class LieGroup(ABC):
         return LieGroupDirectProduct(groups=[self, other])
 
     @abstractmethod
-    def product(
-        self, left: LieGroupElement, right: LieGroupElement
-    ) -> LieGroupElement: ...
+    def product(self, left: LieGroupElement, right: LieGroupElement) -> LieGroupElement: ...
 
     @abstractmethod
     def inverse(self, arg: LieGroupElement) -> LieGroupElement: ...
@@ -297,4 +271,4 @@ class LieGroup(ABC):
         return self.__class__.__name__
 
 
-from .direct_product import LieGroupDirectProduct, LieAlgebraDirectProduct
+from .direct_product import LieAlgebraDirectProduct, LieGroupDirectProduct

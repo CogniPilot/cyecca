@@ -376,9 +376,7 @@ def analyze_modes(A, state_names=None, dt=None):
         if state_names is not None:
             state_mag = np.abs(vec)
             dominant_idx = np.argsort(state_mag)[::-1][:3]
-            mode["dominant_states"] = [
-                (state_names[idx], state_mag[idx]) for idx in dominant_idx
-            ]
+            mode["dominant_states"] = [(state_names[idx], state_mag[idx]) for idx in dominant_idx]
 
         modes.append(mode)
 

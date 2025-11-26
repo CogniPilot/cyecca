@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import casadi as ca
-
 from beartype import beartype
 from beartype.typing import List, Union
 
 from cyecca.lie.base import *
-from cyecca.lie.group_so2 import *
 from cyecca.lie.group_rn import *
 from cyecca.lie.group_rn import R2LieAlgebraElement
-from cyecca.lie.group_so2 import SO2LieGroupElement, SO2LieAlgebraElement
+from cyecca.lie.group_so2 import *
+from cyecca.lie.group_so2 import SO2LieAlgebraElement, SO2LieGroupElement
 from cyecca.symbolic import SERIES
 
 __all__ = ["se2", "SE2"]
@@ -23,21 +22,15 @@ class SE2LieAlgebra(LieAlgebra):
     def elem(self, param: PARAM_TYPE) -> SE2LieAlgebraElement:
         return SE2LieAlgebraElement(algebra=self, param=param)
 
-    def bracket(
-        self, left: SE2LieAlgebraElement, right: SE2LieAlgebraElement
-    ) -> SE2LieAlgebraElement:
+    def bracket(self, left: SE2LieAlgebraElement, right: SE2LieAlgebraElement) -> SE2LieAlgebraElement:
         ## TODO: hard code the bracket here, avoid matrix math
         c = left.to_Matrix() @ right.to_Matrix() - right.to_Matrix() @ left.to_Matrix()
         return self.elem(param=ca.vertcat(c[0, 2], c[1, 2], c[1, 0]))
 
-    def addition(
-        self, left: SE2LieAlgebraElement, right: SE2LieAlgebraElement
-    ) -> SE2LieAlgebraElement:
+    def addition(self, left: SE2LieAlgebraElement, right: SE2LieAlgebraElement) -> SE2LieAlgebraElement:
         return self.elem(param=left.param + right.param)
 
-    def scalar_multiplication(
-        self, left: SCALAR_TYPE, right: SE2LieAlgebraElement
-    ) -> SE2LieAlgebraElement:
+    def scalar_multiplication(self, left: SCALAR_TYPE, right: SE2LieAlgebraElement) -> SE2LieAlgebraElement:
         return self.elem(param=left * right.param)
 
     def adjoint(self, arg: SE2LieAlgebraElement) -> ca.SX:

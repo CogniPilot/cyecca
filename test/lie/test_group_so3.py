@@ -1,11 +1,11 @@
-from tests.common import ProfiledTestCase, SX_close, is_finite
-from beartype import beartype
+from test.common import ProfiledTestCase, SX_close, is_finite
 
 import casadi as ca
 import numpy as np
 import scipy.linalg
+from beartype import beartype
 
-from cyecca.lie.group_so3 import so3, SO3EulerB321, SO3Quat, SO3Mrp
+from cyecca.lie.group_so3 import SO3EulerB321, SO3Mrp, SO3Quat, so3
 
 
 @beartype
@@ -85,9 +85,7 @@ class Test_LieAlgebraSO3(ProfiledTestCase):
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl, x), x, ca.DM.zeros(n))))
 
         Jl_inv = omega.left_jacobian_inv()
-        self.assertTrue(
-            is_finite(ca.substitute(ca.jacobian(Jl_inv, x), x, ca.DM.zeros(n)))
-        )
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl_inv, x), x, ca.DM.zeros(n))))
 
         I_check = ca.substitute(Jl @ Jl_inv, x, ca.DM.zeros(n))
         self.assertTrue(SX_close(I_check, ca.DM.eye(n)))
@@ -100,9 +98,7 @@ class Test_LieAlgebraSO3(ProfiledTestCase):
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr, x), x, ca.DM.zeros(n))))
 
         Jr_inv = omega.right_jacobian_inv()
-        self.assertTrue(
-            is_finite(ca.substitute(ca.jacobian(Jr_inv, x), x, ca.DM.zeros(n)))
-        )
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr_inv, x), x, ca.DM.zeros(n))))
 
         I_check = ca.substitute(Jr @ Jr_inv, x, ca.DM.zeros(n))
         self.assertTrue(SX_close(I_check, ca.DM.eye(n)))
@@ -154,9 +150,7 @@ class Test_LieGroupSO3Euler(ProfiledTestCase):
 
     def test_inverse(self):
         G1 = SO3EulerB321.elem(self.v1)
-        self.assertTrue(
-            SX_close((G1 * G1.inverse()).param, SO3EulerB321.identity().param)
-        )
+        self.assertTrue(SX_close((G1 * G1.inverse()).param, SO3EulerB321.identity().param))
 
     def test_log(self):
         G1 = SO3EulerB321.elem(self.v1)
@@ -519,9 +513,7 @@ class Test_SO3Conversions(ProfiledTestCase):
         e2 = SO3EulerB321.from_Quat(quat)
 
         diff = ca.norm_2(e1.param - e2.param)
-        self.assertLess(
-            float(diff), 1e-10, f"Euler->Quat->Euler failed: diff={float(diff)}"
-        )
+        self.assertLess(float(diff), 1e-10, f"Euler->Quat->Euler failed: diff={float(diff)}")
 
     def test_mrp_to_quat_to_mrp(self):
         """Test roundtrip conversion: MRP -> Quat -> MRP."""
@@ -560,15 +552,9 @@ class Test_SO3Conversions(ProfiledTestCase):
         diff_em = ca.norm_inf(dcm_from_euler - dcm_from_mrp)
         diff_qm = ca.norm_inf(dcm_from_quat - dcm_from_mrp)
 
-        self.assertLess(
-            float(diff_eq), 1e-10, f"Euler-Quat DCM mismatch: {float(diff_eq)}"
-        )
-        self.assertLess(
-            float(diff_em), 1e-10, f"Euler-MRP DCM mismatch: {float(diff_em)}"
-        )
-        self.assertLess(
-            float(diff_qm), 1e-10, f"Quat-MRP DCM mismatch: {float(diff_qm)}"
-        )
+        self.assertLess(float(diff_eq), 1e-10, f"Euler-Quat DCM mismatch: {float(diff_eq)}")
+        self.assertLess(float(diff_em), 1e-10, f"Euler-MRP DCM mismatch: {float(diff_em)}")
+        self.assertLess(float(diff_qm), 1e-10, f"Quat-MRP DCM mismatch: {float(diff_qm)}")
 
     def test_dcm_from_euler(self):
         """Test DCM construction from Euler angles."""
@@ -586,9 +572,7 @@ class Test_SO3Conversions(ProfiledTestCase):
 
         # Determinant should be 1
         det = ca.det(R)
-        self.assertLess(
-            abs(float(det) - 1.0), 1e-10, f"DCM determinant not 1: {float(det)}"
-        )
+        self.assertLess(abs(float(det) - 1.0), 1e-10, f"DCM determinant not 1: {float(det)}")
 
     def test_euler_gimbal_lock_theta_90(self):
         """Test Euler angles near gimbal lock (theta = 90 degrees)."""
@@ -603,9 +587,7 @@ class Test_SO3Conversions(ProfiledTestCase):
         # Should still produce valid DCM
         R = dcm.to_Matrix()
         det = ca.det(R)
-        self.assertLess(
-            abs(float(det) - 1.0), 1e-6, f"DCM invalid at gimbal lock: det={float(det)}"
-        )
+        self.assertLess(abs(float(det) - 1.0), 1e-6, f"DCM invalid at gimbal lock: det={float(det)}")
 
         # Jacobian should have high condition number but be finite
         Jr = euler.right_jacobian()
@@ -624,6 +606,4 @@ class Test_SO3Conversions(ProfiledTestCase):
         dcm_neg = SO3Dcm.from_Quat(q_neg).to_Matrix()
 
         diff = ca.norm_inf(dcm_pos - dcm_neg)
-        self.assertLess(
-            float(diff), 1e-10, f"q and -q produce different DCM: {float(diff)}"
-        )
+        self.assertLess(float(diff), 1e-10, f"q and -q produce different DCM: {float(diff)}")

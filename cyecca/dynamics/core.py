@@ -46,20 +46,20 @@ import casadi as ca
 import numpy as np
 from beartype import beartype
 
+from .composition import CompositionMixin, SignalRef, SubmodelProxy
+from .decorators import compose_states, symbolic
 from .fields import (
-    state,
-    param,
-    input_var,
-    output_var,
     algebraic_var,
     dependent_var,
-    quadrature_var,
     discrete_state,
     discrete_var,
     event_indicator,
+    input_var,
+    output_var,
+    param,
+    quadrature_var,
+    state,
 )
-from .decorators import symbolic, compose_states
-from .composition import CompositionMixin, SignalRef, SubmodelProxy
 
 __all__ = [
     "ModelSX",
@@ -237,9 +237,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
             u = model.u()  # u has full autocomplete
             p = model.p()  # p has full autocomplete
         """
-        return cls(
-            state_type, input_type, param_type, output_type=output_type, **kwargs
-        )
+        return cls(state_type, input_type, param_type, output_type=output_type, **kwargs)
 
     @classmethod
     def compose(
@@ -506,9 +504,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
 
             # Evaluate dynamics
             dx_dt = self.f_x(*f_x_args)
-            return ca.Function(
-                "f_wrapped", [x_in, u_in, p_in], [dx_dt], ["x", "u", "p"], ["dx_dt"]
-            )
+            return ca.Function("f_wrapped", [x_in, u_in, p_in], [dx_dt], ["x", "u", "p"], ["dx_dt"])
 
         from . import integrators
 
@@ -594,9 +590,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         step_inputs.extend([u_sym, p_sym, dt_sym])
         step_names.extend(["u", "p", "dt"])
 
-        self.f_step = ca.Function(
-            "f_step", step_inputs, [x_next], step_names, ["x_next"]
-        )
+        self.f_step = ca.Function("f_step", step_inputs, [x_next], step_names, ["x_next"])
 
     def _build_idas_integrator(self, options: dict):
         """Build IDAS DAE integrator using CasADi's integrator interface.
@@ -726,9 +720,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
 
         # Create IDAS integrator for [0, 1] interval
         # We'll scale by dt when calling it
-        integrator_unit = ca.integrator(
-            "idas_unit", "idas", dae, 0.0, 1.0, integrator_opts
-        )
+        integrator_unit = ca.integrator("idas_unit", "idas", dae, 0.0, 1.0, integrator_opts)
 
         # Now build f_step that takes dt as input and scales appropriately
         x_sym = sym.sym("x", x_dae.size1())
@@ -779,16 +771,12 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
             pass
 
         # Create integrator with scaled dynamics
-        integrator_scaled = ca.integrator(
-            "idas_scaled", "idas", dae_scaled, 0.0, 1.0, integrator_opts
-        )
+        integrator_scaled = ca.integrator("idas_scaled", "idas", dae_scaled, 0.0, 1.0, integrator_opts)
 
         # Call the integrator
         if has_alg:
             z_alg_guess_sym = sym.sym("z_alg0", z_alg_dae.size1())
-            integ_result = integrator_scaled(
-                x0=x_sym, z0=z_alg_guess_sym, p=ca.vertcat(*p_call)
-            )
+            integ_result = integrator_scaled(x0=x_sym, z0=z_alg_guess_sym, p=ca.vertcat(*p_call))
             step_inputs.insert(-1, z_alg_guess_sym)  # Insert before dt
             step_names.insert(-1, "z_alg0")
         else:
@@ -858,18 +846,12 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
                 offset += dim
 
         # Create ordered name lists
-        self.state_names = [
-            n for n, _ in sorted(self._state_index.items(), key=lambda kv: kv[1])
-        ]
+        self.state_names = [n for n, _ in sorted(self._state_index.items(), key=lambda kv: kv[1])]
         self.input_names = (
-            [n for n, _ in sorted(self._input_index.items(), key=lambda kv: kv[1])]
-            if self._input_index
-            else []
+            [n for n, _ in sorted(self._input_index.items(), key=lambda kv: kv[1])] if self._input_index else []
         )
         self.parameter_names = (
-            [n for n, _ in sorted(self._parameter_index.items(), key=lambda kv: kv[1])]
-            if self._parameter_index
-            else []
+            [n for n, _ in sorted(self._parameter_index.items(), key=lambda kv: kv[1])] if self._parameter_index else []
         )
         self.output_names = (
             [n for n, _ in sorted(self._output_index.items(), key=lambda kv: kv[1])]
@@ -929,9 +911,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         # Track previous event indicator for zero-crossing detection
         c_prev = None
         if detect_events and hasattr(self, "f_c"):
-            args = self._build_eval_args(
-                x_curr, z_curr, m_curr, self.u0.as_vec(), p_vec
-            )
+            args = self._build_eval_args(x_curr, z_curr, m_curr, self.u0.as_vec(), p_vec)
             c_prev = float(self.f_c(*args))
 
         t = t0
@@ -1071,9 +1051,7 @@ class ModelSX(CompositionMixin, Generic[TState, TInput, TParam]):
         """Legacy API: dictionary mapping output names to their dimensions."""
         if self.output_type is None:
             return {}
-        return {
-            fname: finfo["dim"] for fname, finfo in self.output_type._field_info.items()
-        }
+        return {fname: finfo["dim"] for fname, finfo in self.output_type._field_info.items()}
 
 
 @beartype

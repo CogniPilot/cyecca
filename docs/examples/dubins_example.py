@@ -6,7 +6,8 @@ This example demonstrates the Dubins path planner for fixed-wing aircraft.
 """
 
 import numpy as np
-from cyecca.planning import derive_dubins, plot_dubins_path, DubinsPathType
+
+from cyecca.planning import DubinsPathType, derive_dubins, plot_dubins_path
 
 # Create planner and evaluator functions
 plan_fn, eval_fn = derive_dubins()

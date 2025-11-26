@@ -5,15 +5,15 @@ These tests verify that Jacobian computations don't produce NaN at critical
 points like zero angular velocity, 180° rotations, and near singularities.
 """
 
-from tests.common import ProfiledTestCase, is_finite
-from beartype import beartype
+from test.common import ProfiledTestCase, is_finite
 
 import casadi as ca
 import numpy as np
+from beartype import beartype
 
-from cyecca.lie.group_so3 import so3, SO3Quat, SO3Mrp, SO3Dcm
-from cyecca.lie.group_se3 import se3, SE3Quat
-from cyecca.lie.group_se23 import se23, SE23Quat
+from cyecca.lie.group_se3 import SE3Quat, se3
+from cyecca.lie.group_se23 import SE23Quat, se23
+from cyecca.lie.group_so3 import SO3Dcm, SO3Mrp, SO3Quat, so3
 
 
 @beartype
@@ -35,12 +35,8 @@ class TestNaNFixesSO3(ProfiledTestCase):
         # Check for NaN - evaluate to numeric for checking
         self.assertTrue(is_finite(J_left), "NaN in left Jacobian at omega=0")
         self.assertTrue(is_finite(J_right), "NaN in right Jacobian at omega=0")
-        self.assertTrue(
-            is_finite(J_left_inv), "NaN in left Jacobian inverse at omega=0"
-        )
-        self.assertTrue(
-            is_finite(J_right_inv), "NaN in right Jacobian inverse at omega=0"
-        )
+        self.assertTrue(is_finite(J_left_inv), "NaN in left Jacobian inverse at omega=0")
+        self.assertTrue(is_finite(J_right_inv), "NaN in right Jacobian inverse at omega=0")
 
         # Check that they equal identity at zero
         J_left_val = ca.DM(ca.evalf(J_left))
@@ -83,12 +79,8 @@ class TestNaNFixesSO3(ProfiledTestCase):
             q = SO3Quat.exp(omega_alg)
             omega_back = SO3Quat.log(q)
 
-            self.assertTrue(
-                is_finite(q.param), f"NaN in quaternion at omega={omega_val}"
-            )
-            self.assertTrue(
-                is_finite(omega_back.param), f"NaN in log(exp(omega)) at {omega_val}"
-            )
+            self.assertTrue(is_finite(q.param), f"NaN in quaternion at omega={omega_val}")
+            self.assertTrue(is_finite(omega_back.param), f"NaN in log(exp(omega)) at {omega_val}")
 
     def test_quaternion_normalization(self):
         """Test quaternion normalization at edge cases."""
@@ -235,9 +227,7 @@ class TestNaNFixesSE23(ProfiledTestCase):
         for state in test_states:
             xi = se23.elem(ca.SX(state))
             J_left = xi.left_jacobian()
-            self.assertTrue(
-                is_finite(J_left), f"NaN in SE₂(3) Jacobian at omega={state[6:]}"
-            )
+            self.assertTrue(is_finite(J_left), f"NaN in SE₂(3) Jacobian at omega={state[6:]}")
 
     def test_spacecraft_hover(self):
         """Test SE₂(3) in spacecraft hover condition (near-zero velocities).
@@ -280,9 +270,5 @@ class TestTaylorSeriesEpsilon(ProfiledTestCase):
             val3 = SQUARED_SERIES["(x - sin(x))/x^3"](theta_sq_sym)
 
             self.assertTrue(is_finite(val1), f"NaN in sin(x)/x at theta_sq={theta_sq}")
-            self.assertTrue(
-                is_finite(val2), f"NaN in (1-cos(x))/x^2 at theta_sq={theta_sq}"
-            )
-            self.assertTrue(
-                is_finite(val3), f"NaN in (x-sin(x))/x^3 at theta_sq={theta_sq}"
-            )
+            self.assertTrue(is_finite(val2), f"NaN in (1-cos(x))/x^2 at theta_sq={theta_sq}")
+            self.assertTrue(is_finite(val3), f"NaN in (x-sin(x))/x^3 at theta_sq={theta_sq}")

@@ -1,10 +1,11 @@
-from tests.common import ProfiledTestCase, SX_close, is_finite
-from cyecca.lie.group_se3 import SE3Mrp, SE3Quat, se3
-from beartype import beartype
-import scipy.linalg
+from test.common import ProfiledTestCase, SX_close, is_finite
 
 import casadi as ca
 import numpy as np
+import scipy.linalg
+from beartype import beartype
+
+from cyecca.lie.group_se3 import SE3Mrp, SE3Quat, se3
 
 
 @beartype
@@ -79,9 +80,7 @@ class Test_LieAlgebraSE3(ProfiledTestCase):
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl, x), x, ca.DM.zeros(n))))
 
         Jl_inv = omega.left_jacobian_inv()
-        self.assertTrue(
-            is_finite(ca.substitute(ca.jacobian(Jl_inv, x), x, ca.DM.zeros(n)))
-        )
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jl_inv, x), x, ca.DM.zeros(n))))
 
         I_check = ca.substitute(Jl @ Jl_inv, x, ca.DM.zeros(n))
         self.assertTrue(SX_close(I_check, ca.DM.eye(n)))
@@ -94,9 +93,7 @@ class Test_LieAlgebraSE3(ProfiledTestCase):
         self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr, x), x, ca.DM.zeros(n))))
 
         Jr_inv = omega.right_jacobian_inv()
-        self.assertTrue(
-            is_finite(ca.substitute(ca.jacobian(Jr_inv, x), x, ca.DM.zeros(n)))
-        )
+        self.assertTrue(is_finite(ca.substitute(ca.jacobian(Jr_inv, x), x, ca.DM.zeros(n))))
 
         I_check = ca.substitute(Jr @ Jr_inv, x, ca.DM.zeros(n))
         self.assertTrue(SX_close(I_check, ca.DM.eye(n)))

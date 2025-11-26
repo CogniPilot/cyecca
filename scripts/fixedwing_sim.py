@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
-from cyecca.models import fixedwing_4ch
-
 import casadi as ca
 import numpy as np
-
 import rclpy
 import rclpy.clock
+from builtin_interfaces.msg import Time
+from geometry_msgs.msg import Point, PoseWithCovarianceStamped, TransformStamped
+from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-
-from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, Point
-
 from rosgraph_msgs.msg import Clock
-from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
-from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
+from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 from visualization_msgs.msg import Marker
-from builtin_interfaces.msg import Time
+
+from cyecca.models import fixedwing_4ch
 
 
 class Simulator(Node):
@@ -39,56 +36,47 @@ class Simulator(Node):
         # ----------------------------------------------
         self.pub_pose = self.create_publisher(
             PoseWithCovarianceStamped,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/pose",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/pose",
             1,
         )
         self.pub_clock = self.create_publisher(
             Clock,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/clock",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/clock",
             1,
         )
         self.pub_odom = self.create_publisher(
             Odometry,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/odom",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/odom",
             1,
         )
         self.pub_lift = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/lift",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/lift",
             1,
         )
         self.pub_drag = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/drag",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/drag",
             1,
         )
         self.pub_weight = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/weight",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/weight",
             1,
         )
         self.pub_thrust = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/thrust",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/thrust",
             1,
         )
         self.pub_side_force = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/side_force",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/side_force",
             1,
         )
         self.pub_vel_b = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/vel_b",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/vel_b",
             1,
         )
 
@@ -100,15 +88,13 @@ class Simulator(Node):
         # ----------------------------------------------
         self.sub_joy = self.create_subscription(
             Joy,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/joy",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/joy",
             self.joy_callback,
             1,
         )
         self.sub_auto_joy = self.create_subscription(
             Joy,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/auto_joy",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/auto_joy",
             self.auto_joy_callback,
             1,
         )
@@ -126,14 +112,12 @@ class Simulator(Node):
         self.input_mode = "auto"
         self.pub_mode = self.create_publisher(
             String,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/flight_mode",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/flight_mode",
             1,
         )
         self.pub_mode_marker = self.create_publisher(
             Marker,
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-            + "/mode_marker",
+            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value + "/mode_marker",
             1,
         )
 
@@ -159,17 +143,12 @@ class Simulator(Node):
         # init state (x), param(p), and input(u)
         self.state = np.array(list(self.x0_dict.values()), dtype=float)
         self.p = np.array(
-            [
-                self.p_dict[str(self.model["p"][i])]
-                for i in range(self.model["p"].shape[0])
-            ],
+            [self.p_dict[str(self.model["p"][i])] for i in range(self.model["p"].shape[0])],
             dtype=float,
         )
         self.u = np.zeros(4, dtype=float)
         # start main loop on timer
-        self.system_clock = rclpy.clock.Clock(
-            clock_type=rclpy.clock.ClockType.SYSTEM_TIME
-        )
+        self.system_clock = rclpy.clock.Clock(clock_type=rclpy.clock.ClockType.SYSTEM_TIME)
         self.sim_timer = self.create_timer(
             timer_period_sec=self.dt / self.real_time_factor,
             callback=self.timer_callback,
@@ -193,9 +172,7 @@ class Simulator(Node):
             new_mode = "manual"
 
         if new_mode != self.input_mode:
-            self.get_logger().info(
-                "mode changed from: %s to %s" % (self.input_mode, new_mode)
-            )
+            self.get_logger().info("mode changed from: %s to %s" % (self.input_mode, new_mode))
             self.input_mode = new_mode
 
     # Auto joy commands accepts AETR
@@ -211,9 +188,7 @@ class Simulator(Node):
         self.pub_mode.publish(String(data=self.input_mode))
 
         m = Marker()
-        m.header.frame_id = (
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-        )
+        m.header.frame_id = self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
         m.header.stamp = Time()
         m.ns = "flight_mode"
         m.id = 0
@@ -284,9 +259,7 @@ class Simulator(Node):
             else:
                 raise ValueError("unknown integration method: %s" % method)
 
-            f_int = ca.integrator(
-                "test", method, self.model["dae"], self.t, self.t + self.dt, opts
-            )
+            f_int = ca.integrator("test", method, self.model["dae"], self.t, self.t + self.dt, opts)
             res = f_int(x0=self.state, z0=0.0, p=self.p, u=self.u)
 
         except RuntimeError as e:
@@ -345,12 +318,8 @@ class Simulator(Node):
         # publish tf2 transform
         # ------------------------------------
         tf = TransformStamped()
-        tf.header.frame_id = (
-            self.get_parameter("frame_id").get_parameter_value().string_value
-        )
-        tf.child_frame_id = (
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-        )
+        tf.header.frame_id = self.get_parameter("frame_id").get_parameter_value().string_value
+        tf.child_frame_id = self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
         tf.header.stamp = msg_clock.clock
         tf.transform.translation.x = x
         tf.transform.translation.y = y
@@ -366,11 +335,7 @@ class Simulator(Node):
         # ------------------------------------
         def vector(v, name, color, scale):
             marker = Marker()
-            marker.header.frame_id = (
-                self.get_parameter("mocap_vehicle_id")
-                .get_parameter_value()
-                .string_value
-            )
+            marker.header.frame_id = self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
             marker.ns = name
             marker.id = 0
             marker.type = Marker.ARROW
@@ -403,34 +368,20 @@ class Simulator(Node):
             marker.points.append(p2)
             return marker
 
-        self.pub_lift.publish(
-            vector(self.Info["L_b"], "lift", [1.0, 0.0, 0.0, 1.0], 1.0)
-        )
-        self.pub_drag.publish(
-            vector(self.Info["D_b"], "drag", [0.0, 0.0, 1.0, 1.0], 1.0)
-        )
-        self.pub_weight.publish(
-            vector(self.Info["FW_b"], "weight", [0.0, 1.0, 0.0, 1.0], 1.0)
-        )
-        self.pub_thrust.publish(
-            vector(self.Info["FT_b"], "thrust", [1.0, 0.0, 1.0, 1.0], 1.0)
-        )
-        self.pub_side_force.publish(
-            vector(self.Info["C_b"], "side_force", [1.0, 1.0, 0.0, 1.0], 1.0)
-        )
+        self.pub_lift.publish(vector(self.Info["L_b"], "lift", [1.0, 0.0, 0.0, 1.0], 1.0))
+        self.pub_drag.publish(vector(self.Info["D_b"], "drag", [0.0, 0.0, 1.0, 1.0], 1.0))
+        self.pub_weight.publish(vector(self.Info["FW_b"], "weight", [0.0, 1.0, 0.0, 1.0], 1.0))
+        self.pub_thrust.publish(vector(self.Info["FT_b"], "thrust", [1.0, 0.0, 1.0, 1.0], 1.0))
+        self.pub_side_force.publish(vector(self.Info["C_b"], "side_force", [1.0, 1.0, 0.0, 1.0], 1.0))
 
-        self.pub_vel_b.publish(
-            vector(self.Info["v_b"], "vel_b", [0.0, 1.0, 1.0, 1.0], 0.1)
-        )
+        self.pub_vel_b.publish(vector(self.Info["v_b"], "vel_b", [0.0, 1.0, 1.0, 1.0], 0.1))
         # print('alpha', self.Info['alpha'], 'CL', self.Info['CL'], 'CD', self.Info['CD'])
         # ------------------------------------
         # publish pose with covariance stamped
         # ------------------------------------
         msg_pose = PoseWithCovarianceStamped()
         msg_pose.header.stamp = msg_clock.clock
-        msg_pose.header.frame_id = (
-            self.get_parameter("frame_id").get_parameter_value().string_value
-        )
+        msg_pose.header.frame_id = self.get_parameter("frame_id").get_parameter_value().string_value
         # msg_pose.pose.covariance = P_pose_full.reshape(-1)
         msg_pose.pose.pose.position.x = x
         msg_pose.pose.pose.position.y = y
@@ -446,12 +397,8 @@ class Simulator(Node):
         # ------------------------------------
         msg_odom = Odometry()
         msg_odom.header.stamp = msg_clock.clock
-        msg_odom.header.frame_id = (
-            self.get_parameter("frame_id").get_parameter_value().string_value
-        )
-        msg_odom.child_frame_id = (
-            self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
-        )
+        msg_odom.header.frame_id = self.get_parameter("frame_id").get_parameter_value().string_value
+        msg_odom.child_frame_id = self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
         # msg_pose.pose.covariance = P_pose_full.reshape(-1)
         msg_odom.pose.pose.position.x = x
         msg_odom.pose.pose.position.y = y
@@ -483,11 +430,7 @@ class Simulator(Node):
             x, y, z = sx_to_xyz(pos_b)
             tf = TransformStamped()
             tf.header.stamp = self.get_clock().now().to_msg()
-            tf.header.frame_id = (
-                self.get_parameter("mocap_vehicle_id")
-                .get_parameter_value()
-                .string_value
-            )
+            tf.header.frame_id = self.get_parameter("mocap_vehicle_id").get_parameter_value().string_value
             tf.child_frame_id = child
             tf.transform.translation.x = x
             tf.transform.translation.y = y

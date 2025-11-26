@@ -1,8 +1,9 @@
-from ..common import SX_close, ProfiledTestCase
-
 import casadi as ca
-from cyecca.lie.group_so2 import so2, SO2
 from beartype import beartype
+
+from cyecca.lie.group_so2 import SO2, so2
+
+from ..common import ProfiledTestCase, SX_close
 
 
 @beartype

@@ -1,11 +1,11 @@
-from beartype import beartype
-from beartype.typing import Union
-from pathlib import Path
 import cProfile
-from pstats import Stats
 import unittest
+from pathlib import Path
+from pstats import Stats
 
 import casadi as ca
+from beartype import beartype
+from beartype.typing import Union
 
 EPS = 1e-9
 

@@ -1,5 +1,6 @@
-import casadi as ca
 import pathlib
+
+import casadi as ca
 
 
 def generate_code(eqs: dict, dest_dir: str, **kwargs):

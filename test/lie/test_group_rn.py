@@ -1,6 +1,8 @@
 import casadi as ca
-from ..common import SX_close, ProfiledTestCase
+
 from cyecca.lie.group_rn import R3, r3
+
+from ..common import ProfiledTestCase, SX_close
 
 
 class Test_LieGroupR3(ProfiledTestCase):

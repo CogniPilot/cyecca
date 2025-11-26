@@ -5,6 +5,7 @@ CasADi symbolic variable support, and compose_states for combining state types.
 """
 
 from dataclasses import dataclass, field, fields
+
 import casadi as ca
 import numpy as np
 
@@ -45,13 +46,9 @@ def compose_states(*state_types):
             combined_annotations[fld.name] = fld.type
             # Create a new field with the same metadata
             if fld.default is not MISSING:
-                combined_fields[fld.name] = field(
-                    default=fld.default, metadata=fld.metadata
-                )
+                combined_fields[fld.name] = field(default=fld.default, metadata=fld.metadata)
             elif fld.default_factory is not MISSING:
-                combined_fields[fld.name] = field(
-                    default_factory=fld.default_factory, metadata=fld.metadata
-                )
+                combined_fields[fld.name] = field(default_factory=fld.default_factory, metadata=fld.metadata)
             else:
                 combined_fields[fld.name] = field(default=None, metadata=fld.metadata)
 
@@ -173,9 +170,7 @@ def symbolic(cls):
             if len(vec) == 1:
                 vec = list(vec.values())[0]
             else:
-                raise ValueError(
-                    f"from_vec() received dict with multiple outputs: {list(vec.keys())}"
-                )
+                raise ValueError(f"from_vec() received dict with multiple outputs: {list(vec.keys())}")
 
         # Check if this is a symbolic type (SX or MX)
         is_symbolic = hasattr(vec, "__class__") and vec.__class__.__name__ in (
@@ -207,11 +202,7 @@ def symbolic(cls):
             else:
                 val = vec[offset : offset + dim]
                 # Convert DM vector to numpy array (numeric only)
-                if (
-                    not is_symbolic
-                    and hasattr(val, "__class__")
-                    and val.__class__.__name__ == "DM"
-                ):
+                if not is_symbolic and hasattr(val, "__class__") and val.__class__.__name__ == "DM":
                     val = np.array(val, dtype=float).flatten()
                 kwargs[name] = val
                 offset += dim

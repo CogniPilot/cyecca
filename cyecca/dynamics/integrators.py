@@ -93,9 +93,7 @@ def build_rk_integrator(
     return F
 
 
-def rk4(
-    f: ca.Function, h: float | ca.SX, name: str = "rk4_step", N: int = 1
-) -> ca.Function:
+def rk4(f: ca.Function, h: float | ca.SX, name: str = "rk4_step", N: int = 1) -> ca.Function:
     """
     Classic 4th-order Runge–Kutta (RK4) one-step integrator builder.
 
@@ -171,9 +169,7 @@ def rk4(
         else:
             # Numeric step size - can use build_rk_integrator
             h_sub = h / N
-            f_substep = build_rk_integrator(
-                f, h_sub, {"A": A, "b": b, "c": c}, name=f"{name}_substep"
-            )
+            f_substep = build_rk_integrator(f, h_sub, {"A": A, "b": b, "c": c}, name=f"{name}_substep")
 
             # Unroll N substeps
             # Use SX for numeric h path (f may be SX or MX; SX vars acceptable when h numeric)

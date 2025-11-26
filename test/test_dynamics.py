@@ -3,6 +3,7 @@
 import casadi as ca
 import numpy as np
 import pytest
+
 from cyecca.dynamics import (
     ModelMX,
     ModelSX,
@@ -13,7 +14,7 @@ from cyecca.dynamics import (
     symbolic,
 )
 from cyecca.dynamics.composition import SubmodelProxy
-from cyecca.dynamics.integrators import rk4, rk8, build_rk_integrator, integrate_n_steps
+from cyecca.dynamics.integrators import build_rk_integrator, integrate_n_steps, rk4, rk8
 
 
 class TestQuickStart:
@@ -320,9 +321,7 @@ class TestHybridFeatures:
 
         @symbolic
         class EventIndicators:
-            ground_contact: ca.SX = state(
-                1, 1.0, "ground contact indicator (>0 = no contact)"
-            )
+            ground_contact: ca.SX = state(1, 1.0, "ground contact indicator (>0 = no contact)")
 
         model = ModelSX.create(
             States,
@@ -608,9 +607,7 @@ class TestModelComposition:
         class IntegratorParams:
             pass
 
-        integrator = ModelSX.create(
-            IntegratorStates, IntegratorInputs, IntegratorParams
-        )
+        integrator = ModelSX.create(IntegratorStates, IntegratorInputs, IntegratorParams)
         x_int = integrator.x
         u_int = integrator.u
         integrator.build(f_x=u_int.u)
@@ -632,9 +629,7 @@ class TestModelComposition:
         class ControllerOutputs:
             u_cmd: ca.SX = output_var(desc="velocity command")
 
-        controller = ModelSX.create(
-            ControllerStates, ControllerInputs, ControllerParams, ControllerOutputs
-        )
+        controller = ModelSX.create(ControllerStates, ControllerInputs, ControllerParams, ControllerOutputs)
         u_ctrl = controller.u
         p_ctrl = controller.p
         controller.build(f_x=ca.SX.zeros(0), f_y=-p_ctrl.k * u_ctrl.x_meas)

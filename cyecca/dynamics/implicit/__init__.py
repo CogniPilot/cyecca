@@ -13,39 +13,40 @@ Key features:
 - Automatic ODE/ALG residual splitting
 - IDAS integration support
 
-Example:
-    >>> import casadi as ca
-    >>> from cyecca.dynamics.implicit import Model, implicit, var, param
-    >>> 
-    >>> @implicit
-    >>> class Pendulum:
-    >>>     theta: float = var()   # Becomes state (has .dot() in equations)
-    >>>     omega: float = var()   # Becomes state (has .dot() in equations)
-    >>>     l: float = param(default=1.0)
-    >>>     g: float = param(default=9.81)
-    >>> 
-    >>> model = Model(Pendulum)
-    >>> model.eq(model.v.theta.dot() - model.v.omega)  # .dot() marks theta as state
-    >>> model.eq(model.v.omega.dot() + model.v.g/model.v.l * ca.sin(model.v.theta))
-    >>> 
-    >>> model.build()  # Infers: theta, omega are states
-    >>> 
-    >>> # Set initial conditions on model's internal state
-    >>> model.v0.theta = 0.5
-    >>> 
-    >>> t, data = model.simulate(0.0, 10.0, 0.01)
-    >>> plt.plot(t, data.theta)  # Full autocomplete!
-    >>> 
-    >>> # model.v0 is now at final state - continue seamlessly
-    >>> t2, data2 = model.simulate(10.0, 20.0, 0.01)
-    >>> 
-    >>> # Checkpoint restore
-    >>> model.v0 = data[50]
+Example::
+
+    import casadi as ca
+    from cyecca.dynamics.implicit import Model, implicit, var, param
+    
+    @implicit
+    class Pendulum:
+        theta: float = var()   # Becomes state (has .dot() in equations)
+        omega: float = var()   # Becomes state (has .dot() in equations)
+        l: float = param(default=1.0)
+        g: float = param(default=9.81)
+    
+    model = Model(Pendulum)
+    model.eq(model.v.theta.dot() - model.v.omega)  # .dot() marks theta as state
+    model.eq(model.v.omega.dot() + model.v.g/model.v.l * ca.sin(model.v.theta))
+    
+    model.build()  # Infers: theta, omega are states
+    
+    # Set initial conditions on model's internal state
+    model.v0.theta = 0.5
+    
+    t, data = model.simulate(0.0, 10.0, 0.01)
+    # data.theta is an ndarray of shape (n_steps,)
+    
+    # model.v0 is now at final state - continue seamlessly
+    t2, data2 = model.simulate(10.0, 20.0, 0.01)
+    
+    # Checkpoint restore
+    model.v0 = data[50]
 """
 
-from .model import Model
 from .decorators import implicit
-from ..fields import var, param, VarDescriptor
+from .fields import VarDescriptor, param, var
+from .model import Model
 
 __all__ = [
     # Unified Model API
@@ -53,7 +54,7 @@ __all__ = [
     # Decorator
     "implicit",
     # Modelica-style fields
-    "var",    # Variable (state/algebraic inferred from .dot() usage)
+    "var",  # Variable (state/algebraic inferred from .dot() usage)
     "param",  # Parameter (constant during simulation)
     "VarDescriptor",
 ]

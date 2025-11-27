@@ -36,55 +36,48 @@ import casadi as ca
 X = lie.SE3Quat.elem(ca.DM([1, 2, 3, 1, 0, 0, 0]))  # position + quaternion
 X_inv = X.inverse()
 
-# Type-safe modeling with full autocomplete
-from cyecca.dynamics import ModelSX, state, input_var, param, output_var, symbolic, EmptyOutputs
+# Type-safe modeling with unified namespace (like Modelica)
+from cyecca.dynamics.explicit import Model, explicit, state, input_var, param, output_var
 
-@symbolic
-class States:
-    x: ca.SX = state(1, 1.0, "position")  # Start at x=1
-    v: ca.SX = state(1, 0.0, "velocity")
+@explicit
+class MassSpringDamper:
+    # States
+    x: float = state(desc="position")
+    v: float = state(desc="velocity")
+    # Inputs
+    F: float = input_var(desc="force")
+    # Parameters
+    m: float = param(default=1.0, desc="mass")
+    c: float = param(default=0.1, desc="damping")
+    k: float = param(default=1.0, desc="spring constant")
+    # Outputs
+    position: float = output_var(desc="position output")
 
-@symbolic
-class Inputs:
-    F: ca.SX = input_var(desc="force")
+# Create model - all variables in unified namespace (model.v)
+model = Model(MassSpringDamper)
 
-@symbolic
-class Params:
-    m: ca.SX = param(1.0, "mass")
-    c: ca.SX = param(0.1, "damping")
-    k: ca.SX = param(1.0, "spring constant")
+# Define dynamics using unified namespace
+# model.v.x, model.v.v, model.v.F, model.v.m, etc. are symbolic variables
+model.ode(model.v.x, model.v.v)  # dx/dt = v
+model.ode(model.v.v, (model.v.F - model.v.c * model.v.v - model.v.k * model.v.x) / model.v.m)
 
-@symbolic
-class Outputs:
-    position: ca.SX = output_var(desc="position output")
-    velocity: ca.SX = output_var(desc="velocity output")
+# Define outputs
+model.output(model.v.position, model.v.x)
 
-# Note: If you don't need outputs, use EmptyOutputs instead:
-#   model = ModelSX.create(States, Inputs, Params, EmptyOutputs)
+model.build()
 
-model = ModelSX.create(States, Inputs, Params, Outputs)
-x, u, p, y = model.x, model.u, model.p, model.y
+# Set initial conditions and simulate
+model.v0.x = 1.0  # Start at x=1
+t, data = model.simulate(0.0, 10.0, 0.01)
 
-# Mass-spring-damper: mx'' + cx' + kx = F
-f_x = ca.vertcat(x.v, (u.F - p.c * x.v - p.k * x.x) / p.m)
+# Access trajectory data
+# data.x is an ndarray of shape (n_steps,)
+# data.v is an ndarray of shape (n_steps,)
+print(f"Final position: {data.x[-1]:.6f}")
+print(f"Final velocity: {data.v[-1]:.6f}")
 
-# Output the full state
-f_y = ca.vertcat(x.x, x.v)
-
-model.build(f_x=f_x, f_y=f_y, integrator='rk4')
-
-# Simulate free oscillation from x0=1
-model = model.simulate(0.0, 10.0, 0.01)
-# Output:
-#   Final position: -0.529209
-#   Final velocity: 0.323980
-#   Access via: model.trajectory.x.x[-1] (final position)
-#              model.trajectory.x.v[-1] (final velocity)
-#              model.trajectory.x.x (full position trajectory, shape: n_steps)
-#
-# To compute outputs during simulation (optional, costs performance):
-#   model = model.simulate(0.0, 10.0, 0.01, compute_output=True)
-#   model.trajectory.y.position # output trajectory
+# Linearize at operating point (uses model.v0)
+A, B, C, D = model.linearize()
 ```
 
 ## Documentation

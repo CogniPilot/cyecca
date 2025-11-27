@@ -1,6 +1,5 @@
 """Dynamics module containing explicit and implicit modeling APIs."""
 
-from . import explicit
-from . import implicit
+from . import explicit, implicit
 
-__all__ = ['explicit', 'implicit']
+__all__ = ["explicit", "implicit"]

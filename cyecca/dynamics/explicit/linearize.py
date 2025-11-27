@@ -49,16 +49,15 @@ def find_trim(
     stats : dict
         Solver statistics.
 
-    Example
-    -------
-    >>> def cost_fn(x_opt, u_opt, xdot_opt, model):
-    ...     return ca.sumsqr(xdot_opt)
-    ...
-    >>> def constraints_fn(opti, x_opt, u_opt, model):
-    ...     opti.subject_to(u_opt[3] >= 0)  # throttle >= 0
-    ...     opti.subject_to(u_opt[3] <= 1)  # throttle <= 1
-    ...
-    >>> v_trim, stats = find_trim(model, cost_fn=cost_fn, constraints_fn=constraints_fn)
+    Example:
+        >>> from cyecca.dynamics._doctest_examples import get_built_explicit_model
+        >>> import casadi as ca
+        >>> model = get_built_explicit_model()
+        >>> def cost_fn(x_opt, u_opt, xdot_opt, model):
+        ...     return ca.sumsqr(xdot_opt)
+        >>> v_trim, stats = find_trim(model, cost_fn=cost_fn)
+        >>> hasattr(v_trim, 'x')
+        True
     """
     opti = ca.Opti()
     model_type = model.model_type
@@ -80,8 +79,8 @@ def find_trim(
     p_vec = np.array(p_vec)
 
     # Compute state derivative using model's ODE function
-    # model._f(x, u, p, t) returns xdot
-    xdot_opt = model._f(x_opt, u_opt, p_vec, 0.0)
+    # model.f_x(x, u, p, t) returns xdot (Modelica DAE standard naming)
+    xdot_opt = model.f_x(x_opt, u_opt, p_vec, 0.0)
 
     # Default cost: minimize squared state derivatives
     if cost_fn is None:
@@ -98,7 +97,7 @@ def find_trim(
     # Set initial guesses
     if v_guess is None:
         v_guess = model.v0
-        
+
     # Extract state vector from guess
     x_init = []
     for field_name in model._state_fields:
@@ -154,7 +153,7 @@ def find_trim(
 
     # Create result dataclass instance by copying v0 and updating state/input values
     v_trim = model_type.numeric()
-    
+
     # Copy all fields from model.v0 first (to get params, outputs, etc.)
     for field_name in model_type._field_info.keys():
         val = getattr(model.v0, field_name)
@@ -167,22 +166,22 @@ def find_trim(
     offset = 0
     for field_name in model._state_fields:
         field_info = model_type._field_info[field_name]
-        dim = field_info['dim']
+        dim = field_info["dim"]
         if dim == 1:
             setattr(v_trim, field_name, float(x_trim[offset]))
         else:
-            setattr(v_trim, field_name, x_trim[offset:offset + dim].copy())
+            setattr(v_trim, field_name, x_trim[offset : offset + dim].copy())
         offset += dim
 
     # Update input values
     offset = 0
     for field_name in model._input_fields:
         field_info = model_type._field_info[field_name]
-        dim = field_info['dim']
+        dim = field_info["dim"]
         if dim == 1:
             setattr(v_trim, field_name, float(u_trim[offset]))
         else:
-            setattr(v_trim, field_name, u_trim[offset:offset + dim].copy())
+            setattr(v_trim, field_name, u_trim[offset : offset + dim].copy())
         offset += dim
 
     if verbose:
@@ -204,7 +203,7 @@ def get_state_index(model, field_name):
     offset = 0
     for name in model._state_fields:
         field_info = model.model_type._field_info[name]
-        dim = field_info['dim']
+        dim = field_info["dim"]
         if name == field_name:
             return offset, offset + dim
         offset += dim
@@ -216,7 +215,7 @@ def get_input_index(model, field_name):
     offset = 0
     for name in model._input_fields:
         field_info = model.model_type._field_info[name]
-        dim = field_info['dim']
+        dim = field_info["dim"]
         if name == field_name:
             return offset, offset + dim
         offset += dim
@@ -390,25 +389,25 @@ def print_modes(modes, max_modes=None):
         print(f"  Stability: {mode['stability']}")
         print(f"  Type: {mode['type']}")
 
-        if mode['omega_n'] > 1e-10:
+        if mode["omega_n"] > 1e-10:
             print(f"  Natural frequency: {mode['omega_n']:.4f} rad/s ({mode['omega_n']/(2*np.pi):.4f} Hz)")
             print(f"  Damping ratio: {mode['zeta']:.4f}")
 
-        if mode['type'] == 'complex' and mode['omega_d'] > 0:
+        if mode["type"] == "complex" and mode["omega_d"] > 0:
             print(f"  Damped frequency: {mode['omega_d']:.4f} rad/s")
             print(f"  Period: {mode['period']:.4f} s")
 
-        if mode['time_constant'] != float('inf'):
+        if mode["time_constant"] != float("inf"):
             print(f"  Time constant: {mode['time_constant']:.4f} s")
 
-        if mode['half_life'] is not None:
+        if mode["half_life"] is not None:
             print(f"  Half-life: {mode['half_life']:.4f} s")
-        if mode['doubling_time'] is not None:
+        if mode["doubling_time"] is not None:
             print(f"  Doubling time: {mode['doubling_time']:.4f} s")
 
-        if 'participation' in mode:
+        if "participation" in mode:
             print("  State participation:")
-            sorted_states = sorted(mode['participation'].items(), key=lambda x: -x[1])
+            sorted_states = sorted(mode["participation"].items(), key=lambda x: -x[1])
             for name, val in sorted_states[:5]:  # Top 5 participating states
                 print(f"    {name}: {val:.3f}")
 

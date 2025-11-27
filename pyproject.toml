@@ -13,9 +13,13 @@ scipy = "^1.11"
 sympy = "^1.12"
 beartype = "^0.19.0"
 pydot = {version = "^3.0.3", optional = true}
+# JAX 0.4.30 is the last version compatible with numpy 1.x (ROS compatible)
+jax = {version = ">=0.4.30,<0.4.31", optional = true}
+jaxlib = {version = ">=0.4.30,<0.4.31", optional = true}
 
 [tool.poetry.extras]
 visualization = ["pydot"]
+jax = ["jax", "jaxlib"]
 
 [tool.poetry.group.dev.dependencies]
 black = {extras = ["jupyter"], version = "^24.10.0"}

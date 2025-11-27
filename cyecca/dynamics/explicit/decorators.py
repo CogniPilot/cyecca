@@ -103,21 +103,21 @@ def explicit(cls):
     cls = dataclass(cls)
 
     # Extract field metadata from VarDescriptor instances - STATIC, stored on class
-    from ..fields import VarDescriptor
-    
+    from .fields import VarDescriptor
+
     # Start with inherited _field_info from parent classes
     field_info = {}
     for base in cls.__mro__[1:]:  # Skip the class itself
-        if hasattr(base, '_field_info'):
+        if hasattr(base, "_field_info"):
             for name, info in base._field_info.items():
                 if name not in field_info:
                     field_info[name] = info.copy()
-    
+
     # Create a temporary instance to extract VarDescriptor metadata
     temp_instance = cls()
     for f in fields(cls):
         descriptor = getattr(temp_instance, f.name, None)
-        
+
         if isinstance(descriptor, VarDescriptor):
             dim = descriptor.shape
             default = descriptor.default
@@ -134,7 +134,7 @@ def explicit(cls):
             "type": var_type,
             "casadi_type": f.type,
         }
-    
+
     # Store field_info STATICALLY on the class - critical for performance and _build_index_maps()
     cls._field_info = field_info
 
@@ -181,7 +181,7 @@ def explicit(cls):
         For numeric vectors (DM), converts to float/numpy arrays.
         For symbolic vectors (SX/MX), preserves symbolic expressions.
         """
-        
+
         # Handle CasADi Function dict outputs
         if isinstance(vec, dict):
             if len(vec) == 1:
@@ -260,20 +260,25 @@ def explicit(cls):
     @classmethod
     def from_trajectory(cls_obj, matrix):
         """Create single instance with ndarray fields from trajectory matrix.
-        
+
         For efficient trajectory storage and plotting. Each field becomes
         an ndarray with shape (n_steps,) for scalars or (n_steps, dim) for vectors.
-        
+
         Args:
             matrix: NumPy array or CasADi matrix with shape (n_states, n_steps)
-            
+
         Returns:
             Instance where each field is an ndarray (n_steps,) or (n_steps, dim)
-            
+
         Example:
-            >>> x_traj = States.from_trajectory(x_history)
-            >>> plt.plot(t, x_traj.theta)  # theta is ndarray(n_steps,)
-            >>> plt.plot(t, x_traj.pos)    # pos is ndarray(n_steps, 3)
+            >>> from cyecca.dynamics._doctest_examples import MassSpringDamper
+            >>> import numpy as np
+            >>> x_history = np.array([[1.0, 0.5, 0.0], [0.0, 0.1, 0.2]])  # 2 states, 3 timesteps
+            >>> x_traj = MassSpringDamper.from_trajectory(x_history)
+            >>> x_traj.x.shape
+            (3,)
+            >>> x_traj.v.shape
+            (3,)
         """
         # Convert to NumPy if needed
         if hasattr(matrix, "__class__") and matrix.__class__.__name__ in (
@@ -284,22 +289,22 @@ def explicit(cls):
             matrix = np.array(ca.DM(matrix))
         else:
             matrix = np.asarray(matrix)
-        
+
         kwargs = {}
         offset = 0
         for f in fields(cls_obj):
             name = f.name
             dim = cls_obj._field_info[name]["dim"]
-            
+
             if dim == 1:
                 # Scalar field: extract row, shape becomes (n_steps,)
                 kwargs[name] = matrix[offset, :]
                 offset += 1
             else:
                 # Vector field: extract rows, transpose to (n_steps, dim)
-                kwargs[name] = matrix[offset:offset + dim, :].T
+                kwargs[name] = matrix[offset : offset + dim, :].T
                 offset += dim
-        
+
         instance = cls_obj(**kwargs)
         instance._is_trajectory = True  # Flag to indicate trajectory mode
         return instance

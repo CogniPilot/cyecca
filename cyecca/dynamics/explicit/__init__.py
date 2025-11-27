@@ -8,7 +8,8 @@ Main components:
 - Fields: Factory functions for creating typed state/input/parameter fields
 - Decorators: @explicit for adding CasADi methods to dataclasses
 
-Quick Start:
+Quick Start::
+
     from cyecca.dynamics.explicit import Model, explicit, state, input_var, param, output_var
 
     @explicit
@@ -37,9 +38,7 @@ Quick Start:
     # Simulate
     model.v0.x = 1.0
     t, data = model.simulate(0.0, 10.0, 0.01)
-    
-    import matplotlib.pyplot as plt
-    plt.plot(t, data.x)
+    # data.x is an ndarray of shape (n_steps,)
     
     # Linearize
     A, B, C, D = model.linearize()
@@ -47,14 +46,11 @@ Quick Start:
 See README.md for detailed documentation and examples.
 """
 
-# Unified Model class
-from .model import Model
-
 # Decorators
 from .decorators import explicit, symbolic
 
-# Field creators (imported from shared module)
-from ..fields import (
+# Field creators
+from .fields import (
     VarDescriptor,
     algebraic_var,
     dependent_var,
@@ -70,6 +66,9 @@ from ..fields import (
 
 # Linearization and analysis tools
 from .linearize import analyze_modes, find_trim, linearize_dynamics
+
+# Unified Model class
+from .model import Model
 
 __all__ = [
     # Unified Model

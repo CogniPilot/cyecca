@@ -165,3 +165,7 @@ cython_debug/
 notebook/gen
 notebook/Untitled*
 source.dot
+
+build/
+install/
+log/

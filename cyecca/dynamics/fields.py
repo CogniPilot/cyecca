@@ -1,249 +1,254 @@
-"""Field creation helpers for the modeling framework.
+"""Shared field descriptors for both explicit and implicit models.
 
-Provides factory functions for creating dataclass fields with proper metadata
-for different variable types (states, inputs, parameters, etc.).
+Provides a unified VarDescriptor class and field factory functions
+that work across both modeling paradigms.
 """
 
 from dataclasses import field
-from typing import Union
+from typing import Any
 
 __all__ = [
+    "VarDescriptor",
+    "var",
+    "param",
+    # Legacy/explicit model support
+    "time",
     "state",
+    "alg",
     "algebraic_var",
+    "input_var",
+    "output_var",
     "dependent_var",
     "quadrature_var",
     "discrete_state",
     "discrete_var",
     "event_indicator",
-    "param",
-    "input_var",
-    "output_var",
 ]
 
 
-def state(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
-    """Create a continuous state variable field (dx/dt in equations).
+class VarDescriptor:
+    """Unified descriptor for both explicit ODE and implicit DAE variables."""
+    
+    def __init__(self, var_type: str, shape: int = 1, default: Any = None, desc: str = ""):
+        """Initialize variable descriptor.
+        
+        Args:
+            var_type: Type of variable ('var', 'state', 'alg', 'input', 'parameter', 'output', etc.)
+            shape: Shape of variable (1 for scalar, N for vector)
+            default: Default value
+            desc: Human-readable description
+        """
+        self.var_type = var_type
+        self.shape = shape
+        self.default = default if default is not None else (0.0 if shape == 1 else [0.0] * shape)
+        self.desc = desc
 
-    Parameters
-    ----------
-    dim : int, optional
-        Dimension (1 for scalar, >1 for vector), default=1
-    default : float, list, or None, optional
-        Default initial value (scalar or list)
-    desc : str, optional
-        Human-readable description
 
-    Returns
-    -------
-    field
-        Dataclass field with state metadata
-
-    Examples
-    --------
-    >>> import casadi as ca
-    >>> from cyecca.dynamics import state, symbolic
-    >>> @symbolic
-    ... class States:
-    ...     x: ca.SX = state(1, 0.0, "position (m)")
-    ...     v: ca.SX = state(1, 1.0, "velocity (m/s)")
-    >>> s = States.numeric()
-    >>> s.x
-    0.0
-    >>> s.v
-    1.0
+def var(shape: int = 1, default: Any = None, desc: str = "") -> Any:
+    """Declare a variable (state or algebraic - automatically inferred).
+    
+    In implicit/Modelica-style models, you don't declare whether a variable
+    is a state or algebraic. The model infers this based on usage:
+    - Variables with .dot() called become states
+    - Variables without .dot() become algebraic
+    
+    Args:
+        shape: Number of elements (1 for scalar, N for vector). Default: 1
+        default: Default initial value
+        desc: Human-readable description
+        
+    Returns:
+        Field descriptor for use in @implicit dataclass
+        
+    Example:
+        >>> @implicit
+        >>> class Pendulum:
+        >>>     theta: float = var()   # Becomes state (has .dot() in equations)
+        >>>     omega: float = var()   # Becomes state (has .dot() in equations)
+        >>>     g: float = param(default=9.81)
     """
-    if default is None:
-        default = 0.0 if dim == 1 else [0.0] * dim
-    elif isinstance(default, (int, float)) and dim > 1:
-        default = [float(default)] * dim
-    return field(
-        default=None,
-        metadata={"dim": dim, "default": default, "desc": desc, "type": "state"},
-    )
+    return field(default_factory=lambda: VarDescriptor('var', shape=shape, default=default, desc=desc))
 
 
-def algebraic_var(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
+def time(desc: str = "simulation time") -> Any:
+    """Declare the time variable (for legacy/explicit models).
+    
+    Note: In the new implicit Model class, time is built-in as model.t.
+    This function is kept for backward compatibility with explicit models.
+    
+    Args:
+        desc: Human-readable description. Default: "simulation time"
+        
+    Returns:
+        Field descriptor for use in @implicit dataclass
+    """
+    return field(default_factory=lambda: VarDescriptor('time', shape=1, default=0.0, desc=desc))
+
+
+def state(shape: int = 1, default: Any = None, desc: str = "") -> Any:
+    """Declare a state variable (continuous, has time derivative).
+    
+    Args:
+        shape: Number of elements (1 for scalar, N for vector). Default: 1
+        default: Default initial value (for explicit models)
+        desc: Human-readable description
+        
+    Returns:
+        Field descriptor for use in @explicit or @implicit dataclass
+        
+    Example:
+        >>> @explicit
+        >>> class Model:
+        >>>     position: float = state(desc="position (m)")
+        >>>     velocity: float = state(desc="velocity (m/s)")
+    """
+    return field(default_factory=lambda: VarDescriptor('state', shape=shape, default=default, desc=desc))
+
+
+def alg(shape: int = 1, default: Any = None, desc: str = "") -> Any:
+    """Declare an algebraic variable (no time derivative, DAE constraint).
+    
+    Args:
+        shape: Number of elements (1 for scalar, N for vector). Default: 1
+        default: Initial guess for DAE solver
+        desc: Human-readable description
+        
+    Returns:
+        Field descriptor for use in @implicit dataclass
+        
+    Example:
+        >>> @implicit
+        >>> class Model:
+        >>>     lambda_force: float = alg(desc="constraint force")
+    """
+    return field(default_factory=lambda: VarDescriptor('alg', shape=shape, default=default, desc=desc))
+
+
+# Alias for explicit models
+def algebraic_var(shape: int = 1, default: Any = None, desc: str = "") -> Any:
     """Create algebraic variable for DAE constraints: 0 = g(x, z_alg, u, p).
 
     Used for implicit constraints in DAE systems (contact forces, Lagrange
     multipliers, kinematic loops, etc.).
 
     Args:
-        dim: Dimension
+        shape: Dimension (1 for scalar, N for vector)
         default: Initial guess for DAE solver
-        desc: Description
+        desc: Human-readable description
     """
-    if default is None:
-        default = 0.0 if dim == 1 else [0.0] * dim
-    elif isinstance(default, (int, float)) and dim > 1:
-        default = [float(default)] * dim
-    return field(
-        default=None,
-        metadata={"dim": dim, "default": default, "desc": desc, "type": "algebraic"},
-    )
+    return field(default_factory=lambda: VarDescriptor('algebraic', shape=shape, default=default, desc=desc))
 
 
-def dependent_var(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
+def param(default: float = 0.0, shape: int = 1, desc: str = "") -> Any:
+    """Declare a parameter (constant during simulation).
+    
+    Args:
+        default: Default parameter value. Default: 0.0
+        shape: Number of elements (1 for scalar, N for vector). Default: 1
+        desc: Human-readable description
+        
+    Returns:
+        Field descriptor for use in @explicit or @implicit dataclass
+        
+    Example:
+        >>> @explicit
+        >>> class Model:
+        >>>     mass: float = param(default=1.0, desc="mass (kg)")
+        >>>     gravity: float = param(default=9.81, desc="gravity (m/s^2)")
+    """
+    return field(default_factory=lambda: VarDescriptor('parameter', shape=shape, default=default, desc=desc))
+
+
+def input_var(shape: int = 1, default: Any = None, desc: str = "") -> Any:
+    """Create an input variable field (control signal).
+
+    Args:
+        shape: Dimension of the input (1 for scalar, N for vector)
+        default: Default numeric value
+        desc: Human-readable description
+
+    Example:
+        thrust: float = input_var(desc="thrust command (N)")
+        quaternion: float = input_var(shape=4, desc="orientation [w,x,y,z]")
+        steering: float = input_var(desc="steering angle (rad)")
+    """
+    return field(default_factory=lambda: VarDescriptor('input', shape=shape, default=default, desc=desc))
+
+
+def output_var(shape: int = 1, default: Any = None, desc: str = "") -> Any:
+    """Create an output variable field (observable).
+
+    Args:
+        shape: Dimension (1 for scalar, N for vector)
+        default: Default value
+        desc: Human-readable description
+
+    Example:
+        speed: float = output_var(desc="ground speed (m/s)")
+        forces: float = output_var(shape=3, desc="force vector (N)")
+    """
+    return field(default_factory=lambda: VarDescriptor('output', shape=shape, default=default, desc=desc))
+
+
+def dependent_var(shape: int = 1, default: Any = None, desc: str = "") -> Any:
     """Create dependent variable: y = f_y(x, u, p) (computed, not stored).
 
     For quantities computed from states but not integrated (energy, forces, etc.).
 
     Args:
-        dim: Dimension
+        shape: Dimension (1 for scalar, N for vector)
         default: Default value for initialization
-        desc: Description
+        desc: Human-readable description
     """
-    if default is None:
-        default = 0.0 if dim == 1 else [0.0] * dim
-    elif isinstance(default, (int, float)) and dim > 1:
-        default = [float(default)] * dim
-    return field(
-        default=None,
-        metadata={"dim": dim, "default": default, "desc": desc, "type": "dependent"},
-    )
+    return field(default_factory=lambda: VarDescriptor('dependent', shape=shape, default=default, desc=desc))
 
 
-def quadrature_var(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
+def quadrature_var(shape: int = 1, default: Any = None, desc: str = "") -> Any:
     """Create quadrature state: dq/dt = integrand(x, u, p) (for cost functions).
 
     Used for tracking accumulated quantities (cost, energy, etc.) that don't
     feed back into dynamics.
 
     Args:
-        dim: Dimension
+        shape: Dimension (1 for scalar, N for vector)
         default: Initial value q(0)
-        desc: Description
+        desc: Human-readable description
     """
-    if default is None:
-        default = 0.0 if dim == 1 else [0.0] * dim
-    elif isinstance(default, (int, float)) and dim > 1:
-        default = [float(default)] * dim
-    return field(
-        default=None,
-        metadata={"dim": dim, "default": default, "desc": desc, "type": "quadrature"},
-    )
+    return field(default_factory=lambda: VarDescriptor('quadrature', shape=shape, default=default, desc=desc))
 
 
-def discrete_state(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
-    """Create discrete state z(tₑ): updated only at events, constant between.
+def discrete_state(shape: int = 1, default: Any = None, desc: str = "") -> Any:
+    """Create discrete state z(t_e): updated only at events, constant between.
 
     For variables that jump at events (bounce counter, mode switches, etc.).
 
     Args:
-        dim: Dimension
-        default: Initial value z(t₀)
-        desc: Description
+        shape: Dimension (1 for scalar, N for vector)
+        default: Initial value z(t_0)
+        desc: Human-readable description
     """
-    if default is None:
-        default = 0.0 if dim == 1 else [0.0] * dim
-    elif isinstance(default, (int, float)) and dim > 1:
-        default = [float(default)] * dim
-    return field(
-        default=None,
-        metadata={
-            "dim": dim,
-            "default": default,
-            "desc": desc,
-            "type": "discrete_state",
-        },
-    )
+    return field(default_factory=lambda: VarDescriptor('discrete_state', shape=shape, default=default, desc=desc))
 
 
-def discrete_var(default: int = 0, desc: str = ""):
-    """Create discrete variable m(tₑ): integer/boolean updated at events.
+def discrete_var(default: int = 0, desc: str = "") -> Any:
+    """Create discrete variable m(t_e): integer/boolean updated at events.
 
     For discrete-valued quantities (flags, modes, counters).
 
     Args:
         default: Initial integer value
-        desc: Description
+        desc: Human-readable description
     """
-    return field(
-        default=None,
-        metadata={
-            "dim": 1,
-            "default": float(default),
-            "desc": desc,
-            "type": "discrete_var",
-        },
-    )
+    return field(default_factory=lambda: VarDescriptor('discrete_var', shape=1, default=float(default), desc=desc))
 
 
-def event_indicator(dim: int = 1, desc: str = ""):
+def event_indicator(shape: int = 1, desc: str = "") -> Any:
     """Create event indicator c: event occurs when c crosses zero.
 
     Zero-crossing detection for hybrid systems.
 
     Args:
-        dim: Number of indicators
-        desc: Description
+        shape: Number of indicators
+        desc: Human-readable description
     """
-    return field(
-        default=None,
-        metadata={"dim": dim, "default": 0.0, "desc": desc, "type": "event_indicator"},
-    )
-
-
-def param(default: float, desc: str = ""):
-    """Create a parameter field (time-independent constant).
-
-    Args:
-        default: Default numeric value
-        desc: Description string
-
-    Example:
-        m: ca.SX = param(1.5, "mass (kg)")
-        g: ca.SX = param(9.81, "gravity (m/s^2)")
-    """
-    return field(
-        default=None,
-        metadata={
-            "dim": 1,
-            "default": float(default),
-            "desc": desc,
-            "type": "parameter",
-        },
-    )
-
-
-def input_var(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
-    """Create an input variable field (control signal).
-
-    Args:
-        dim: Dimension of the input (default: 1 for scalar)
-        default: Default numeric value (scalar or list matching dim)
-        desc: Description string
-
-    Example:
-        thrust: ca.SX = input_var(1, 0.0, "thrust command (N)")
-        quaternion: ca.SX = input_var(4, desc="orientation [w,x,y,z]")
-        steering: ca.SX = input_var(desc="steering angle (rad)")
-    """
-    if default is None:
-        default = 0.0 if dim == 1 else [0.0] * dim
-    return field(
-        default=None,
-        metadata={"dim": dim, "default": default, "desc": desc, "type": "input"},
-    )
-
-
-def output_var(dim: int = 1, default: Union[float, list, None] = None, desc: str = ""):
-    """Create an output variable field (observable).
-
-    Args:
-        dim: Dimension
-        default: Default value
-        desc: Description
-
-    Example:
-        speed: ca.SX = output_var(1, 0.0, "ground speed (m/s)")
-        forces: ca.SX = output_var(3, desc="force vector (N)")
-    """
-    if default is None:
-        default = 0.0 if dim == 1 else [0.0] * dim
-    elif isinstance(default, (int, float)) and dim > 1:
-        default = [float(default)] * dim
-    return field(
-        default=None,
-        metadata={"dim": dim, "default": default, "desc": desc, "type": "output"},
-    )
+    return field(default_factory=lambda: VarDescriptor('event_indicator', shape=shape, default=0.0, desc=desc))

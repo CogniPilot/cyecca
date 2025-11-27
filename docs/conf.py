@@ -48,7 +48,7 @@ autosummary_imported_members = False
 doctest_global_setup = """
 import casadi as ca
 import cyecca.lie as lie
-from cyecca.dynamics import *
+from cyecca.dynamics.explicit import *
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend for testing
 import matplotlib.pyplot as plt

@@ -1,7 +1,12 @@
 """Decorators for the modeling framework.
 
-Provides the @symbolic decorator for creating type-safe dataclasses with
-CasADi symbolic variable support, and compose_states for combining state types.
+Provides the @explicit decorator for creating type-safe dataclasses with
+CasADi symbolic variable support.
+
+DESIGN PRINCIPLES:
+- Single unified namespace - all variable types in one class
+- Autocomplete must ALWAYS work - IDEs need static type information
+- Type safety via beartype - all functions must have proper type annotations
 """
 
 from dataclasses import dataclass, field, fields
@@ -9,7 +14,7 @@ from dataclasses import dataclass, field, fields
 import casadi as ca
 import numpy as np
 
-__all__ = ["symbolic", "compose_states"]
+__all__ = ["explicit", "symbolic"]
 
 
 def compose_states(*state_types):
@@ -59,12 +64,12 @@ def compose_states(*state_types):
         {"__annotations__": combined_annotations, **combined_fields},
     )
 
-    # Apply @dataclass first, then @symbolic
+    # Apply @dataclass first, then @explicit
     combined_class = dataclass(combined_class)
-    return symbolic(combined_class)
+    return explicit(combined_class)
 
 
-def symbolic(cls):
+def explicit(cls):
     """Combined decorator: applies @dataclass and adds CasADi symbolic methods.
 
     Adds methods:
@@ -76,7 +81,7 @@ def symbolic(cls):
         - instance.size2() -> number of columns (always 1)
 
     Usage:
-        @symbolic
+        @explicit
         class States:
             x: ca.SX = state(1, 0.0, "position")
             v: ca.SX = state(1, 0.0, "velocity")
@@ -93,41 +98,52 @@ def symbolic(cls):
         # Access instances directly
         x = model.x  # Access as attribute
     """
-    # Apply @dataclass if not already applied
-    if not hasattr(cls, "__dataclass_fields__"):
-        cls = dataclass(cls)
+    # Apply @dataclass - always reapply to ensure child class fields are processed
+    # Even if parent was a dataclass, child needs its own dataclass processing
+    cls = dataclass(cls)
 
-    # Extract field metadata
+    # Extract field metadata from VarDescriptor instances - STATIC, stored on class
+    from ..fields import VarDescriptor
+    
+    # Start with inherited _field_info from parent classes
     field_info = {}
+    for base in cls.__mro__[1:]:  # Skip the class itself
+        if hasattr(base, '_field_info'):
+            for name, info in base._field_info.items():
+                if name not in field_info:
+                    field_info[name] = info.copy()
+    
+    # Create a temporary instance to extract VarDescriptor metadata
+    temp_instance = cls()
     for f in fields(cls):
-        meta = f.metadata or {}
-        dim = meta.get("dim", 1)
-        raw_default = meta.get("default", None)
-
-        # Ensure default is properly formatted for dimension
-        if raw_default is None:
-            default = 0.0 if dim == 1 else [0.0] * dim
-        elif isinstance(raw_default, (int, float)):
-            default = float(raw_default) if dim == 1 else [float(raw_default)] * dim
+        descriptor = getattr(temp_instance, f.name, None)
+        
+        if isinstance(descriptor, VarDescriptor):
+            dim = descriptor.shape
+            default = descriptor.default
+            var_type = descriptor.var_type
         else:
-            default = raw_default
+            # Fallback for non-VarDescriptor fields (shouldn't happen in normal use)
+            dim = 1
+            default = 0.0
+            var_type = "unknown"
 
-        desc = meta.get("desc", "")
-        var_type = meta.get("type", "unknown")
         field_info[f.name] = {
             "dim": dim,
             "default": default,
-            "desc": desc,
             "type": var_type,
             "casadi_type": f.type,
         }
+    
+    # Store field_info STATICALLY on the class - critical for performance and _build_index_maps()
+    cls._field_info = field_info
 
     # Create symbolic instance factory
     @classmethod
     def create_symbolic(cls_obj, sym_type=ca.SX):
         """Create instance with symbolic CasADi variables."""
         kwargs = {}
-        for name, info in field_info.items():
+        for name, info in cls_obj._field_info.items():
             dim = info["dim"]
             if dim == 1:
                 kwargs[name] = sym_type.sym(name)
@@ -140,7 +156,7 @@ def symbolic(cls):
     def create_numeric(cls_obj):
         """Create instance with numeric default values."""
         kwargs = {}
-        for name, info in field_info.items():
+        for name, info in cls_obj._field_info.items():
             default = info["default"]
             if isinstance(default, (list, tuple)):
                 kwargs[name] = np.array(default, dtype=float)
@@ -165,6 +181,7 @@ def symbolic(cls):
         For numeric vectors (DM), converts to float/numpy arrays.
         For symbolic vectors (SX/MX), preserves symbolic expressions.
         """
+        
         # Handle CasADi Function dict outputs
         if isinstance(vec, dict):
             if len(vec) == 1:
@@ -190,7 +207,7 @@ def symbolic(cls):
         offset = 0
         for f in fields(cls_obj):
             name = f.name
-            dim = field_info[name]["dim"]
+            dim = cls_obj._field_info[name]["dim"]
 
             if dim == 1:
                 val = vec[offset]
@@ -209,7 +226,7 @@ def symbolic(cls):
 
         return cls_obj(**kwargs)
 
-    # Matrix reconstruction (for trajectories)
+    # Matrix reconstruction (for trajectories - returns list of instances)
     @classmethod
     def from_matrix(cls_obj, matrix):
         """Create instances from matrix where columns are timesteps.
@@ -239,6 +256,54 @@ def symbolic(cls):
 
         return instances
 
+    # Efficient trajectory storage (single instance with ndarray fields)
+    @classmethod
+    def from_trajectory(cls_obj, matrix):
+        """Create single instance with ndarray fields from trajectory matrix.
+        
+        For efficient trajectory storage and plotting. Each field becomes
+        an ndarray with shape (n_steps,) for scalars or (n_steps, dim) for vectors.
+        
+        Args:
+            matrix: NumPy array or CasADi matrix with shape (n_states, n_steps)
+            
+        Returns:
+            Instance where each field is an ndarray (n_steps,) or (n_steps, dim)
+            
+        Example:
+            >>> x_traj = States.from_trajectory(x_history)
+            >>> plt.plot(t, x_traj.theta)  # theta is ndarray(n_steps,)
+            >>> plt.plot(t, x_traj.pos)    # pos is ndarray(n_steps, 3)
+        """
+        # Convert to NumPy if needed
+        if hasattr(matrix, "__class__") and matrix.__class__.__name__ in (
+            "SX",
+            "MX",
+            "DM",
+        ):
+            matrix = np.array(ca.DM(matrix))
+        else:
+            matrix = np.asarray(matrix)
+        
+        kwargs = {}
+        offset = 0
+        for f in fields(cls_obj):
+            name = f.name
+            dim = cls_obj._field_info[name]["dim"]
+            
+            if dim == 1:
+                # Scalar field: extract row, shape becomes (n_steps,)
+                kwargs[name] = matrix[offset, :]
+                offset += 1
+            else:
+                # Vector field: extract rows, transpose to (n_steps, dim)
+                kwargs[name] = matrix[offset:offset + dim, :].T
+                offset += dim
+        
+        instance = cls_obj(**kwargs)
+        instance._is_trajectory = True  # Flag to indicate trajectory mode
+        return instance
+
     # CasADi compatibility methods
     def size1(self):
         """Get number of rows when converted to vector."""
@@ -254,7 +319,7 @@ def symbolic(cls):
         parts = []
         for f in fields(self.__class__):
             val = getattr(self, f.name)
-            desc = field_info[f.name].get("desc", "")
+            desc = self.__class__._field_info[f.name].get("desc", "")
             if desc:
                 parts.append(f"{f.name}={val!r}  # {desc}")
             else:
@@ -267,9 +332,13 @@ def symbolic(cls):
     cls.as_vec = as_vec
     cls.from_vec = from_vec
     cls.from_matrix = from_matrix
+    cls.from_trajectory = from_trajectory
     cls.size1 = size1
     cls.size2 = size2
     cls.__repr__ = custom_repr
-    cls._field_info = field_info
 
     return cls
+
+
+# Alias for internal compatibility
+symbolic = explicit

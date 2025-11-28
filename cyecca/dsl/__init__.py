@@ -114,32 +114,32 @@ The DSL is structured in two layers:
 """
 
 from cyecca.dsl.model import (
-    model,
-    block,
-    function,
-    var,
-    submodel,
-    der,
-    pre,
-    edge,
-    change,
-    and_,
-    or_,
-    not_,
-    if_then_else,
-    local,
-    assign,
-    Model,
-    FlatModel,
+    Assignment,
+    Equation,
     Expr,
     ExprKind,
-    Equation,
-    Assignment,
+    FlatModel,
     FunctionMetadata,
+    Model,
+    and_,
+    assign,
+    block,
+    change,
+    der,
+    edge,
+    function,
+    if_then_else,
+    local,
+    model,
+    not_,
+    or_,
+    pre,
+    submodel,
+    var,
 )
-from cyecca.dsl.types import Var, VarKind, DType, Shape, Indices
-from cyecca.dsl.operators import sin, cos, tan, asin, acos, atan, atan2, sqrt, exp, log, abs
+from cyecca.dsl.operators import abs, acos, asin, atan, atan2, cos, exp, log, sin, sqrt, tan
 from cyecca.dsl.simulation import SimulationResult, Simulator
+from cyecca.dsl.types import DType, Indices, Shape, Var, VarKind
 
 __all__ = [
     # Decorators

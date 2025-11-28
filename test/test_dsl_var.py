@@ -26,7 +26,7 @@ class TestVarDeclaration:
 
     def test_var_default_is_real(self) -> None:
         """Test that var() defaults to DType.REAL."""
-        from cyecca.dsl import model, var, der, DType
+        from cyecca.dsl import DType, der, model, var
 
         @model
         class TestModel:
@@ -40,7 +40,7 @@ class TestVarDeclaration:
 
     def test_var_integer_dtype(self) -> None:
         """Test var() with DType.INTEGER."""
-        from cyecca.dsl import model, var, der, DType
+        from cyecca.dsl import DType, der, model, var
 
         @model
         class TestModel:
@@ -56,7 +56,7 @@ class TestVarDeclaration:
 
     def test_var_boolean_dtype(self) -> None:
         """Test var() with DType.BOOLEAN."""
-        from cyecca.dsl import model, var, der, DType
+        from cyecca.dsl import DType, der, model, var
 
         @model
         class TestModel:
@@ -83,7 +83,7 @@ class TestAutomaticClassification:
 
     def test_state_detected_from_der(self) -> None:
         """Test that variables with der() become states."""
-        from cyecca.dsl import model, var, der, VarKind
+        from cyecca.dsl import VarKind, der, model, var
 
         @model
         class TestModel:
@@ -95,7 +95,7 @@ class TestAutomaticClassification:
                 yield der(m.v) == -9.81
 
         flat = TestModel().flatten()
-        
+
         assert "x" in flat.state_names
         assert "v" in flat.state_names
         assert flat.state_vars["x"].kind == VarKind.STATE
@@ -103,7 +103,7 @@ class TestAutomaticClassification:
 
     def test_algebraic_detected_without_der(self) -> None:
         """Test that variables without der() become algebraic."""
-        from cyecca.dsl import model, var, der, VarKind
+        from cyecca.dsl import VarKind, der, model, var
 
         @model
         class TestModel:
@@ -115,14 +115,14 @@ class TestAutomaticClassification:
                 yield m.y == m.x * 2
 
         flat = TestModel().flatten()
-        
+
         assert "x" in flat.state_names
         assert "y" in flat.algebraic_names
         assert flat.algebraic_vars["y"].kind == VarKind.ALGEBRAIC
 
     def test_parameter_flag_overrides_classification(self) -> None:
         """Test that parameter=True overrides automatic classification."""
-        from cyecca.dsl import model, var, der, VarKind
+        from cyecca.dsl import VarKind, der, model, var
 
         @model
         class TestModel:
@@ -133,14 +133,14 @@ class TestAutomaticClassification:
                 yield der(m.x) == m.g
 
         flat = TestModel().flatten()
-        
+
         assert "g" in flat.param_names
         assert "x" in flat.state_names
         assert flat.param_vars["g"].kind == VarKind.PARAMETER
 
     def test_input_flag_classification(self) -> None:
         """Test that input=True creates an input variable."""
-        from cyecca.dsl import model, var, der, VarKind
+        from cyecca.dsl import VarKind, der, model, var
 
         @model
         class TestModel:
@@ -151,13 +151,13 @@ class TestAutomaticClassification:
                 yield der(m.x) == m.u
 
         flat = TestModel().flatten()
-        
+
         assert "u" in flat.input_names
         assert flat.input_vars["u"].kind == VarKind.INPUT
 
     def test_output_flag_classification(self) -> None:
         """Test that output=True creates an output variable."""
-        from cyecca.dsl import model, var, der, VarKind, sin
+        from cyecca.dsl import VarKind, der, model, sin, var
 
         @model
         class TestModel:
@@ -169,7 +169,7 @@ class TestAutomaticClassification:
                 yield m.y == sin(m.x)
 
         flat = TestModel().flatten()
-        
+
         assert "y" in flat.output_names
         assert flat.output_vars["y"].kind == VarKind.OUTPUT
 
@@ -179,7 +179,7 @@ class TestVarAttributes:
 
     def test_var_min_max(self) -> None:
         """Test min/max bounds."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -194,7 +194,7 @@ class TestVarAttributes:
 
     def test_var_unit(self) -> None:
         """Test unit attribute."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -208,7 +208,7 @@ class TestVarAttributes:
 
     def test_var_start_and_fixed(self) -> None:
         """Test start value and fixed attribute."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -224,7 +224,7 @@ class TestVarAttributes:
 
     def test_var_nominal(self) -> None:
         """Test nominal value for scaling."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -238,7 +238,7 @@ class TestVarAttributes:
 
     def test_var_desc(self) -> None:
         """Test description attribute."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -256,12 +256,13 @@ class TestPendulumModel:
 
     def test_pendulum_definition(self) -> None:
         """Test pendulum model definition."""
-        from cyecca.dsl import model, var, der, sin
+        from cyecca.dsl import der, model, sin, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class Pendulum:
             """Simple pendulum model."""
+
             g = var(9.81, parameter=True, unit="m/s^2")
             l = var(1.0, parameter=True, unit="m", min=0.01)
             theta = var(start=0.5, fixed=True, unit="rad")
@@ -282,7 +283,7 @@ class TestPendulumModel:
 
     def test_pendulum_simulation(self) -> None:
         """Test pendulum simulation."""
-        from cyecca.dsl import model, var, der, sin
+        from cyecca.dsl import der, model, sin, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -298,9 +299,7 @@ class TestPendulumModel:
 
         compiled = CasadiBackend.compile(Pendulum().flatten())
 
-        result = compiled.simulate(
-            t0=0.0, tf=5.0, dt=0.01, x0={"theta": 0.5, "omega": 0.0}
-        )
+        result = compiled.simulate(t0=0.0, tf=5.0, dt=0.01, x0={"theta": 0.5, "omega": 0.0})
 
         assert len(result.t) > 100
         assert "theta" in result._data
@@ -310,7 +309,7 @@ class TestPendulumModel:
 
     def test_pendulum_with_outputs(self) -> None:
         """Test pendulum with output variables for cartesian position."""
-        from cyecca.dsl import model, var, der, sin, cos
+        from cyecca.dsl import cos, der, model, sin, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -329,7 +328,7 @@ class TestPendulumModel:
                 yield m.y == -m.l * cos(m.theta)
 
         flat = Pendulum().flatten()
-        
+
         assert "x" in flat.output_names
         assert "y" in flat.output_names
         assert "x" in flat.output_equations
@@ -341,7 +340,7 @@ class TestSubmodelComposition:
 
     def test_submodel_with_var(self) -> None:
         """Test submodel using var() API."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -367,7 +366,7 @@ class TestSubmodelComposition:
 
     def test_submodel_simulation(self) -> None:
         """Test simulation with submodels."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -385,11 +384,7 @@ class TestSubmodelComposition:
 
         compiled = CasadiBackend.compile(Integrator().flatten())
 
-        result = compiled.simulate(
-            t0=0.0, tf=1.0, dt=0.01,
-            u={"gain.u": 2.0},
-            params={"gain.k": 3.0}
-        )
+        result = compiled.simulate(t0=0.0, tf=1.0, dt=0.01, u={"gain.u": 2.0}, params={"gain.k": 3.0})
 
         # x(t) = 6*t for x(0)=0, so x(1) = 6
         assert abs(result._data["x"][-1] - 6.0) < 0.1
@@ -400,7 +395,7 @@ class TestExpressionTree:
 
     def test_expr_tree_structure(self) -> None:
         """Test that equations are stored as expression trees."""
-        from cyecca.dsl import model, var, der, sin, ExprKind
+        from cyecca.dsl import ExprKind, der, model, sin, var
 
         @model
         class TestModel:
@@ -430,7 +425,7 @@ class TestTimeVaryingInput:
 
     def test_time_varying_input(self) -> None:
         """Test with time-varying control function."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -486,7 +481,7 @@ class TestNDimensionalArrays:
 
     def test_scalar_variable(self) -> None:
         """Test scalar variable (shape=())."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class Scalar:
@@ -503,7 +498,7 @@ class TestNDimensionalArrays:
 
     def test_vector_variable(self) -> None:
         """Test 1D vector variable (shape=(3,))."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class Vector:
@@ -522,7 +517,7 @@ class TestNDimensionalArrays:
 
     def test_matrix_variable(self) -> None:
         """Test 2D matrix variable (shape=(3,3))."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class Matrix:
@@ -583,20 +578,20 @@ class TestNDimensionalArrays:
                 yield m.R[0, 0] == 0.0
 
         mat = Matrix()
-        
+
         # Single index gives a row (remaining 1D)
         row = mat.R[0]
         assert row._indices == (0,)
         assert row._remaining_shape == (3,)
         assert not row.is_scalar()
-        
+
         # Double index gives a scalar
         elem = mat.R[0, 1]
         assert elem._indices == (0, 1)
         assert elem._remaining_shape == ()
         assert elem.is_scalar()
         assert elem._name == "R[0,1]"
-        
+
         # Sequential indexing also works
         elem2 = mat.R[0][1]
         assert elem2._indices == (0, 1)
@@ -604,7 +599,7 @@ class TestNDimensionalArrays:
 
     def test_vector_der_expands(self) -> None:
         """Test that der(vector) expands to scalar equations."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class Vector:
@@ -615,7 +610,7 @@ class TestNDimensionalArrays:
                 yield der(m.pos) == m.vel
 
         flat = Vector().flatten()
-        
+
         # Should have 3 derivative equations
         assert len(flat.derivative_equations) == 3
         assert "pos[0]" in flat.derivative_equations
@@ -624,7 +619,7 @@ class TestNDimensionalArrays:
 
     def test_matrix_der_expands(self) -> None:
         """Test that der(matrix) expands to 9 scalar equations."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class Matrix:
@@ -635,7 +630,7 @@ class TestNDimensionalArrays:
                 yield der(m.R) == m.R_dot
 
         flat = Matrix().flatten()
-        
+
         # Should have 9 derivative equations
         assert len(flat.derivative_equations) == 9
         assert "R[0,0]" in flat.derivative_equations
@@ -644,7 +639,7 @@ class TestNDimensionalArrays:
 
     def test_partial_row_indexing(self) -> None:
         """Test der() on matrix row expands correctly."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class PartialMatrix:
@@ -656,7 +651,7 @@ class TestNDimensionalArrays:
                 yield der(m.R[0]) == m.R_dot[0]
 
         flat = PartialMatrix().flatten()
-        
+
         # Should have 3 derivative equations for first row
         assert len(flat.derivative_equations) == 3
         assert "R[0,0]" in flat.derivative_equations
@@ -666,7 +661,7 @@ class TestNDimensionalArrays:
 
     def test_scalar_element_der(self) -> None:
         """Test der() on single matrix element."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class SingleElement:
@@ -677,7 +672,7 @@ class TestNDimensionalArrays:
                 yield der(m.R[1, 1]) == m.R_dot[1, 1]
 
         flat = SingleElement().flatten()
-        
+
         assert len(flat.derivative_equations) == 1
         assert "R[1,1]" in flat.derivative_equations
 
@@ -718,7 +713,7 @@ class TestNDimensionalArrays:
 
     def test_scalar_not_indexable(self) -> None:
         """Test that scalar variables cannot be indexed."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class Scalar:
@@ -733,7 +728,7 @@ class TestNDimensionalArrays:
 
     def test_vector_state_detected(self) -> None:
         """Test that vector with der() is classified as state."""
-        from cyecca.dsl import model, var, der, VarKind
+        from cyecca.dsl import VarKind, der, model, var
 
         @model
         class Vector:

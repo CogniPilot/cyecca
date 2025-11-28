@@ -5,9 +5,9 @@ This file targets specific uncovered code paths identified by coverage analysis.
 """
 
 import math
+
 import numpy as np
 import pytest
-
 
 # =============================================================================
 # Operators Tests - Math Functions with Floats and Symbolic
@@ -19,72 +19,84 @@ class TestMathOperatorsFloat:
 
     def test_sin_float(self) -> None:
         from cyecca.dsl.operators import sin
+
         result = sin(0.5)
         assert isinstance(result, float)
         assert result == pytest.approx(math.sin(0.5))
 
     def test_cos_float(self) -> None:
         from cyecca.dsl.operators import cos
+
         result = cos(0.5)
         assert isinstance(result, float)
         assert result == pytest.approx(math.cos(0.5))
 
     def test_tan_float(self) -> None:
         from cyecca.dsl.operators import tan
+
         result = tan(0.5)
         assert isinstance(result, float)
         assert result == pytest.approx(math.tan(0.5))
 
     def test_asin_float(self) -> None:
         from cyecca.dsl.operators import asin
+
         result = asin(0.5)
         assert isinstance(result, float)
         assert result == pytest.approx(math.asin(0.5))
 
     def test_acos_float(self) -> None:
         from cyecca.dsl.operators import acos
+
         result = acos(0.5)
         assert isinstance(result, float)
         assert result == pytest.approx(math.acos(0.5))
 
     def test_atan_float(self) -> None:
         from cyecca.dsl.operators import atan
+
         result = atan(0.5)
         assert isinstance(result, float)
         assert result == pytest.approx(math.atan(0.5))
 
     def test_atan2_float(self) -> None:
         from cyecca.dsl.operators import atan2
+
         result = atan2(1.0, 2.0)
         assert isinstance(result, float)
         assert result == pytest.approx(math.atan2(1.0, 2.0))
 
     def test_sqrt_float(self) -> None:
         from cyecca.dsl.operators import sqrt
+
         result = sqrt(4.0)
         assert isinstance(result, float)
         assert result == pytest.approx(2.0)
 
     def test_exp_float(self) -> None:
         from cyecca.dsl.operators import exp
+
         result = exp(1.0)
         assert isinstance(result, float)
         assert result == pytest.approx(math.e)
 
     def test_log_float(self) -> None:
         from cyecca.dsl.operators import log
+
         result = log(math.e)
         assert isinstance(result, float)
         assert result == pytest.approx(1.0)
 
     def test_abs_float_positive(self) -> None:
         from cyecca.dsl import abs as dsl_abs
+
         result = dsl_abs(5.0)
         assert isinstance(result, float)
         assert result == 5.0
 
     def test_abs_float_negative(self) -> None:
         from cyecca.dsl import abs as dsl_abs
+
         result = dsl_abs(-5.0)
         assert isinstance(result, float)
         assert result == 5.0
@@ -94,7 +106,7 @@ class TestMathOperatorsSymbolic:
     """Test math operators with symbolic inputs (return Expr)."""
 
     def test_tan_symbolic(self) -> None:
-        from cyecca.dsl import model, var, der, tan, ExprKind
+        from cyecca.dsl import ExprKind, der, model, tan, var
 
         @model
         class TestModel:
@@ -110,7 +122,7 @@ class TestMathOperatorsSymbolic:
         assert expr.kind == ExprKind.TAN
 
     def test_asin_symbolic(self) -> None:
-        from cyecca.dsl import model, var, der, asin, ExprKind
+        from cyecca.dsl import ExprKind, asin, der, model, var
 
         @model
         class TestModel:
@@ -126,7 +138,7 @@ class TestMathOperatorsSymbolic:
         assert expr.kind == ExprKind.ASIN
 
     def test_acos_symbolic(self) -> None:
-        from cyecca.dsl import model, var, der, acos, ExprKind
+        from cyecca.dsl import ExprKind, acos, der, model, var
 
         @model
         class TestModel:
@@ -142,7 +154,7 @@ class TestMathOperatorsSymbolic:
         assert expr.kind == ExprKind.ACOS
 
     def test_atan_symbolic(self) -> None:
-        from cyecca.dsl import model, var, der, atan, ExprKind
+        from cyecca.dsl import ExprKind, atan, der, model, var
 
         @model
         class TestModel:
@@ -158,7 +170,7 @@ class TestMathOperatorsSymbolic:
         assert expr.kind == ExprKind.ATAN
 
     def test_atan2_symbolic_both(self) -> None:
-        from cyecca.dsl import model, var, der, atan2, ExprKind
+        from cyecca.dsl import ExprKind, atan2, der, model, var
 
         @model
         class TestModel:
@@ -176,7 +188,7 @@ class TestMathOperatorsSymbolic:
         assert expr.kind == ExprKind.ATAN2
 
     def test_atan2_symbolic_first_arg_float(self) -> None:
-        from cyecca.dsl import model, var, der, atan2, ExprKind
+        from cyecca.dsl import ExprKind, atan2, der, model, var
 
         @model
         class TestModel:
@@ -192,7 +204,7 @@ class TestMathOperatorsSymbolic:
         assert expr.kind == ExprKind.ATAN2
 
     def test_atan2_symbolic_second_arg_float(self) -> None:
-        from cyecca.dsl import model, var, der, atan2, ExprKind
+        from cyecca.dsl import ExprKind, atan2, der, model, var
 
         @model
         class TestModel:
@@ -208,7 +220,7 @@ class TestMathOperatorsSymbolic:
         assert expr.kind == ExprKind.ATAN2
 
     def test_exp_symbolic(self) -> None:
-        from cyecca.dsl import model, var, der, exp, ExprKind
+        from cyecca.dsl import ExprKind, der, exp, model, var
 
         @model
         class TestModel:
@@ -224,7 +236,7 @@ class TestMathOperatorsSymbolic:
         assert expr.kind == ExprKind.EXP
 
     def test_log_symbolic(self) -> None:
-        from cyecca.dsl import model, var, der, log, ExprKind
+        from cyecca.dsl import ExprKind, der, log, model, var
 
         @model
         class TestModel:
@@ -240,8 +252,9 @@ class TestMathOperatorsSymbolic:
         assert expr.kind == ExprKind.LOG
 
     def test_abs_symbolic(self) -> None:
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind
         from cyecca.dsl import abs as dsl_abs
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -391,56 +404,56 @@ class TestTimeVar:
         assert repr(t) == "t"
 
     def test_time_add(self) -> None:
-        from cyecca.dsl.model import TimeVar, ExprKind
+        from cyecca.dsl.model import ExprKind, TimeVar
 
         t = TimeVar()
         expr = t + 1.0
         assert expr.kind == ExprKind.ADD
 
     def test_time_radd(self) -> None:
-        from cyecca.dsl.model import TimeVar, ExprKind
+        from cyecca.dsl.model import ExprKind, TimeVar
 
         t = TimeVar()
         expr = 1.0 + t
         assert expr.kind == ExprKind.ADD
 
     def test_time_sub(self) -> None:
-        from cyecca.dsl.model import TimeVar, ExprKind
+        from cyecca.dsl.model import ExprKind, TimeVar
 
         t = TimeVar()
         expr = t - 1.0
         assert expr.kind == ExprKind.SUB
 
     def test_time_rsub(self) -> None:
-        from cyecca.dsl.model import TimeVar, ExprKind
+        from cyecca.dsl.model import ExprKind, TimeVar
 
         t = TimeVar()
         expr = 10.0 - t
         assert expr.kind == ExprKind.SUB
 
     def test_time_mul(self) -> None:
-        from cyecca.dsl.model import TimeVar, ExprKind
+        from cyecca.dsl.model import ExprKind, TimeVar
 
         t = TimeVar()
         expr = t * 2.0
         assert expr.kind == ExprKind.MUL
 
     def test_time_rmul(self) -> None:
-        from cyecca.dsl.model import TimeVar, ExprKind
+        from cyecca.dsl.model import ExprKind, TimeVar
 
         t = TimeVar()
         expr = 2.0 * t
         assert expr.kind == ExprKind.MUL
 
     def test_time_div(self) -> None:
-        from cyecca.dsl.model import TimeVar, ExprKind
+        from cyecca.dsl.model import ExprKind, TimeVar
 
         t = TimeVar()
         expr = t / 2.0
         assert expr.kind == ExprKind.DIV
 
     def test_time_rdiv(self) -> None:
-        from cyecca.dsl.model import TimeVar, ExprKind
+        from cyecca.dsl.model import ExprKind, TimeVar
 
         t = TimeVar()
         expr = 1.0 / t
@@ -456,7 +469,7 @@ class TestDerivativeExpr:
     """Test DerivativeExpr arithmetic."""
 
     def test_der_add(self) -> None:
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -475,7 +488,7 @@ class TestDerivativeExpr:
         assert expr.kind == ExprKind.ADD
 
     def test_der_radd(self) -> None:
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -491,7 +504,7 @@ class TestDerivativeExpr:
         assert expr.kind == ExprKind.ADD
 
     def test_der_sub(self) -> None:
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -509,7 +522,7 @@ class TestDerivativeExpr:
         assert expr.kind == ExprKind.SUB
 
     def test_der_rsub(self) -> None:
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -525,7 +538,7 @@ class TestDerivativeExpr:
         assert expr.kind == ExprKind.SUB
 
     def test_der_neg(self) -> None:
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -550,7 +563,7 @@ class TestSimulationResult:
     """Test SimulationResult property accessors."""
 
     def test_result_states_property(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -571,7 +584,7 @@ class TestSimulationResult:
         assert isinstance(states["x"], np.ndarray)
 
     def test_result_outputs_property(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -591,7 +604,7 @@ class TestSimulationResult:
         assert isinstance(outputs["y"], np.ndarray)
 
     def test_result_inputs_property(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -610,7 +623,7 @@ class TestSimulationResult:
         assert isinstance(inputs["u"], np.ndarray)
 
     def test_result_data_property(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -628,7 +641,7 @@ class TestSimulationResult:
         assert "x" in data
 
     def test_result_getitem_t(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -645,7 +658,7 @@ class TestSimulationResult:
         assert t[0] == 0.0
 
     def test_result_getitem_keyerror(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -662,7 +675,7 @@ class TestSimulationResult:
             _ = result["nonexistent"]
 
     def test_result_call_keyerror(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -679,7 +692,7 @@ class TestSimulationResult:
             result("nonexistent")
 
     def test_result_call_typeerror(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -711,7 +724,7 @@ class TestVarDeclRepr:
         assert repr(v) == "var()"
 
     def test_vardecl_with_dtype(self) -> None:
-        from cyecca.dsl.types import Var, DType
+        from cyecca.dsl.types import DType, Var
 
         v = Var(dtype=DType.INTEGER)
         assert "dtype=INTEGER" in repr(v)
@@ -782,7 +795,7 @@ class TestArrayEquations:
     """Test array equation expansion and error handling."""
 
     def test_array_equation_shape_mismatch(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class BadModel:
@@ -796,7 +809,7 @@ class TestArrayEquations:
             BadModel().flatten()
 
     def test_array_equation_scalar_rhs(self) -> None:
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -813,7 +826,7 @@ class TestArrayEquations:
 
     def test_array_derivative_getitem(self) -> None:
         """Test der(pos)[i] syntax."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -841,7 +854,7 @@ class TestExprArithmetic:
     """Test Expr arithmetic operators."""
 
     def test_expr_pow(self) -> None:
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -850,7 +863,7 @@ class TestExprArithmetic:
 
             def equations(m):
                 yield der(m.x) == 1.0
-                yield m.y == m.x ** 2
+                yield m.y == m.x**2
 
         flat = TestModel().flatten()
         expr = flat.output_equations["y"]
@@ -887,8 +900,9 @@ class TestErrorPaths:
     """Test various error paths."""
 
     def test_der_wrong_type(self) -> None:
-        from cyecca.dsl.model import der
         from beartype.roar import BeartypeCallHintParamViolation
+
+        from cyecca.dsl.model import der
 
         with pytest.raises((TypeError, BeartypeCallHintParamViolation)):
             der("not a symbolic var")  # type: ignore
@@ -1185,7 +1199,7 @@ class TestSymbolicVarCoverage:
 
     def test_symbolic_var_arithmetic(self) -> None:
         """Test arithmetic operations on SymbolicVar."""
-        from cyecca.dsl import model, var, ExprKind
+        from cyecca.dsl import ExprKind, model, var
 
         @model
         class TestModel:
@@ -1214,8 +1228,9 @@ class TestDiscreteOperators:
 
     def test_pre_type_error(self) -> None:
         """Test pre() with wrong type."""
-        from cyecca.dsl.model import pre
         from beartype.roar import BeartypeCallHintParamViolation
+
+        from cyecca.dsl.model import pre
 
         with pytest.raises((TypeError, BeartypeCallHintParamViolation)):
             pre("not a var")  # type: ignore
@@ -1235,8 +1250,9 @@ class TestDiscreteOperators:
 
     def test_edge_type_error(self) -> None:
         """Test edge() with wrong type."""
-        from cyecca.dsl.model import edge
         from beartype.roar import BeartypeCallHintParamViolation
+
+        from cyecca.dsl.model import edge
 
         with pytest.raises((TypeError, BeartypeCallHintParamViolation)):
             edge("not a var")  # type: ignore
@@ -1256,8 +1272,9 @@ class TestDiscreteOperators:
 
     def test_change_type_error(self) -> None:
         """Test change() with wrong type."""
-        from cyecca.dsl.model import change
         from beartype.roar import BeartypeCallHintParamViolation
+
+        from cyecca.dsl.model import change
 
         with pytest.raises((TypeError, BeartypeCallHintParamViolation)):
             change("not a var")  # type: ignore
@@ -1300,7 +1317,7 @@ class TestAlgorithmVarCoverage:
 
     def test_algorithm_var_arithmetic(self) -> None:
         """Test AlgorithmVar arithmetic operations."""
-        from cyecca.dsl.model import local, ExprKind
+        from cyecca.dsl.model import ExprKind, local
 
         temp = local("temp")
 
@@ -1331,12 +1348,12 @@ class TestAlgorithmVarCoverage:
         expr9 = -temp
         assert expr9.kind == ExprKind.NEG
 
-        expr10 = temp ** 2
+        expr10 = temp**2
         assert expr10.kind == ExprKind.POW
 
     def test_algorithm_var_comparisons(self) -> None:
         """Test AlgorithmVar comparison operators."""
-        from cyecca.dsl.model import local, ExprKind
+        from cyecca.dsl.model import ExprKind, local
 
         temp = local("temp")
 
@@ -1354,7 +1371,7 @@ class TestAlgorithmVarCoverage:
 
     def test_algorithm_var_matmul_assignment(self) -> None:
         """Test AlgorithmVar @ assignment operator."""
-        from cyecca.dsl.model import local, Assignment
+        from cyecca.dsl.model import Assignment, local
 
         temp = local("temp")
         assign = temp @ 42
@@ -1374,7 +1391,7 @@ class TestAssignFunctionCoverage:
     def test_assign_symbolic_var(self) -> None:
         """Test assign to SymbolicVar."""
         from cyecca.dsl import model, var
-        from cyecca.dsl.model import assign, Assignment
+        from cyecca.dsl.model import Assignment, assign
 
         @model
         class TestModel:
@@ -1387,7 +1404,7 @@ class TestAssignFunctionCoverage:
 
     def test_assign_algorithm_var(self) -> None:
         """Test assign to AlgorithmVar."""
-        from cyecca.dsl.model import assign, local, Assignment
+        from cyecca.dsl.model import Assignment, assign, local
 
         temp = local("temp")
         assignment = assign(temp, 42)
@@ -1396,7 +1413,7 @@ class TestAssignFunctionCoverage:
 
     def test_assign_string(self) -> None:
         """Test assign to string."""
-        from cyecca.dsl.model import assign, Assignment
+        from cyecca.dsl.model import Assignment, assign
 
         assignment = assign("temp", 42)
         assert isinstance(assignment, Assignment)
@@ -1404,8 +1421,9 @@ class TestAssignFunctionCoverage:
 
     def test_assign_invalid_target(self) -> None:
         """Test assign to invalid target - beartype catches this."""
-        from cyecca.dsl.model import assign
         from beartype.roar import BeartypeCallHintParamViolation
+
+        from cyecca.dsl.model import assign
 
         with pytest.raises(BeartypeCallHintParamViolation):
             assign(123, 42)  # type: ignore
@@ -1421,7 +1439,7 @@ class TestSubmodelProxyCoverage:
 
     def test_submodel_proxy_access(self) -> None:
         """Test accessing submodel variables."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
 
         @model
         class Inner:
@@ -1444,7 +1462,7 @@ class TestSubmodelProxyCoverage:
 
     def test_submodel_proxy_missing_attr(self) -> None:
         """Test accessing missing attribute on submodel."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
 
         @model
         class Inner:
@@ -1476,7 +1494,7 @@ class TestModelInstanceCoverage:
 
     def test_model_getattr_submodel(self) -> None:
         """Test accessing submodel via __getattr__."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
 
         @model
         class Inner:
@@ -1500,7 +1518,7 @@ class TestModelInstanceCoverage:
 
     def test_model_getattr_missing(self) -> None:
         """Test accessing missing attribute raises AttributeError."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -1515,7 +1533,7 @@ class TestModelInstanceCoverage:
 
     def test_model_t_property(self) -> None:
         """Test t property returns TimeVar."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.model import TimeVar
 
         @model
@@ -1555,7 +1573,7 @@ class TestFlatModelCoverage:
 
     def test_flat_model_repr_all_parts(self) -> None:
         """Test FlatModel repr with all variable types."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -1648,8 +1666,8 @@ class TestSubmodelFieldCoverage:
 
     def test_submodel_field_repr(self) -> None:
         """Test SubmodelField __repr__."""
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.types import SubmodelField
-        from cyecca.dsl import model, var, der
 
         @model
         class Inner:
@@ -1700,7 +1718,7 @@ class TestSimulationResultCallSymbolicVar:
 
     def test_result_call_with_symbolic_var(self) -> None:
         """Test result(m.x) syntax."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1721,7 +1739,7 @@ class TestSimulationResultCallSymbolicVar:
 
     def test_result_call_with_expr_name(self) -> None:
         """Test result(expr) where expr has .name attribute."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
         from cyecca.dsl.model import Expr, ExprKind
 
@@ -1752,7 +1770,7 @@ class TestCasadiBackendCoverage:
 
     def test_backend_tan_compilation(self) -> None:
         """Test tan() compiles correctly."""
-        from cyecca.dsl import model, var, der, tan
+        from cyecca.dsl import der, model, tan, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1770,7 +1788,7 @@ class TestCasadiBackendCoverage:
 
     def test_backend_asin_compilation(self) -> None:
         """Test asin() compiles correctly."""
-        from cyecca.dsl import model, var, der, asin
+        from cyecca.dsl import asin, der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1788,7 +1806,7 @@ class TestCasadiBackendCoverage:
 
     def test_backend_acos_compilation(self) -> None:
         """Test acos() compiles correctly."""
-        from cyecca.dsl import model, var, der, acos
+        from cyecca.dsl import acos, der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1806,7 +1824,7 @@ class TestCasadiBackendCoverage:
 
     def test_backend_atan_compilation(self) -> None:
         """Test atan() compiles correctly."""
-        from cyecca.dsl import model, var, der, atan
+        from cyecca.dsl import atan, der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1824,7 +1842,7 @@ class TestCasadiBackendCoverage:
 
     def test_backend_atan2_compilation(self) -> None:
         """Test atan2() compiles correctly."""
-        from cyecca.dsl import model, var, der, atan2
+        from cyecca.dsl import atan2, der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1844,7 +1862,7 @@ class TestCasadiBackendCoverage:
 
     def test_backend_exp_compilation(self) -> None:
         """Test exp() compiles correctly."""
-        from cyecca.dsl import model, var, der, exp
+        from cyecca.dsl import der, exp, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1862,7 +1880,7 @@ class TestCasadiBackendCoverage:
 
     def test_backend_log_compilation(self) -> None:
         """Test log() compiles correctly."""
-        from cyecca.dsl import model, var, der, log
+        from cyecca.dsl import der, log, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1880,8 +1898,8 @@ class TestCasadiBackendCoverage:
 
     def test_backend_abs_compilation(self) -> None:
         """Test abs() compiles correctly."""
-        from cyecca.dsl import model, var, der
         from cyecca.dsl import abs as dsl_abs
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1899,7 +1917,7 @@ class TestCasadiBackendCoverage:
 
     def test_backend_comparison_ops(self) -> None:
         """Test comparison operators compile correctly."""
-        from cyecca.dsl import model, var, der, if_then_else
+        from cyecca.dsl import der, if_then_else, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1917,9 +1935,9 @@ class TestCasadiBackendCoverage:
 
     def test_backend_boolean_ops(self) -> None:
         """Test boolean operators compile correctly."""
-        from cyecca.dsl import model, var, der, if_then_else
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl import der, if_then_else, model, var
         from cyecca.dsl.backends import CasadiBackend
+        from cyecca.dsl.model import Expr, ExprKind
 
         @model
         class TestModel:
@@ -1938,7 +1956,7 @@ class TestCasadiBackendCoverage:
 
     def test_compiled_model_repr(self) -> None:
         """Test CompiledModel __repr__."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -1968,7 +1986,7 @@ class TestSimulatorAbstractMethods:
 
     def test_compiled_model_properties(self) -> None:
         """Test CompiledModel implements all Simulator properties."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -2001,7 +2019,7 @@ class TestTimeVaryingInputs:
 
     def test_simulate_with_u_func(self) -> None:
         """Test simulation with u_func."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -2043,9 +2061,18 @@ class TestExprReprMore:
 
         child = Expr(ExprKind.VARIABLE, name="x")
 
-        for kind in [ExprKind.SIN, ExprKind.COS, ExprKind.TAN,
-                     ExprKind.ASIN, ExprKind.ACOS, ExprKind.ATAN,
-                     ExprKind.SQRT, ExprKind.EXP, ExprKind.LOG, ExprKind.ABS]:
+        for kind in [
+            ExprKind.SIN,
+            ExprKind.COS,
+            ExprKind.TAN,
+            ExprKind.ASIN,
+            ExprKind.ACOS,
+            ExprKind.ATAN,
+            ExprKind.SQRT,
+            ExprKind.EXP,
+            ExprKind.LOG,
+            ExprKind.ABS,
+        ]:
             expr = Expr(kind, (child,))
             assert kind.name.lower() in repr(expr).lower()
 
@@ -2055,8 +2082,9 @@ class TestToExprConverters:
 
     def test_to_expr_numpy_scalar(self) -> None:
         """Test _to_expr with numpy scalar."""
-        from cyecca.dsl.model import _to_expr, ExprKind
         import numpy as np
+
+        from cyecca.dsl.model import ExprKind, _to_expr
 
         arr = np.array(5.0)
         expr = _to_expr(arr)
@@ -2065,7 +2093,7 @@ class TestToExprConverters:
 
     def test_to_expr_expr_passthrough(self) -> None:
         """Test _to_expr with Expr passthrough."""
-        from cyecca.dsl.model import _to_expr, Expr, ExprKind
+        from cyecca.dsl.model import Expr, ExprKind, _to_expr
 
         original = Expr(ExprKind.VARIABLE, name="x")
         result = _to_expr(original)
@@ -2073,7 +2101,7 @@ class TestToExprConverters:
 
     def test_to_expr_symbolic_var(self) -> None:
         """Test _to_expr with SymbolicVar."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.model import _to_expr
 
         @model
@@ -2089,7 +2117,7 @@ class TestToExprConverters:
 
     def test_to_expr_derivative_expr(self) -> None:
         """Test _to_expr with DerivativeExpr."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.model import _to_expr
 
         @model
@@ -2107,7 +2135,7 @@ class TestToExprConverters:
 
     def test_to_expr_time_var(self) -> None:
         """Test _to_expr with TimeVar."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.model import _to_expr
 
         @model
@@ -2180,7 +2208,7 @@ class TestArrayDerivativeExpr:
 
     def test_array_derivative_repr(self) -> None:
         """Test ArrayDerivativeExpr __repr__."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2196,7 +2224,7 @@ class TestArrayDerivativeExpr:
 
     def test_array_derivative_partial_indexing(self) -> None:
         """Test ArrayDerivativeExpr with partial indexing on 2D array."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.model import ArrayDerivativeExpr
 
         @model
@@ -2219,7 +2247,7 @@ class TestArrayEquationCoverage:
 
     def test_array_equation_repr(self) -> None:
         """Test ArrayEquation __repr__."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2238,7 +2266,7 @@ class TestArrayEquationCoverage:
 
     def test_array_equation_invalid_rhs_type(self) -> None:
         """Test ArrayEquation expand with invalid RHS type."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.model import ArrayEquation
 
         @model
@@ -2253,7 +2281,7 @@ class TestArrayEquationCoverage:
 
     def test_array_equation_non_derivative(self) -> None:
         """Test non-derivative array equation repr."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.model import ArrayEquation
 
         @model
@@ -2293,7 +2321,8 @@ class TestModelWarnings:
     def test_output_equations_warning(self) -> None:
         """Test deprecation warning for output_equations."""
         import warnings
-        from cyecca.dsl import model, var, der
+
+        from cyecca.dsl import der, model, var
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -2318,7 +2347,7 @@ class TestSymbolicVarComparisons:
 
     def test_symbolic_var_lt(self) -> None:
         """Test SymbolicVar < operator."""
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -2333,7 +2362,7 @@ class TestSymbolicVarComparisons:
 
     def test_symbolic_var_le(self) -> None:
         """Test SymbolicVar <= operator."""
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -2348,7 +2377,7 @@ class TestSymbolicVarComparisons:
 
     def test_symbolic_var_gt(self) -> None:
         """Test SymbolicVar > operator."""
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -2363,7 +2392,7 @@ class TestSymbolicVarComparisons:
 
     def test_symbolic_var_ge(self) -> None:
         """Test SymbolicVar >= operator."""
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -2378,7 +2407,7 @@ class TestSymbolicVarComparisons:
 
     def test_symbolic_var_neg(self) -> None:
         """Test SymbolicVar negation."""
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -2393,7 +2422,7 @@ class TestSymbolicVarComparisons:
 
     def test_symbolic_var_pow(self) -> None:
         """Test SymbolicVar power."""
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -2403,7 +2432,7 @@ class TestSymbolicVarComparisons:
                 yield der(m.x) == 0
 
         m = TestModel()
-        expr = m.x ** 2
+        expr = m.x**2
         assert expr.kind == ExprKind.POW
 
 
@@ -2427,7 +2456,7 @@ class TestFunctionDecorator:
                 yield m.y @ temp
 
         f = Saturation()
-        assert hasattr(f, '_is_function')
+        assert hasattr(f, "_is_function")
         assert f._is_function is True
 
     def test_function_no_algorithm_error(self) -> None:
@@ -2435,6 +2464,7 @@ class TestFunctionDecorator:
         from cyecca.dsl import function, var
 
         with pytest.raises(TypeError, match="must have an algorithm"):
+
             @function
             class BadFunction:
                 x = var(input=True)
@@ -2445,6 +2475,7 @@ class TestFunctionDecorator:
         from cyecca.dsl import function, var
 
         with pytest.raises(TypeError, match="must have input=True or output=True"):
+
             @function
             class BadFunction:
                 x = var(input=True)
@@ -2483,7 +2514,7 @@ class TestAlgorithmToExpr:
 
     def test_to_expr_algorithm_var(self) -> None:
         """Test _to_expr with AlgorithmVar."""
-        from cyecca.dsl.model import _to_expr, local, ExprKind
+        from cyecca.dsl.model import ExprKind, _to_expr, local
 
         temp = local("temp")
         expr = _to_expr(temp)
@@ -2496,7 +2527,7 @@ class TestSubmodelVariableClassification:
 
     def test_submodel_param_classification(self) -> None:
         """Test that submodel parameters are classified correctly."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
 
         @model
         class Inner:
@@ -2520,7 +2551,7 @@ class TestSubmodelVariableClassification:
 
     def test_submodel_input_classification(self) -> None:
         """Test that submodel inputs are classified correctly."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
 
         @model
         class Inner:
@@ -2543,7 +2574,7 @@ class TestSubmodelVariableClassification:
 
     def test_submodel_output_classification(self) -> None:
         """Test that submodel outputs are classified correctly."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
 
         @model
         class Inner:
@@ -2567,7 +2598,7 @@ class TestSubmodelVariableClassification:
 
     def test_submodel_discrete_classification(self) -> None:
         """Test that submodel discrete vars are classified correctly."""
-        from cyecca.dsl import model, var, submodel
+        from cyecca.dsl import model, submodel, var
 
         @model
         class Inner:
@@ -2594,7 +2625,7 @@ class TestFlattenOptions:
 
     def test_flatten_expand_arrays_false(self) -> None:
         """Test flatten with expand_arrays=False."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2615,7 +2646,7 @@ class TestAlgorithmInFlatten:
 
     def test_algorithm_invalid_type_error(self) -> None:
         """Test that invalid algorithm yield raises error."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2698,7 +2729,7 @@ class TestSymbolicVarShape:
 
     def test_shape_property(self) -> None:
         """Test shape property on SymbolicVar."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2719,6 +2750,7 @@ class TestFunctionWithEquations:
         from cyecca.dsl import function, var
 
         with pytest.raises(TypeError, match="cannot have equations"):
+
             @function
             class BadFunction:
                 x = var(input=True)
@@ -2737,7 +2769,7 @@ class TestArrayEquationExprRhs:
 
     def test_array_equation_expr_rhs(self) -> None:
         """Test ArrayEquation expand with Expr RHS (scalar broadcast)."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2760,7 +2792,7 @@ class TestSubmodelAlgebraicClassification:
 
     def test_submodel_algebraic_classification(self) -> None:
         """Test that submodel variables without der() are algebraic."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
 
         @model
         class Inner:
@@ -2787,7 +2819,7 @@ class TestParamStartValue:
 
     def test_param_start_value(self) -> None:
         """Test parameter with start= but no default=."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2807,7 +2839,7 @@ class TestSubmodelWithArrays:
 
     def test_submodel_array_equations(self) -> None:
         """Test that submodel array equations are expanded."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
 
         @model
         class Inner:
@@ -2836,7 +2868,7 @@ class TestNonDerivativeArrayEquation:
 
     def test_non_derivative_array_equation(self) -> None:
         """Test y = x array equation (non-derivative)."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2857,7 +2889,7 @@ class TestArrayEquationWithIndices:
 
     def test_array_equation_with_partial_index(self) -> None:
         """Test array equation where LHS already has some indices."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2879,7 +2911,7 @@ class TestSymbolicVarName:
 
     def test_name_property_with_indices(self) -> None:
         """Test name property includes indices."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -2902,7 +2934,7 @@ class TestCasadiMXBackend:
 
     def test_mx_backend_basic(self) -> None:
         """Test basic MX backend compilation."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
@@ -2919,7 +2951,7 @@ class TestCasadiMXBackend:
 
     def test_mx_backend_with_input(self) -> None:
         """Test MX backend with input."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
@@ -2937,7 +2969,7 @@ class TestCasadiMXBackend:
 
     def test_mx_backend_with_param(self) -> None:
         """Test MX backend with parameter."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
@@ -2965,7 +2997,7 @@ class TestDiscreteOperatorsValid:
     def test_pre_scalar(self) -> None:
         """Test pre() with valid scalar discrete variable."""
         from cyecca.dsl import model, var
-        from cyecca.dsl.model import pre, ExprKind
+        from cyecca.dsl.model import ExprKind, pre
 
         @model
         class TestModel:
@@ -2981,8 +3013,8 @@ class TestDiscreteOperatorsValid:
 
     def test_edge_scalar(self) -> None:
         """Test edge() with valid scalar boolean variable."""
-        from cyecca.dsl import model, var, DType
-        from cyecca.dsl.model import edge, ExprKind
+        from cyecca.dsl import DType, model, var
+        from cyecca.dsl.model import ExprKind, edge
 
         @model
         class TestModel:
@@ -2999,7 +3031,7 @@ class TestDiscreteOperatorsValid:
     def test_change_scalar(self) -> None:
         """Test change() with valid scalar variable."""
         from cyecca.dsl import model, var
-        from cyecca.dsl.model import change, ExprKind
+        from cyecca.dsl.model import ExprKind, change
 
         @model
         class TestModel:
@@ -3024,7 +3056,7 @@ class TestSymbolicVarTupleIndex:
 
     def test_index_with_tuple(self) -> None:
         """Test indexing with tuple of indices."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -3049,7 +3081,7 @@ class TestDerivativeExprArithmetic:
 
     def test_der_mul(self) -> None:
         """Test der(x) * scalar."""
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -3077,7 +3109,7 @@ class TestSymbolicVarRadd:
 
     def test_symbolic_var_radd_from_const(self) -> None:
         """Test 5 + m.x."""
-        from cyecca.dsl import model, var, der, ExprKind
+        from cyecca.dsl import ExprKind, der, model, var
 
         @model
         class TestModel:
@@ -3103,7 +3135,7 @@ class TestDerivativeExprRepr:
 
     def test_derivative_expr_repr(self) -> None:
         """Test DerivativeExpr __repr__."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
 
         @model
         class TestModel:
@@ -3130,7 +3162,7 @@ class TestExprRpow:
         from cyecca.dsl.model import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
-        result = 2 ** x
+        result = 2**x
         assert result.kind == ExprKind.POW
         # First child should be constant 2
         assert result.children[0].kind == ExprKind.CONSTANT
@@ -3167,7 +3199,7 @@ class TestSubmodelParamStart:
 
     def test_submodel_param_with_start(self) -> None:
         """Test submodel parameter classified correctly when using start=."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
 
         @model
         class Inner:
@@ -3201,7 +3233,7 @@ class TestArrayEquationNonDerivativeLHS:
 
     def test_non_derivative_array_lhs(self) -> None:
         """Test y = x array equation creates VARIABLE LHS."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.model import Equation
 
         @model

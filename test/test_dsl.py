@@ -18,12 +18,13 @@ class TestDSLPendulum:
 
     def test_pendulum_definition(self) -> None:
         """Test that we can define a pendulum model."""
-        from cyecca.dsl import model, var, der, sin
+        from cyecca.dsl import der, model, sin, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class Pendulum:
             """Simple pendulum model."""
+
             g = var(9.81, parameter=True)
             l = var(1.0, parameter=True)
             theta = var(start=0.0)
@@ -45,7 +46,7 @@ class TestDSLPendulum:
 
     def test_pendulum_simulation(self) -> None:
         """Test pendulum simulation."""
-        from cyecca.dsl import model, var, der, sin
+        from cyecca.dsl import der, model, sin, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -79,7 +80,7 @@ class TestDSLSubmodel:
 
     def test_submodel_composition(self) -> None:
         """Test hierarchical model composition."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -105,7 +106,7 @@ class TestDSLSubmodel:
 
     def test_submodel_simulation(self) -> None:
         """Test simulation with submodels."""
-        from cyecca.dsl import model, var, der, submodel
+        from cyecca.dsl import der, model, submodel, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -124,11 +125,7 @@ class TestDSLSubmodel:
         compiled = CasadiBackend.compile(System().flatten())
 
         # Constant input
-        result = compiled.simulate(
-            tf=1.0,
-            u={"ctrl.cmd": 2.0},
-            params={"ctrl.gain": 3.0}
-        )
+        result = compiled.simulate(tf=1.0, u={"ctrl.cmd": 2.0}, params={"ctrl.gain": 3.0})
 
         # x(t) = 6*t for x(0)=0, so x(1) = 6
         assert abs(result._data["x"][-1] - 6.0) < 0.1
@@ -159,7 +156,7 @@ class TestDSLTimeVaryingInput:
 
     def test_time_varying_input(self) -> None:
         """Test with time-varying control function."""
-        from cyecca.dsl import model, var, der
+        from cyecca.dsl import der, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -184,10 +181,10 @@ class TestDSLTimeVaryingInput:
 
 class TestDSLFlatModel:
     """Test FlatModel representation."""
-    
+
     def test_flat_model_expr_tree(self) -> None:
         """Test that equations are stored as expression trees."""
-        from cyecca.dsl import model, var, der, sin, ExprKind
+        from cyecca.dsl import ExprKind, der, model, sin, var
 
         @model
         class Pendulum:
@@ -200,16 +197,16 @@ class TestDSLFlatModel:
                 yield der(m.omega) == -m.g * sin(m.theta)
 
         flat = Pendulum().flatten()
-        
+
         # Check derivative equations exist
         assert "theta" in flat.derivative_equations
         assert "omega" in flat.derivative_equations
-        
+
         # Check expression tree structure
         theta_deriv = flat.derivative_equations["theta"]
         assert theta_deriv.kind == ExprKind.VARIABLE
         assert theta_deriv.name == "omega"
-        
+
         omega_deriv = flat.derivative_equations["omega"]
         assert omega_deriv.kind == ExprKind.MUL
 

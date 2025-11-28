@@ -42,7 +42,7 @@ from typing import Any, Union
 
 from beartype import beartype
 
-from cyecca.dsl.model import Expr, ExprKind, _to_expr, SymbolicVar, DerivativeExpr, TimeVar
+from cyecca.dsl.model import DerivativeExpr, Expr, ExprKind, SymbolicVar, TimeVar, _to_expr
 
 
 def _to_symbolic(x: Any) -> Union[Expr, float]:
@@ -60,9 +60,9 @@ def _to_symbolic(x: Any) -> Union[Expr, float]:
 @beartype
 def sin(x: Any) -> Union[Expr, float]:
     """Sine function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float
@@ -71,6 +71,7 @@ def sin(x: Any) -> Union[Expr, float]:
     val = _to_symbolic(x)
     if isinstance(val, float):
         import math
+
         return math.sin(val)
     return Expr(ExprKind.SIN, (val,))
 
@@ -78,9 +79,9 @@ def sin(x: Any) -> Union[Expr, float]:
 @beartype
 def cos(x: Any) -> Union[Expr, float]:
     """Cosine function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float
@@ -89,6 +90,7 @@ def cos(x: Any) -> Union[Expr, float]:
     val = _to_symbolic(x)
     if isinstance(val, float):
         import math
+
         return math.cos(val)
     return Expr(ExprKind.COS, (val,))
 
@@ -96,9 +98,9 @@ def cos(x: Any) -> Union[Expr, float]:
 @beartype
 def tan(x: Any) -> Union[Expr, float]:
     """Tangent function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float
@@ -107,6 +109,7 @@ def tan(x: Any) -> Union[Expr, float]:
     val = _to_symbolic(x)
     if isinstance(val, float):
         import math
+
         return math.tan(val)
     return Expr(ExprKind.TAN, (val,))
 
@@ -114,9 +117,9 @@ def tan(x: Any) -> Union[Expr, float]:
 @beartype
 def asin(x: Any) -> Union[Expr, float]:
     """Arcsine function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float
@@ -125,6 +128,7 @@ def asin(x: Any) -> Union[Expr, float]:
     val = _to_symbolic(x)
     if isinstance(val, float):
         import math
+
         return math.asin(val)
     return Expr(ExprKind.ASIN, (val,))
 
@@ -132,9 +136,9 @@ def asin(x: Any) -> Union[Expr, float]:
 @beartype
 def acos(x: Any) -> Union[Expr, float]:
     """Arccosine function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float
@@ -143,6 +147,7 @@ def acos(x: Any) -> Union[Expr, float]:
     val = _to_symbolic(x)
     if isinstance(val, float):
         import math
+
         return math.acos(val)
     return Expr(ExprKind.ACOS, (val,))
 
@@ -150,9 +155,9 @@ def acos(x: Any) -> Union[Expr, float]:
 @beartype
 def atan(x: Any) -> Union[Expr, float]:
     """Arctangent function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float
@@ -161,6 +166,7 @@ def atan(x: Any) -> Union[Expr, float]:
     val = _to_symbolic(x)
     if isinstance(val, float):
         import math
+
         return math.atan(val)
     return Expr(ExprKind.ATAN, (val,))
 
@@ -168,16 +174,16 @@ def atan(x: Any) -> Union[Expr, float]:
 @beartype
 def atan2(y: Any, x: Any) -> Union[Expr, float]:
     """Two-argument arctangent function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Parameters
     ----------
     y : numeric or Expr
         Numerator (opposite side)
     x : numeric or Expr
         Denominator (adjacent side)
-    
+
     Returns
     -------
     Expr or float
@@ -187,6 +193,7 @@ def atan2(y: Any, x: Any) -> Union[Expr, float]:
     val_x = _to_symbolic(x)
     if isinstance(val_y, float) and isinstance(val_x, float):
         import math
+
         return math.atan2(val_y, val_x)
     # At least one is symbolic - convert both to Expr
     if isinstance(val_y, float):
@@ -199,9 +206,9 @@ def atan2(y: Any, x: Any) -> Union[Expr, float]:
 @beartype
 def sqrt(x: Any) -> Union[Expr, float]:
     """Square root function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float
@@ -210,6 +217,7 @@ def sqrt(x: Any) -> Union[Expr, float]:
     val = _to_symbolic(x)
     if isinstance(val, float):
         import math
+
         return math.sqrt(val)
     return Expr(ExprKind.SQRT, (val,))
 
@@ -217,9 +225,9 @@ def sqrt(x: Any) -> Union[Expr, float]:
 @beartype
 def exp(x: Any) -> Union[Expr, float]:
     """Exponential function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float
@@ -228,6 +236,7 @@ def exp(x: Any) -> Union[Expr, float]:
     val = _to_symbolic(x)
     if isinstance(val, float):
         import math
+
         return math.exp(val)
     return Expr(ExprKind.EXP, (val,))
 
@@ -235,9 +244,9 @@ def exp(x: Any) -> Union[Expr, float]:
 @beartype
 def log(x: Any) -> Union[Expr, float]:
     """Natural logarithm function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float
@@ -246,6 +255,7 @@ def log(x: Any) -> Union[Expr, float]:
     val = _to_symbolic(x)
     if isinstance(val, float):
         import math
+
         return math.log(val)
     return Expr(ExprKind.LOG, (val,))
 
@@ -253,9 +263,9 @@ def log(x: Any) -> Union[Expr, float]:
 @beartype
 def abs(x: Any) -> Union[Expr, float]:
     """Absolute value function.
-    
+
     Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
-    
+
     Returns
     -------
     Expr or float

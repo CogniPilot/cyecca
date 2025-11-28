@@ -38,7 +38,6 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import numpy as np
 from beartype import beartype
 
-
 # =============================================================================
 # Simulation Result
 # =============================================================================
@@ -48,11 +47,11 @@ from beartype import beartype
 class SimulationResult:
     """
     Result of a model simulation.
-    
+
     Provides convenient access to simulation data as numpy arrays.
     Variables are accessed using the callable interface with model variables
     for autocomplete support.
-    
+
     Example
     -------
     >>> import matplotlib.pyplot as plt  # doctest: +SKIP
@@ -78,36 +77,36 @@ class SimulationResult:
     >>> plt.plot(result.t, result(pend.omega))  # doctest: +SKIP
     >>> plt.show()  # doctest: +SKIP
     """
-    
+
     # Time vector
     t: np.ndarray
-    
+
     # Trajectory data: name -> array
     _data: Dict[str, np.ndarray] = field(default_factory=dict)
-    
+
     # Metadata
     model_name: str = ""
     state_names: List[str] = field(default_factory=list)
     output_names: List[str] = field(default_factory=list)
     input_names: List[str] = field(default_factory=list)
-    
+
     @beartype
     def __call__(self, var: Any) -> np.ndarray:
         """
         Get trajectory data for a variable.
-        
+
         Parameters
         ----------
         var : SymbolicVar, Expr, or str
             The variable to get data for. Can be:
             - A model variable (e.g., pend.theta) - provides autocomplete
             - A string name (e.g., "theta")
-        
+
         Returns
         -------
         np.ndarray
             The trajectory data for this variable
-        
+
         Example
         -------
         >>> result(pend.theta)  # doctest: +SKIP
@@ -116,10 +115,10 @@ class SimulationResult:
         # Get the variable name
         if isinstance(var, str):
             name = var
-        elif hasattr(var, '_name'):
+        elif hasattr(var, "_name"):
             # SymbolicVar
             name = var._name
-        elif hasattr(var, 'name'):
+        elif hasattr(var, "name"):
             # Expr or other object with .name
             name = var.name
         else:
@@ -127,14 +126,11 @@ class SimulationResult:
                 f"Expected model variable or string, got {type(var).__name__}. "
                 f"Use result(model.var_name) or result('var_name')"
             )
-        
+
         if name not in self._data:
-            raise KeyError(
-                f"Variable '{name}' not in result. "
-                f"Available: {self.available_names}"
-            )
+            raise KeyError(f"Variable '{name}' not in result. " f"Available: {self.available_names}")
         return self._data[name]
-    
+
     def __getitem__(self, key: str) -> np.ndarray:
         """Get trajectory by string name (dict-style access)."""
         if key == "t":
@@ -142,27 +138,27 @@ class SimulationResult:
         if key not in self._data:
             raise KeyError(f"No trajectory named '{key}'. Available: {self.available_names}")
         return self._data[key]
-    
+
     @property
     def available_names(self) -> List[str]:
         """List all available trajectory names."""
         return list(self._data.keys())
-    
+
     @property
     def states(self) -> Dict[str, np.ndarray]:
         """State trajectories as a dict."""
         return {name: self._data[name] for name in self.state_names if name in self._data}
-    
+
     @property
     def outputs(self) -> Dict[str, np.ndarray]:
         """Output trajectories as a dict."""
         return {name: self._data[name] for name in self.output_names if name in self._data}
-    
+
     @property
     def inputs(self) -> Dict[str, np.ndarray]:
         """Input trajectories as a dict."""
         return {name: self._data[name] for name in self.input_names if name in self._data}
-    
+
     @property
     def data(self) -> Dict[str, np.ndarray]:
         """All trajectories as a single dict."""
@@ -179,10 +175,10 @@ class SimulationResult:
 class Simulator(ABC):
     """
     Abstract base class for model simulators.
-    
+
     Backends should implement this interface to provide simulation capabilities.
     """
-    
+
     @abstractmethod
     def simulate(
         self,
@@ -196,7 +192,7 @@ class Simulator(ABC):
     ) -> SimulationResult:
         """
         Simulate the model.
-        
+
         Parameters
         ----------
         t0 : float
@@ -213,32 +209,32 @@ class Simulator(ABC):
             Parameter values
         u_func : callable, optional
             Function u_func(t) -> dict for time-varying inputs
-        
+
         Returns
         -------
         SimulationResult
             Simulation results
         """
         pass
-    
+
     @property
     @abstractmethod
     def state_names(self) -> List[str]:
         """Names of state variables."""
         pass
-    
+
     @property
     @abstractmethod
     def input_names(self) -> List[str]:
         """Names of input variables."""
         pass
-    
+
     @property
     @abstractmethod
     def output_names(self) -> List[str]:
         """Names of output variables."""
         pass
-    
+
     @property
     @abstractmethod
     def param_names(self) -> List[str]:

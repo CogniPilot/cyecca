@@ -44,6 +44,7 @@ from cyecca.dsl.simulation import SimulationResult, Simulator
 
 class SymbolicType(Enum):
     """CasADi symbolic type selection."""
+
     SX = auto()  # Scalar symbolic - expands arrays, good for small models
     MX = auto()  # Matrix symbolic - keeps array structure, good for large models
 
@@ -51,33 +52,30 @@ class SymbolicType(Enum):
 class CasadiBackend:
     """
     Backend that compiles FlatModel to CasADi functions.
-    
+
     Supports two symbolic types:
     - SX (default): Scalar expressions, uses expanded arrays
     - MX: Matrix expressions, keeps array structure for efficiency
-    
+
     Example
     -------
     >>> model_instance = MyModel()  # doctest: +SKIP
     >>> flat = model_instance.flatten()  # doctest: +SKIP
     >>> compiled = CasadiBackend.compile(flat)  # doctest: +SKIP
     >>> result = compiled.simulate(tf=10.0)  # doctest: +SKIP
-    
+
     For large models with arrays, use MX:
-    
+
     >>> flat_mx = model_instance.flatten(expand_arrays=False)  # doctest: +SKIP
     >>> compiled_mx = CasadiBackend.compile(flat_mx, symbolic_type=SymbolicType.MX)  # doctest: +SKIP
     """
-    
+
     @staticmethod
     @beartype
-    def compile(
-        model: FlatModel, 
-        symbolic_type: SymbolicType = SymbolicType.SX
-    ) -> "CompiledModel":
+    def compile(model: FlatModel, symbolic_type: SymbolicType = SymbolicType.SX) -> "CompiledModel":
         """
         Compile a FlatModel into a CompiledModel with CasADi functions.
-        
+
         Parameters
         ----------
         model : FlatModel
@@ -86,7 +84,7 @@ class CasadiBackend:
             Which CasADi symbolic type to use:
             - SX: Scalar expressions (use with expand_arrays=True)
             - MX: Matrix expressions (use with expand_arrays=False)
-            
+
         Returns
         -------
         CompiledModel
@@ -96,7 +94,7 @@ class CasadiBackend:
             return CasadiBackend._compile_mx(model)
         else:
             return CasadiBackend._compile_sx(model)
-    
+
     @staticmethod
     def _compile_sx(model: FlatModel) -> "CompiledModel":
         """Compile using CasADi SX (scalar symbolic expressions)."""
@@ -105,26 +103,26 @@ class CasadiBackend:
         for name in model.state_names:
             v = model.state_vars[name]
             state_syms[name] = ca.SX.sym(name, v.size) if v.size > 1 else ca.SX.sym(name)
-        
+
         input_syms: Dict[str, ca.SX] = {}
         for name in model.input_names:
             v = model.input_vars[name]
             input_syms[name] = ca.SX.sym(name, v.size) if v.size > 1 else ca.SX.sym(name)
-        
+
         param_syms: Dict[str, ca.SX] = {}
         for name in model.param_names:
             v = model.param_vars[name]
             param_syms[name] = ca.SX.sym(name, v.size) if v.size > 1 else ca.SX.sym(name)
-        
+
         t_sym = ca.SX.sym("t")
-        
+
         # Symbol lookup for expression compilation (NOT including outputs)
         # Outputs will be substituted with their expressions, not used as symbols
         base_syms = {**state_syms, **input_syms, **param_syms}
-        
+
         # Cache for compiled output expressions (to handle interdependent outputs)
         compiled_outputs: Dict[str, ca.SX] = {}
-        
+
         def expr_to_casadi(expr: Expr) -> ca.SX:
             """Recursively convert Expr tree to CasADi expression."""
             if expr.kind == ExprKind.VARIABLE:
@@ -139,116 +137,114 @@ class CasadiBackend:
                     compiled_outputs[expr.name] = out_expr
                     return out_expr
                 raise ValueError(f"Unknown variable: {expr.name}")
-            
+
             elif expr.kind == ExprKind.DERIVATIVE:
                 # For derivatives, we need the corresponding state's derivative symbol
                 # This will be handled when building the xdot vector
                 raise ValueError("DERIVATIVE nodes should not appear in RHS expressions")
-            
+
             elif expr.kind == ExprKind.CONSTANT:
                 return ca.SX(expr.value)
-            
+
             elif expr.kind == ExprKind.TIME:
                 return t_sym
-            
+
             elif expr.kind == ExprKind.NEG:
                 return -expr_to_casadi(expr.children[0])
-            
+
             elif expr.kind == ExprKind.ADD:
                 return expr_to_casadi(expr.children[0]) + expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.SUB:
                 return expr_to_casadi(expr.children[0]) - expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.MUL:
                 return expr_to_casadi(expr.children[0]) * expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.DIV:
                 return expr_to_casadi(expr.children[0]) / expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.POW:
                 return expr_to_casadi(expr.children[0]) ** expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.SIN:
                 return ca.sin(expr_to_casadi(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.COS:
                 return ca.cos(expr_to_casadi(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.TAN:
                 return ca.tan(expr_to_casadi(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ASIN:
                 return ca.asin(expr_to_casadi(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ACOS:
                 return ca.acos(expr_to_casadi(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ATAN:
                 return ca.atan(expr_to_casadi(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ATAN2:
                 return ca.atan2(expr_to_casadi(expr.children[0]), expr_to_casadi(expr.children[1]))
-            
+
             elif expr.kind == ExprKind.SQRT:
                 return ca.sqrt(expr_to_casadi(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.EXP:
                 return ca.exp(expr_to_casadi(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.LOG:
                 return ca.log(expr_to_casadi(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ABS:
                 return ca.fabs(expr_to_casadi(expr.children[0]))
-            
+
             # Relational operators
             elif expr.kind == ExprKind.LT:
                 return expr_to_casadi(expr.children[0]) < expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.LE:
                 return expr_to_casadi(expr.children[0]) <= expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.GT:
                 return expr_to_casadi(expr.children[0]) > expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.GE:
                 return expr_to_casadi(expr.children[0]) >= expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.EQ:
                 return expr_to_casadi(expr.children[0]) == expr_to_casadi(expr.children[1])
-            
+
             elif expr.kind == ExprKind.NE:
                 return expr_to_casadi(expr.children[0]) != expr_to_casadi(expr.children[1])
-            
+
             # Boolean operators
             elif expr.kind == ExprKind.AND:
                 return ca.logic_and(expr_to_casadi(expr.children[0]), expr_to_casadi(expr.children[1]))
-            
+
             elif expr.kind == ExprKind.OR:
                 return ca.logic_or(expr_to_casadi(expr.children[0]), expr_to_casadi(expr.children[1]))
-            
+
             elif expr.kind == ExprKind.NOT:
                 return ca.logic_not(expr_to_casadi(expr.children[0]))
-            
+
             # Conditional expression
             elif expr.kind == ExprKind.IF_THEN_ELSE:
                 return ca.if_else(
-                    expr_to_casadi(expr.children[0]),
-                    expr_to_casadi(expr.children[1]),
-                    expr_to_casadi(expr.children[2])
+                    expr_to_casadi(expr.children[0]), expr_to_casadi(expr.children[1]), expr_to_casadi(expr.children[2])
                 )
-            
+
             elif expr.kind in (ExprKind.PRE, ExprKind.EDGE, ExprKind.CHANGE):
                 raise NotImplementedError(
                     f"Discrete operator '{expr.kind.name.lower()}()' is not yet supported "
                     "in the CasADi backend. Discrete event handling (when-equations) "
                     "will be added in a future version."
                 )
-            
+
             else:
                 raise ValueError(f"Unsupported expression kind: {expr.kind}")
-        
+
         # Build state derivatives vector
         state_derivs: List[ca.SX] = []
         for name in model.state_names:
@@ -260,7 +256,7 @@ class CasadiBackend:
                 v = model.state_vars[name]
                 size = v.size if v.size > 1 else 1
                 state_derivs.append(ca.SX.zeros(size))
-        
+
         # Build output expressions vector
         y_exprs: List[ca.SX] = []
         for name in model.output_names:
@@ -270,28 +266,29 @@ class CasadiBackend:
             else:
                 # No equation for this output - warn and use zero
                 import warnings
+
                 warnings.warn(f"Output '{name}' has no equation, will be zero")
                 v = model.output_vars[name]
                 size = v.size if v.size > 1 else 1
                 y_exprs.append(ca.SX.zeros(size))
-        
+
         # Build CasADi vectors
         state_list = [state_syms[n] for n in model.state_names]
         input_list = [input_syms[n] for n in model.input_names]
         param_list = [param_syms[n] for n in model.param_names]
-        
+
         x = ca.vertcat(*state_list) if state_list else ca.SX.sym("x", 0)
         xdot = ca.vertcat(*state_derivs) if state_derivs else ca.SX.sym("xdot", 0)
         u = ca.vertcat(*input_list) if input_list else ca.SX.sym("u", 0)
         p = ca.vertcat(*param_list) if param_list else ca.SX.sym("p", 0)
         y = ca.vertcat(*y_exprs) if y_exprs else ca.SX.sym("y", 0)
-        
+
         # Create dynamics function f_x(x, u, p, t) -> xdot
         f_x = ca.Function("f_x", [x, u, p, t_sym], [xdot], ["x", "u", "p", "t"], ["xdot"])
-        
+
         # Create output function f_y(x, u, p, t) -> y
         f_y = ca.Function("f_y", [x, u, p, t_sym], [y], ["x", "u", "p", "t"], ["y"]) if y_exprs else None
-        
+
         return CompiledModel(
             name=model.name,
             f_x=f_x,
@@ -309,15 +306,15 @@ class CasadiBackend:
     def _compile_mx(model: FlatModel) -> "CompiledModel":
         """
         Compile using CasADi MX (matrix symbolic expressions).
-        
+
         This method is designed for models with arrays and matrices.
         It keeps the array structure instead of expanding to scalars,
         which is more efficient for large-scale problems.
-        
+
         Use with: model.flatten(expand_arrays=False)
         """
         import math
-        
+
         # Helper to compute size from shape
         def shape_to_size(shape: Tuple[int, ...]) -> int:
             if not shape:
@@ -326,7 +323,7 @@ class CasadiBackend:
             for dim in shape:
                 result *= dim
             return result
-        
+
         # Create CasADi MX symbols for each variable (preserving shape)
         state_syms: Dict[str, ca.MX] = {}
         state_shapes: Dict[str, Tuple[int, ...]] = {}
@@ -337,19 +334,19 @@ class CasadiBackend:
             size = shape_to_size(shape)
             # MX.sym creates column vectors by default
             state_syms[name] = ca.MX.sym(name, size)
-        
+
         input_syms: Dict[str, ca.MX] = {}
         for name in model.input_names:
             v = model.input_vars[name]
             size = shape_to_size(v.shape) if v.shape else 1
             input_syms[name] = ca.MX.sym(name, size)
-        
+
         param_syms: Dict[str, ca.MX] = {}
         for name in model.param_names:
             v = model.param_vars[name]
             size = shape_to_size(v.shape) if v.shape else 1
             param_syms[name] = ca.MX.sym(name, size)
-        
+
         # Algebraic variables (computed from equations, not states)
         algebraic_syms: Dict[str, ca.MX] = {}
         algebraic_shapes: Dict[str, Tuple[int, ...]] = {}
@@ -359,14 +356,14 @@ class CasadiBackend:
             algebraic_shapes[name] = shape
             size = shape_to_size(shape)
             algebraic_syms[name] = ca.MX.sym(name, size)
-        
+
         t_sym = ca.MX.sym("t")
-        
+
         # Symbol lookup for expression compilation
         # Include all variable types
         all_shapes = {**state_shapes, **algebraic_shapes}
         base_syms = {**state_syms, **input_syms, **param_syms, **algebraic_syms}
-        
+
         def expr_to_casadi_mx(expr: Expr) -> ca.MX:
             """Recursively convert Expr tree to CasADi MX expression."""
             if expr.kind == ExprKind.VARIABLE:
@@ -396,133 +393,133 @@ class CasadiBackend:
                                     stride *= shape[i]
                             return sym[flat_idx]
                 raise ValueError(f"Unknown variable: {name}")
-            
+
             elif expr.kind == ExprKind.DERIVATIVE:
                 raise ValueError("DERIVATIVE nodes should not appear in RHS expressions")
-            
+
             elif expr.kind == ExprKind.CONSTANT:
                 return ca.MX(expr.value)
-            
+
             elif expr.kind == ExprKind.TIME:
                 return t_sym
-            
+
             elif expr.kind == ExprKind.NEG:
                 return -expr_to_casadi_mx(expr.children[0])
-            
+
             elif expr.kind == ExprKind.ADD:
                 return expr_to_casadi_mx(expr.children[0]) + expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.SUB:
                 return expr_to_casadi_mx(expr.children[0]) - expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.MUL:
                 return expr_to_casadi_mx(expr.children[0]) * expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.DIV:
                 return expr_to_casadi_mx(expr.children[0]) / expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.POW:
                 return expr_to_casadi_mx(expr.children[0]) ** expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.SIN:
                 return ca.sin(expr_to_casadi_mx(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.COS:
                 return ca.cos(expr_to_casadi_mx(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.TAN:
                 return ca.tan(expr_to_casadi_mx(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ASIN:
                 return ca.asin(expr_to_casadi_mx(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ACOS:
                 return ca.acos(expr_to_casadi_mx(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ATAN:
                 return ca.atan(expr_to_casadi_mx(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ATAN2:
                 return ca.atan2(expr_to_casadi_mx(expr.children[0]), expr_to_casadi_mx(expr.children[1]))
-            
+
             elif expr.kind == ExprKind.SQRT:
                 return ca.sqrt(expr_to_casadi_mx(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.EXP:
                 return ca.exp(expr_to_casadi_mx(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.LOG:
                 return ca.log(expr_to_casadi_mx(expr.children[0]))
-            
+
             elif expr.kind == ExprKind.ABS:
                 return ca.fabs(expr_to_casadi_mx(expr.children[0]))
-            
+
             # Relational operators
             elif expr.kind == ExprKind.LT:
                 return expr_to_casadi_mx(expr.children[0]) < expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.LE:
                 return expr_to_casadi_mx(expr.children[0]) <= expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.GT:
                 return expr_to_casadi_mx(expr.children[0]) > expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.GE:
                 return expr_to_casadi_mx(expr.children[0]) >= expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.EQ:
                 return expr_to_casadi_mx(expr.children[0]) == expr_to_casadi_mx(expr.children[1])
-            
+
             elif expr.kind == ExprKind.NE:
                 return expr_to_casadi_mx(expr.children[0]) != expr_to_casadi_mx(expr.children[1])
-            
+
             # Boolean operators
             elif expr.kind == ExprKind.AND:
                 return ca.logic_and(expr_to_casadi_mx(expr.children[0]), expr_to_casadi_mx(expr.children[1]))
-            
+
             elif expr.kind == ExprKind.OR:
                 return ca.logic_or(expr_to_casadi_mx(expr.children[0]), expr_to_casadi_mx(expr.children[1]))
-            
+
             elif expr.kind == ExprKind.NOT:
                 return ca.logic_not(expr_to_casadi_mx(expr.children[0]))
-            
+
             # Conditional expression
             elif expr.kind == ExprKind.IF_THEN_ELSE:
                 return ca.if_else(
                     expr_to_casadi_mx(expr.children[0]),
                     expr_to_casadi_mx(expr.children[1]),
-                    expr_to_casadi_mx(expr.children[2])
+                    expr_to_casadi_mx(expr.children[2]),
                 )
-            
+
             elif expr.kind in (ExprKind.PRE, ExprKind.EDGE, ExprKind.CHANGE):
                 raise NotImplementedError(
                     f"Discrete operator '{expr.kind.name.lower()}()' is not yet supported "
                     "in the CasADi backend. Discrete event handling (when-equations) "
                     "will be added in a future version."
                 )
-            
+
             else:
                 raise ValueError(f"Unsupported expression kind: {expr.kind}")
-        
+
         def symbolic_var_to_mx(sym_var: SymbolicVar) -> ca.MX:
             """Convert SymbolicVar to CasADi MX."""
             base_name = sym_var.base_name
             if base_name in base_syms:
                 return base_syms[base_name]
             raise ValueError(f"Unknown symbolic variable: {base_name}")
-        
+
         # Build state derivatives vector
         # For MX, we handle both scalar and array equations
         state_derivs: List[ca.MX] = []
-        
+
         for name in model.state_names:
             shape = state_shapes.get(name, ())
             size = shape_to_size(shape)
-            
+
             if name in model.array_derivative_equations:
                 # Array equation: der(pos) = vel (whole array)
                 arr_eq = model.array_derivative_equations[name]
-                rhs = arr_eq['rhs']
+                rhs = arr_eq["rhs"]
                 # The RHS is a SymbolicVar - get its MX symbol
                 state_derivs.append(symbolic_var_to_mx(rhs))
             elif name in model.derivative_equations:
@@ -551,29 +548,29 @@ class CasadiBackend:
                                 if i > 0:
                                     stride *= shape[i]
                         deriv_vec[flat_idx] = expr_to_casadi_mx(deriv_expr)
-                
+
                 if has_any:
                     state_derivs.append(deriv_vec)
                 else:
                     # No equations at all - use zeros
                     state_derivs.append(ca.MX.zeros(size))
-        
+
         # Build CasADi vectors
         state_list = [state_syms[n] for n in model.state_names]
         input_list = [input_syms[n] for n in model.input_names]
         param_list = [param_syms[n] for n in model.param_names]
-        
+
         x = ca.vertcat(*state_list) if state_list else ca.MX.sym("x", 0)
         xdot = ca.vertcat(*state_derivs) if state_derivs else ca.MX.sym("xdot", 0)
         u = ca.vertcat(*input_list) if input_list else ca.MX.sym("u", 0)
         p = ca.vertcat(*param_list) if param_list else ca.MX.sym("p", 0)
-        
+
         # Create dynamics function f_x(x, u, p, t) -> xdot
         f_x = ca.Function("f_x", [x, u, p, t_sym], [xdot], ["x", "u", "p", "t"], ["xdot"])
-        
+
         # TODO: Handle output equations for MX
         f_y = None
-        
+
         return CompiledModel(
             name=model.name,
             f_x=f_x,
@@ -611,15 +608,15 @@ class CompiledModel(Simulator):
     @property
     def state_names(self) -> List[str]:
         return self._state_names
-    
+
     @property
     def input_names(self) -> List[str]:
         return self._input_names
-    
+
     @property
     def output_names(self) -> List[str]:
         return self._output_names
-    
+
     @property
     def param_names(self) -> List[str]:
         return self._param_names
@@ -721,7 +718,7 @@ class CompiledModel(Simulator):
                     u_vec[j] = u_dict.get(name, u_const[j])
             else:
                 u_vec = u_const
-            
+
             # Record input
             if u_hist is not None:
                 u_hist[i] = u_vec
@@ -763,7 +760,7 @@ class CompiledModel(Simulator):
                 else:
                     u_vec = u_const
                 y_hist[i] = np.array(self.f_y(x_hist[i], u_vec, p, ti)).flatten()
-            
+
             for j, name in enumerate(self._output_names):
                 outputs[name] = y_hist[:, j]
 

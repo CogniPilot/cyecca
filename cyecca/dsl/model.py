@@ -70,30 +70,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import (
-    Any,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Any, Dict, Generator, List, Optional, Tuple, Type, Union
 
 import numpy as np
 from beartype import beartype
 
-from cyecca.dsl.types import (
-    DType,
-    Indices,
-    Shape,
-    Var,
-    VarKind,
-    NumericValue,
-    SubmodelField,
-)
-
+from cyecca.dsl.types import DType, Indices, NumericValue, Shape, SubmodelField, Var, VarKind
 
 # =============================================================================
 # Expression Tree - Abstract Symbolic Representation
@@ -102,46 +84,47 @@ from cyecca.dsl.types import (
 
 class ExprKind(Enum):
     """Kinds of expression nodes."""
+
     # Leaf nodes
-    VARIABLE = auto()      # Named variable (state, param, input, etc.)
-    DERIVATIVE = auto()    # der(x) - derivative of a variable
-    CONSTANT = auto()      # Numeric constant
-    TIME = auto()          # Time variable t
-    
+    VARIABLE = auto()  # Named variable (state, param, input, etc.)
+    DERIVATIVE = auto()  # der(x) - derivative of a variable
+    CONSTANT = auto()  # Numeric constant
+    TIME = auto()  # Time variable t
+
     # Unary operations
-    NEG = auto()           # -x
-    NOT = auto()           # not x (Boolean negation)
-    
-    # Binary arithmetic operations  
-    ADD = auto()           # x + y
-    SUB = auto()           # x - y
-    MUL = auto()           # x * y
-    DIV = auto()           # x / y
-    POW = auto()           # x ** y
-    
+    NEG = auto()  # -x
+    NOT = auto()  # not x (Boolean negation)
+
+    # Binary arithmetic operations
+    ADD = auto()  # x + y
+    SUB = auto()  # x - y
+    MUL = auto()  # x * y
+    DIV = auto()  # x / y
+    POW = auto()  # x ** y
+
     # Relational operations (Modelica MLS 3.5)
-    LT = auto()            # x < y
-    LE = auto()            # x <= y
-    GT = auto()            # x > y
-    GE = auto()            # x >= y
-    EQ = auto()            # x == y (equality test, not equation)
-    NE = auto()            # x != y (or x <> y in Modelica)
-    
+    LT = auto()  # x < y
+    LE = auto()  # x <= y
+    GT = auto()  # x > y
+    GE = auto()  # x >= y
+    EQ = auto()  # x == y (equality test, not equation)
+    NE = auto()  # x != y (or x <> y in Modelica)
+
     # Boolean operations (Modelica MLS 3.5)
-    AND = auto()           # x and y
-    OR = auto()            # x or y
-    
+    AND = auto()  # x and y
+    OR = auto()  # x or y
+
     # Conditional expression (Modelica MLS 3.6.5)
     IF_THEN_ELSE = auto()  # if cond then expr1 else expr2
-    
+
     # Array operations
-    INDEX = auto()         # x[i] - array indexing (stores index in 'value' field)
-    
+    INDEX = auto()  # x[i] - array indexing (stores index in 'value' field)
+
     # Discrete/event operators (Modelica MLS 3.8)
-    PRE = auto()           # pre(x) - previous value of discrete variable
-    EDGE = auto()          # edge(x) - True when x changes from False to True
-    CHANGE = auto()        # change(x) - True when x changes value
-    
+    PRE = auto()  # pre(x) - previous value of discrete variable
+    EDGE = auto()  # edge(x) - True when x changes from False to True
+    CHANGE = auto()  # change(x) - True when x changes value
+
     # Math functions
     SIN = auto()
     COS = auto()
@@ -160,22 +143,23 @@ class ExprKind(Enum):
 class Expr:
     """
     Immutable expression tree node.
-    
+
     Represents symbolic mathematical expressions that can be compiled
     to different backends (CasADi, JAX, NumPy, etc.).
-    
+
     This is the core abstraction that makes the DSL backend-agnostic.
-    The DSL builds expression trees, and backends compile them to 
+    The DSL builds expression trees, and backends compile them to
     executable functions.
-    
+
     For indexed variables, use VARIABLE kind with indices set.
     """
+
     kind: ExprKind
     children: Tuple["Expr", ...] = ()
-    name: Optional[str] = None       # For VARIABLE, DERIVATIVE
-    value: Optional[float] = None    # For CONSTANT
-    indices: Indices = ()            # For indexed VARIABLE: (i,), (i,j), etc.
-    
+    name: Optional[str] = None  # For VARIABLE, DERIVATIVE
+    value: Optional[float] = None  # For CONSTANT
+    indices: Indices = ()  # For indexed VARIABLE: (i,), (i,j), etc.
+
     def __repr__(self) -> str:
         if self.kind == ExprKind.VARIABLE:
             if self.indices:
@@ -203,9 +187,18 @@ class Expr:
         elif self.kind == ExprKind.INDEX:
             # Legacy INDEX kind - prefer using VARIABLE with indices
             return f"{self.name}[{int(self.value)}]"
-        elif self.kind in (ExprKind.SIN, ExprKind.COS, ExprKind.TAN,
-                          ExprKind.ASIN, ExprKind.ACOS, ExprKind.ATAN,
-                          ExprKind.SQRT, ExprKind.EXP, ExprKind.LOG, ExprKind.ABS):
+        elif self.kind in (
+            ExprKind.SIN,
+            ExprKind.COS,
+            ExprKind.TAN,
+            ExprKind.ASIN,
+            ExprKind.ACOS,
+            ExprKind.ATAN,
+            ExprKind.SQRT,
+            ExprKind.EXP,
+            ExprKind.LOG,
+            ExprKind.ABS,
+        ):
             return f"{self.kind.name.lower()}({self.children[0]})"
         elif self.kind == ExprKind.ATAN2:
             return f"atan2({self.children[0]}, {self.children[1]})"
@@ -236,7 +229,7 @@ class Expr:
         elif self.kind == ExprKind.IF_THEN_ELSE:
             return f"(if {self.children[0]} then {self.children[1]} else {self.children[2]})"
         return f"Expr({self.kind})"
-    
+
     @property
     def indexed_name(self) -> str:
         """Get the full name including indices: 'x' or 'x[0,1]'."""
@@ -244,54 +237,54 @@ class Expr:
             idx_str = ",".join(str(i) for i in self.indices)
             return f"{self.name}[{idx_str}]"
         return self.name or ""
-    
+
     # Arithmetic operators - return new Expr nodes
     def __add__(self, other: Any) -> "Expr":
         return Expr(ExprKind.ADD, (self, _to_expr(other)))
-    
+
     def __radd__(self, other: Any) -> "Expr":
         return Expr(ExprKind.ADD, (_to_expr(other), self))
-    
+
     def __sub__(self, other: Any) -> "Expr":
         return Expr(ExprKind.SUB, (self, _to_expr(other)))
-    
+
     def __rsub__(self, other: Any) -> "Expr":
         return Expr(ExprKind.SUB, (_to_expr(other), self))
-    
+
     def __mul__(self, other: Any) -> "Expr":
         return Expr(ExprKind.MUL, (self, _to_expr(other)))
-    
+
     def __rmul__(self, other: Any) -> "Expr":
         return Expr(ExprKind.MUL, (_to_expr(other), self))
-    
+
     def __truediv__(self, other: Any) -> "Expr":
         return Expr(ExprKind.DIV, (self, _to_expr(other)))
-    
+
     def __rtruediv__(self, other: Any) -> "Expr":
         return Expr(ExprKind.DIV, (_to_expr(other), self))
-    
+
     def __pow__(self, other: Any) -> "Expr":
         return Expr(ExprKind.POW, (self, _to_expr(other)))
-    
+
     def __rpow__(self, other: Any) -> "Expr":
         return Expr(ExprKind.POW, (_to_expr(other), self))
-    
+
     def __neg__(self) -> "Expr":
         return Expr(ExprKind.NEG, (self,))
-    
+
     def __pos__(self) -> "Expr":
         return self
-    
+
     # Relational operators - return Boolean Expr
     def __lt__(self, other: Any) -> "Expr":
         return Expr(ExprKind.LT, (self, _to_expr(other)))
-    
+
     def __le__(self, other: Any) -> "Expr":
         return Expr(ExprKind.LE, (self, _to_expr(other)))
-    
+
     def __gt__(self, other: Any) -> "Expr":
         return Expr(ExprKind.GT, (self, _to_expr(other)))
-    
+
     def __ge__(self, other: Any) -> "Expr":
         return Expr(ExprKind.GE, (self, _to_expr(other)))
 
@@ -308,7 +301,7 @@ def _to_expr(x: Any) -> Expr:
     if isinstance(x, TimeVar):
         return x._expr
     # Check for AlgorithmVar by attribute (defined later in file)
-    if hasattr(x, '_expr') and hasattr(x, '_name') and type(x).__name__ == 'AlgorithmVar':
+    if hasattr(x, "_expr") and hasattr(x, "_name") and type(x).__name__ == "AlgorithmVar":
         return x._expr
     if isinstance(x, (int, float)):
         return Expr(ExprKind.CONSTANT, value=float(x))
@@ -321,27 +314,27 @@ def _to_expr(x: Any) -> Expr:
 def _find_derivatives(expr: Expr) -> set[str]:
     """
     Find all variable names whose derivative (der) appears in an expression.
-    
+
     This is used for automatic state detection: if der(x) appears anywhere
     in the equations, then x is a state variable.
-    
+
     For indexed variables like der(pos[0]), returns "pos[0]".
     """
     result: set[str] = set()
-    
+
     if expr.kind == ExprKind.DERIVATIVE and expr.name:
         result.add(expr.name)
-    
+
     for child in expr.children:
         result.update(_find_derivatives(child))
-    
+
     return result
 
 
 def _prefix_expr(expr: Expr, prefix: str) -> Expr:
     """
     Create a new Expr with all variable names prefixed.
-    
+
     This is used when flattening submodels to give all variables
     their fully qualified names (e.g., 'x' -> 'spring.x').
     """
@@ -376,19 +369,19 @@ def _prefix_expr(expr: Expr, prefix: str) -> Expr:
 @beartype
 def _get_base_name(name: str) -> str:
     """Extract base name from indexed name: 'pos[0,1]' -> 'pos'."""
-    if '[' in name:
-        return name.split('[')[0]
+    if "[" in name:
+        return name.split("[")[0]
     return name
 
 
 @beartype
 def _parse_indices(name: str) -> Tuple[str, Indices]:
     """Parse indexed name: 'pos[0,1]' -> ('pos', (0, 1))."""
-    if '[' not in name:
+    if "[" not in name:
         return name, ()
-    base = name.split('[')[0]
-    idx_str = name.split('[')[1].rstrip(']')
-    indices = tuple(int(i) for i in idx_str.split(','))
+    base = name.split("[")[0]
+    idx_str = name.split("[")[1].rstrip("]")
+    indices = tuple(int(i) for i in idx_str.split(","))
     return base, indices
 
 
@@ -407,6 +400,7 @@ def _iter_indices(shape: Shape) -> Generator[Indices, None, None]:
         yield ()
         return
     import itertools
+
     for idx in itertools.product(*(range(dim) for dim in shape)):
         yield idx
 
@@ -416,7 +410,7 @@ def _is_array_state(name: str, shape: Shape, derivatives_used: set[str]) -> bool
     """
     Check if an array variable is a state by checking if any element's
     derivative is used.
-    
+
     For a variable 'pos' with shape=(3,), checks if 'pos[0]', 'pos[1]', or 'pos[2]'
     appear in derivatives_used.
     """
@@ -459,11 +453,11 @@ def var(
 ) -> Var:
     """
     Declare a variable in a Cyecca model.
-    
+
     This is the unified way to declare all types of variables. The classification
     (state, algebraic, parameter, input, output) is determined automatically based
     on the flags and equation analysis.
-    
+
     Parameters
     ----------
     default : float or array, optional
@@ -487,13 +481,13 @@ def var(
         Maximum bound for the variable (only for REAL/INTEGER)
     nominal : float, optional
         Nominal value for scaling (only for REAL)
-        
+
     Variability/Causality Prefixes (Modelica-style)
     ------------------------------------------------
     These are Modelica prefixes that indicate how the variable interfaces
     with the outside world. In Modelica, these are just prefixes on variables,
     NOT separate equation categories.
-    
+
     parameter : bool, optional
         If True, variable is constant during simulation (can change between runs)
     discrete : bool, optional
@@ -505,20 +499,20 @@ def var(
         If True, variable value is computed internally and exposed (causality: output)
     constant : bool, optional
         If True, variable is a compile-time constant
-        
+
     Visibility (Modelica-style)
     ---------------------------
     protected : bool, optional
         If True, variable is in the protected section (internal implementation).
         Protected variables are not part of the public interface.
         For blocks, only public (non-protected) variables must have input/output.
-        
+
     Automatic Classification
     ------------------------
     If none of the flags are True:
     - If der(var) appears in equations → state variable
     - Otherwise → algebraic variable
-    
+
     Examples
     --------
     >>> @model
@@ -526,28 +520,28 @@ def var(
     ...     # Parameters (constant during simulation)
     ...     g = var(9.81, parameter=True, unit="m/s^2")
     ...     l = var(1.0, parameter=True, min=0.1)
-    ...     
-    ...     # State variables (der() used in equations)  
+    ...
+    ...     # State variables (der() used in equations)
     ...     theta = var(start=0.5, fixed=True)
     ...     omega = var(start=0, min=-100, max=100)
-    ...     
+    ...
     ...     # Vector state (3D position and velocity)
     ...     pos = var(shape=(3,))
     ...     vel = var(shape=(3,))
-    ...     
+    ...
     ...     # Matrix parameter (rotation)
     ...     R = var(shape=(3, 3), parameter=True)
-    ...     
+    ...
     ...     # Outputs (computed, exposed)
     ...     x = var(output=True)
     ...     y = var(output=True)
-    ...     
+    ...
     ...     # Inputs (externally controlled)
     ...     torque = var(input=True, min=-10, max=10)
-    ...     
+    ...
     ...     # Integer variable
     ...     mode = var(0, dtype=DType.INTEGER, parameter=True)
-    ...     
+    ...
     ...     # Boolean variable
     ...     enabled = var(True, dtype=DType.BOOLEAN, parameter=True)
     """
@@ -600,10 +594,11 @@ def submodel(model_class: Type) -> SubmodelField:
 class Equation:
     """
     Represents an equation: lhs == rhs.
-    
+
     Immutable representation of a model equation that can be processed
     by backends for compilation.
     """
+
     lhs: Expr
     rhs: Expr
     is_derivative: bool = False  # True if LHS is der(x)
@@ -611,7 +606,7 @@ class Equation:
 
     def __repr__(self) -> str:
         return f"Eq({self.lhs} == {self.rhs})"
-    
+
     def _prefix_names(self, prefix: str) -> "Equation":
         """Create a new equation with all variable names prefixed."""
         new_lhs = _prefix_expr(self.lhs, prefix)
@@ -629,21 +624,22 @@ class Equation:
 class Assignment:
     """
     Represents an algorithm assignment: var := expr.
-    
+
     Unlike equations (which are declarative and can be solved in any order),
     assignments are imperative and executed in sequence.
-    
+
     In Modelica, assignments use := operator (vs == for equations).
     In this DSL, use the assign() function or <<= operator in algorithm sections.
-    
+
     Assignments can target:
     - Model variables (m.x := expr)
     - Local algorithm variables (temp := expr)
     """
-    target: str           # Variable name being assigned
-    expr: Expr            # Right-hand side expression
+
+    target: str  # Variable name being assigned
+    expr: Expr  # Right-hand side expression
     is_local: bool = False  # True if target is a local algorithm variable
-    
+
     def __repr__(self) -> str:
         return f"Assign({self.target} := {self.expr})"
 
@@ -661,14 +657,14 @@ class SymbolicVar:
 
     Wraps an Expr and supports arithmetic operations.
     This is the user-facing object accessed via self.x in equations.
-    
+
     Unified representation for both:
     - Base variables: shape=(), indices=() for scalar; shape=(3,), indices=() for vector
     - Indexed elements: shape=(3,), indices=(0,) for first element of vector
-    
+
     For array variables, supports N-dimensional indexing:
         x[0]      - 1D indexing
-        x[0, 1]   - 2D indexing  
+        x[0, 1]   - 2D indexing
         x[0, 1, 2] - 3D indexing
     """
 
@@ -684,17 +680,17 @@ class SymbolicVar:
         self._model = model
         self._shape = var.shape
         self._indices = indices
-        
+
         # Compute effective shape after indexing
         # e.g., shape=(3,3), indices=(0,) -> remaining_shape=(3,)
-        self._remaining_shape = self._shape[len(indices):]
-        
+        self._remaining_shape = self._shape[len(indices) :]
+
         # Build the expression
         self._expr = Expr(ExprKind.VARIABLE, name=name, indices=indices)
-        
+
         # Full name including indices
         self._name = name + _format_indices(indices)
-        
+
         # Cache for indexed elements
         self._indexed_cache: Dict[Indices, "SymbolicVar"] = {}
 
@@ -702,59 +698,59 @@ class SymbolicVar:
     def name(self) -> str:
         """The variable name including indices (for use with SimulationResult)."""
         return self._name
-    
+
     @property
     def base_name(self) -> str:
         """The base variable name without indices."""
         return self._base_name
-    
+
     @property
     def shape(self) -> Shape:
         """The original shape of the variable."""
         return self._shape
-    
+
     @property
     def remaining_shape(self) -> Shape:
         """The remaining shape after current indexing."""
         return self._remaining_shape
-    
+
     @property
     def indices(self) -> Indices:
         """Current indices applied to this variable."""
         return self._indices
-    
+
     @property
     def size(self) -> int:
         """Total number of scalar elements."""
         return self._var.size
-    
-    @property 
+
+    @property
     def ndim(self) -> int:
         """Number of remaining dimensions."""
         return len(self._remaining_shape)
-    
+
     def is_scalar(self) -> bool:
         """Return True if fully indexed to a scalar."""
         return self._remaining_shape == ()
 
     def __repr__(self) -> str:
         return self._name
-    
+
     def __getitem__(self, index: Union[int, Indices]) -> "SymbolicVar":
         """
         Index into an array variable (N-dimensional).
-        
+
         Parameters
         ----------
         index : int or tuple of int
             Index or indices into the array.
             x[0] for 1D, x[0, 1] for 2D, etc.
-            
+
         Returns
         -------
         SymbolicVar
             Symbolic representation of x[index] or x[i,j,...]
-            
+
         Raises
         ------
         IndexError
@@ -769,26 +765,24 @@ class SymbolicVar:
             new_indices = index
         else:
             raise TypeError(f"Index must be int or tuple, got {type(index).__name__}")
-        
+
         # Check we have dimensions to index
         if len(new_indices) > len(self._remaining_shape):
             raise TypeError(
                 f"Too many indices for '{self._name}': got {len(new_indices)}, "
                 f"but remaining dimensions is {len(self._remaining_shape)}"
             )
-        
+
         # Validate each index
         for i, (idx, dim) in enumerate(zip(new_indices, self._remaining_shape)):
             if not isinstance(idx, int):
                 raise TypeError(f"Index {i} must be an integer, got {type(idx).__name__}")
             if idx < 0 or idx >= dim:
-                raise IndexError(
-                    f"Index {idx} out of bounds for dimension {i} of '{self._name}' with size {dim}"
-                )
-        
+                raise IndexError(f"Index {idx} out of bounds for dimension {i} of '{self._name}' with size {dim}")
+
         # Combine with existing indices
         full_indices = self._indices + new_indices
-        
+
         # Use cache
         if full_indices not in self._indexed_cache:
             self._indexed_cache[full_indices] = SymbolicVar(
@@ -797,15 +791,15 @@ class SymbolicVar:
                 model=self._model,
                 indices=full_indices,
             )
-        
+
         return self._indexed_cache[full_indices]
-    
+
     def __len__(self) -> int:
         """Return the size of the first remaining dimension."""
         if not self._remaining_shape:
             raise TypeError(f"Scalar variable '{self._name}' has no length")
         return self._remaining_shape[0]
-    
+
     def __iter__(self):
         """Iterate over the first remaining dimension."""
         if not self._remaining_shape:
@@ -848,33 +842,33 @@ class SymbolicVar:
         return -self._expr
 
     def __pow__(self, other: Any) -> Expr:
-        return self._expr ** other
-    
+        return self._expr**other
+
     # Relational operators - return Boolean Expr
     def __lt__(self, other: Any) -> Expr:
         return self._expr < other
-    
+
     def __le__(self, other: Any) -> Expr:
         return self._expr <= other
-    
+
     def __gt__(self, other: Any) -> Expr:
         return self._expr > other
-    
+
     def __ge__(self, other: Any) -> Expr:
         return self._expr >= other
-    
+
     # Assignment operator for algorithm sections
     def __matmul__(self, other: Any) -> "Assignment":
         """
         Assignment operator for algorithm sections: m.x @ expr
-        
+
         This creates an Assignment object that can be yielded in algorithm().
         The @ operator is used because := is not valid Python syntax for this,
         and @ is free since we use * for matrix multiplication (like Modelica).
-        
+
         Note: We use @ (not @=) because augmented assignment is a statement,
         not an expression, so it can't be used with yield.
-        
+
         Example
         -------
         >>> def algorithm(m):
@@ -923,13 +917,13 @@ class DerivativeExpr:
 
 class TimeVar:
     """Represents the time variable t."""
-    
+
     def __init__(self) -> None:
         self._expr = Expr(ExprKind.TIME)
-    
+
     def __repr__(self) -> str:
         return "t"
-    
+
     # Arithmetic operations
     def __add__(self, other: Any) -> Expr:
         return self._expr + other
@@ -964,20 +958,20 @@ class TimeVar:
 class ArrayDerivativeExpr:
     """
     Represents der(x) for an array variable with remaining dimensions.
-    
+
     When used in an equation like `der(pos) == vel`, this expands to
     multiple scalar equations during flattening.
     """
-    
+
     def __init__(self, var: SymbolicVar):
         self._var = var
         self._base_name = var._base_name
         self._indices = var._indices
         self._remaining_shape = var._remaining_shape
-    
+
     def __repr__(self) -> str:
         return f"der({self._var._name})"
-    
+
     def __eq__(self, other: Any) -> "ArrayEquation":  # type: ignore[override]
         """Capture array equation: der(pos) == vel."""
         return ArrayEquation(
@@ -985,7 +979,7 @@ class ArrayDerivativeExpr:
             rhs=other,
             is_derivative=True,
         )
-    
+
     def __getitem__(self, index: Union[int, Indices]) -> "DerivativeExpr":
         """Allow der(pos)[i] syntax as alternative to der(pos[i])."""
         indexed_var = self._var[index]
@@ -999,37 +993,38 @@ class ArrayDerivativeExpr:
 class ArrayEquation:
     """
     Represents an array equation that expands to multiple scalar equations.
-    
+
     For example: der(pos) == vel with shape=(3,) expands to:
         der(pos[0]) == vel[0]
         der(pos[1]) == vel[1]
         der(pos[2]) == vel[2]
-        
+
     For 2D arrays with shape=(2,3):
         der(pos[0,0]) == vel[0,0]
         der(pos[0,1]) == vel[0,1]
         ...
     """
+
     lhs_var: SymbolicVar  # The LHS array variable
-    rhs: Any              # The RHS (could be SymbolicVar, Expr, etc.)
+    rhs: Any  # The RHS (could be SymbolicVar, Expr, etc.)
     is_derivative: bool = False
-    
+
     def expand(self) -> List[Equation]:
         """Expand array equation to scalar equations."""
         remaining_shape = self.lhs_var._remaining_shape
         base_indices = self.lhs_var._indices
         equations = []
-        
+
         for rel_indices in _iter_indices(remaining_shape):
             full_indices = base_indices + rel_indices
             indexed_name = self.lhs_var._base_name + _format_indices(full_indices)
-            
+
             # Create LHS for this element
             if self.is_derivative:
                 lhs = Expr(ExprKind.DERIVATIVE, name=indexed_name)
             else:
                 lhs = Expr(ExprKind.VARIABLE, name=self.lhs_var._base_name, indices=full_indices)
-            
+
             # Create RHS for this element
             if isinstance(self.rhs, SymbolicVar):
                 if self.rhs._remaining_shape != remaining_shape:
@@ -1048,7 +1043,7 @@ class ArrayEquation:
                 rhs = self.rhs
             else:
                 raise TypeError(f"Cannot expand array equation with RHS type {type(self.rhs)}")
-            
+
             eq = Equation(
                 lhs=lhs,
                 rhs=rhs,
@@ -1056,9 +1051,9 @@ class ArrayEquation:
                 var_name=indexed_name if self.is_derivative else None,
             )
             equations.append(eq)
-        
+
         return equations
-    
+
     def __repr__(self) -> str:
         prefix = "der(" if self.is_derivative else ""
         suffix = ")" if self.is_derivative else ""
@@ -1069,26 +1064,26 @@ class ArrayEquation:
 def der(var: SymbolicVar) -> Union[DerivativeExpr, ArrayDerivativeExpr]:
     """
     Return the derivative of a state variable.
-    
+
     This is a free function for use in equations. Works with both scalar
     and array variables:
-    
+
         def equations(m):
             yield der(m.theta) == m.omega      # Scalar
             yield der(m.pos) == m.vel          # Array (element-wise)
             yield der(m.pos[0]) == m.vel[0]    # Single element
             yield der(m.R[0,0]) == m.R_dot[0,0]  # Matrix element
-    
+
     Parameters
     ----------
     var : SymbolicVar
         The state variable (scalar or array, possibly indexed)
-    
+
     Returns
     -------
     DerivativeExpr or ArrayDerivativeExpr
         An expression representing the derivative
-    
+
     Example
     -------
     >>> @model
@@ -1109,7 +1104,7 @@ def der(var: SymbolicVar) -> Union[DerivativeExpr, ArrayDerivativeExpr]:
     """
     if not isinstance(var, SymbolicVar):
         raise TypeError(f"der() expects a SymbolicVar, got {type(var)}")
-    
+
     if var.is_scalar():
         # Fully indexed or scalar variable
         return DerivativeExpr(var._name)
@@ -1127,21 +1122,21 @@ def der(var: SymbolicVar) -> Union[DerivativeExpr, ArrayDerivativeExpr]:
 def pre(var: SymbolicVar) -> Expr:
     """
     Return the previous value of a discrete variable.
-    
+
     In Modelica, pre(x) returns the value of x at the previous event instant.
     This is only valid for discrete variables (variables with discrete=True
     or variables assigned in when-equations).
-    
+
     Parameters
     ----------
     var : SymbolicVar
         A discrete variable
-    
+
     Returns
     -------
     Expr
         An expression representing pre(var)
-    
+
     Example
     -------
     >>> @model
@@ -1164,19 +1159,19 @@ def pre(var: SymbolicVar) -> Expr:
 def edge(var: SymbolicVar) -> Expr:
     """
     Return True when a Boolean variable changes from False to True.
-    
+
     Equivalent to: `var and not pre(var)`
-    
+
     Parameters
     ----------
     var : SymbolicVar
         A Boolean discrete variable
-    
+
     Returns
     -------
     Expr
         An expression representing edge(var)
-    
+
     Example
     -------
     >>> @model
@@ -1199,19 +1194,19 @@ def edge(var: SymbolicVar) -> Expr:
 def change(var: SymbolicVar) -> Expr:
     """
     Return True when a variable changes its value.
-    
+
     Equivalent to: `var != pre(var)`
-    
+
     Parameters
     ----------
     var : SymbolicVar
         A discrete variable
-    
+
     Returns
     -------
     Expr
         An expression representing change(var)
-    
+
     Example
     -------
     >>> @model
@@ -1241,22 +1236,22 @@ def change(var: SymbolicVar) -> Expr:
 def and_(a: Any, b: Any) -> Expr:
     """
     Logical AND of two Boolean expressions.
-    
+
     Since Python's `and` keyword cannot be overloaded, use this function
     for Boolean conjunction in model equations.
-    
+
     Parameters
     ----------
     a : Expr or SymbolicVar or bool
         First Boolean operand
     b : Expr or SymbolicVar or bool
         Second Boolean operand
-    
+
     Returns
     -------
     Expr
         Boolean expression representing `a and b`
-    
+
     Example
     -------
     >>> @model
@@ -1276,22 +1271,22 @@ def and_(a: Any, b: Any) -> Expr:
 def or_(a: Any, b: Any) -> Expr:
     """
     Logical OR of two Boolean expressions.
-    
+
     Since Python's `or` keyword cannot be overloaded, use this function
     for Boolean disjunction in model equations.
-    
+
     Parameters
     ----------
     a : Expr or SymbolicVar or bool
         First Boolean operand
     b : Expr or SymbolicVar or bool
         Second Boolean operand
-    
+
     Returns
     -------
     Expr
         Boolean expression representing `a or b`
-    
+
     Example
     -------
     >>> @model
@@ -1310,20 +1305,20 @@ def or_(a: Any, b: Any) -> Expr:
 def not_(a: Any) -> Expr:
     """
     Logical NOT of a Boolean expression.
-    
+
     Since Python's `not` keyword cannot be overloaded, use this function
     for Boolean negation in model equations.
-    
+
     Parameters
     ----------
     a : Expr or SymbolicVar or bool
         Boolean operand
-    
+
     Returns
     -------
     Expr
         Boolean expression representing `not a`
-    
+
     Example
     -------
     >>> @model
@@ -1346,10 +1341,10 @@ def not_(a: Any) -> Expr:
 def if_then_else(condition: Any, then_expr: Any, else_expr: Any) -> Expr:
     """
     Conditional expression: if condition then then_expr else else_expr.
-    
+
     This is the Modelica if-expression (MLS 3.6.5). Unlike if-statements,
     if-expressions always return a value and both branches must be provided.
-    
+
     Parameters
     ----------
     condition : Expr or SymbolicVar or bool
@@ -1358,12 +1353,12 @@ def if_then_else(condition: Any, then_expr: Any, else_expr: Any) -> Expr:
         Value if condition is True
     else_expr : Expr or SymbolicVar or numeric
         Value if condition is False
-    
+
     Returns
     -------
     Expr
         Conditional expression
-    
+
     Example
     -------
     >>> @model
@@ -1380,16 +1375,13 @@ def if_then_else(condition: Any, then_expr: Any, else_expr: Any) -> Expr:
     ...             m.limit,
     ...             if_then_else(raw < -m.limit, -m.limit, raw)
     ...         )
-    
+
     Notes
     -----
     For smooth simulation, consider using smooth conditional functions
     like `smooth_if` (not yet implemented) to avoid discontinuities.
     """
-    return Expr(
-        ExprKind.IF_THEN_ELSE,
-        (_to_expr(condition), _to_expr(then_expr), _to_expr(else_expr))
-    )
+    return Expr(ExprKind.IF_THEN_ELSE, (_to_expr(condition), _to_expr(then_expr), _to_expr(else_expr)))
 
 
 # =============================================================================
@@ -1400,10 +1392,10 @@ def if_then_else(condition: Any, then_expr: Any, else_expr: Any) -> Expr:
 class AlgorithmVar:
     """
     Local variable for use in algorithm sections.
-    
+
     Algorithm sections can define local variables that exist only within
     the algorithm block. These are created using the `local()` function.
-    
+
     Example
     -------
     >>> def algorithm(m):  # doctest: +SKIP
@@ -1411,23 +1403,23 @@ class AlgorithmVar:
     ...     yield temp @ (m.x * 2)
     ...     yield m.y @ (temp + 1)
     """
-    
+
     def __init__(self, name: str):
         self._name = name
         self._expr = Expr(ExprKind.VARIABLE, name=name)
-    
+
     @property
     def name(self) -> str:
         return self._name
-    
+
     def __repr__(self) -> str:
         return f"local({self._name})"
-    
+
     # Assignment operator
     def __matmul__(self, other: Any) -> Assignment:
         """Create an assignment: local_var @ expr"""
         return Assignment(target=self._name, expr=_to_expr(other), is_local=True)
-    
+
     # Arithmetic operators - return Expr
     def __add__(self, other: Any) -> Expr:
         return self._expr + other
@@ -1457,18 +1449,18 @@ class AlgorithmVar:
         return -self._expr
 
     def __pow__(self, other: Any) -> Expr:
-        return self._expr ** other
-    
+        return self._expr**other
+
     # Relational operators
     def __lt__(self, other: Any) -> Expr:
         return self._expr < other
-    
+
     def __le__(self, other: Any) -> Expr:
         return self._expr <= other
-    
+
     def __gt__(self, other: Any) -> Expr:
         return self._expr > other
-    
+
     def __ge__(self, other: Any) -> Expr:
         return self._expr >= other
 
@@ -1477,21 +1469,21 @@ class AlgorithmVar:
 def local(name: str) -> AlgorithmVar:
     """
     Create a local variable for use in algorithm sections.
-    
+
     Local variables are temporary variables that exist only within
     an algorithm block. They are useful for storing intermediate
     calculations.
-    
+
     Parameters
     ----------
     name : str
         Name of the local variable (for debugging/display)
-    
+
     Returns
     -------
     AlgorithmVar
         A local variable that can be assigned and used in expressions
-    
+
     Example
     -------
     >>> @model
@@ -1508,25 +1500,25 @@ def local(name: str) -> AlgorithmVar:
     return AlgorithmVar(name)
 
 
-@beartype  
+@beartype
 def assign(target: Union[SymbolicVar, AlgorithmVar, str], value: Any) -> Assignment:
     """
     Create an assignment for algorithm sections.
-    
+
     This is an alternative to the @ operator for creating assignments.
-    
+
     Parameters
     ----------
     target : SymbolicVar, AlgorithmVar, or str
         The variable to assign to
     value : Any
         The value to assign (will be converted to Expr)
-    
+
     Returns
     -------
     Assignment
         An assignment that can be yielded in algorithm()
-    
+
     Example
     -------
     >>> def algorithm(m):
@@ -1666,22 +1658,22 @@ class ModelInstance:
     def algorithm(m) -> Generator[Assignment, None, None]:
         """
         Override this method to define algorithm sections.
-        
+
         Algorithm sections contain imperative assignments that are executed
         in order, unlike equations which are declarative. Use @ for assignments.
-        
+
         Algorithm sections are useful for:
         - Computing intermediate values
         - Implementing control logic with if/else
         - Breaking complex expressions into readable steps
-        
+
         Example
         -------
         >>> def algorithm(m):
         ...     temp = local("temp")
         ...     yield temp @ (m.u * 2)
         ...     yield m.y @ if_then_else(temp > m.limit, m.limit, temp)
-        
+
         Notes
         -----
         In Modelica, algorithm sections use := for assignment (vs == for equations).
@@ -1694,7 +1686,7 @@ class ModelInstance:
     def flatten(self, expand_arrays: bool = True) -> "FlatModel":
         """
         Flatten the model into a backend-agnostic representation.
-        
+
         This method performs automatic variable classification:
         1. Variables with parameter=True → parameters
         2. Variables with constant=True → constants (treated as parameters)
@@ -1710,7 +1702,7 @@ class ModelInstance:
             If True, array equations like `der(pos) == vel` are expanded to
             scalar equations: `der(pos[0]) == vel[0]`, `der(pos[1]) == vel[1]`, etc.
             This is suitable for CasADi SX backend.
-            
+
             If False, array equations are kept as-is with the base variable name.
             The derivative_equations dict will have entries like `{'pos': vel_expr}`
             where `vel_expr` represents the whole array expression.
@@ -1728,7 +1720,7 @@ class ModelInstance:
         raw_equations = self.equations()
         equations: List[Equation] = []
         array_equations: List[ArrayEquation] = []
-        
+
         for eq in raw_equations:
             if isinstance(eq, ArrayEquation):
                 if expand_arrays:
@@ -1741,7 +1733,7 @@ class ModelInstance:
                 equations.append(eq)
             else:
                 raise TypeError(f"Expected Equation or ArrayEquation, got {type(eq)}")
-        
+
         # Collect equations from submodels (with prefixed variable names)
         for sub_name, sub_instance in self._submodels.items():
             for eq in sub_instance.equations():
@@ -1762,7 +1754,7 @@ class ModelInstance:
         raw_algorithm = self.algorithm()
         algorithm_assignments: List[Assignment] = []
         algorithm_locals: List[str] = []
-        
+
         for assign in raw_algorithm:
             if isinstance(assign, Assignment):
                 algorithm_assignments.append(assign)
@@ -1776,7 +1768,7 @@ class ModelInstance:
         for eq in equations:
             derivatives_used.update(_find_derivatives(eq.lhs))
             derivatives_used.update(_find_derivatives(eq.rhs))
-        
+
         # Also check array equations for derivatives (when not expanding)
         # Array equations like der(pos) == vel mark 'pos' as a state
         array_state_names: set[str] = set()
@@ -1798,25 +1790,25 @@ class ModelInstance:
         state_names: List[str] = []
         state_vars: Dict[str, Var] = {}
         state_defaults: Dict[str, Any] = {}
-        
+
         param_names: List[str] = []
         param_vars: Dict[str, Var] = {}
         param_defaults: Dict[str, Any] = {}
-        
+
         input_names: List[str] = []
         input_vars: Dict[str, Var] = {}
         input_defaults: Dict[str, Any] = {}
-        
+
         discrete_names: List[str] = []
         discrete_vars: Dict[str, Var] = {}
         discrete_defaults: Dict[str, Any] = {}
-        
+
         output_names: List[str] = []
         output_vars: Dict[str, Var] = {}
-        
+
         algebraic_names: List[str] = []
         algebraic_vars: Dict[str, Var] = {}
-        
+
         # First pass: classify based on flags
         output_name_set: set[str] = set()
         for name, v in md.variables.items():
@@ -1847,9 +1839,11 @@ class ModelInstance:
                 output_names.append(name)
                 output_vars[name] = v
                 output_name_set.add(name)
-            elif (name in derivatives_used 
-                  or _is_array_state(name, v.shape, derivatives_used)
-                  or name in array_state_names):
+            elif (
+                name in derivatives_used
+                or _is_array_state(name, v.shape, derivatives_used)
+                or name in array_state_names
+            ):
                 # der(name) is used → state variable
                 # For arrays: check if any der(name[i,j,...]) is used, or
                 # if the whole array der(name) appears in array_equations
@@ -1874,7 +1868,7 @@ class ModelInstance:
                 output_equations_map[eq.lhs.name] = eq.rhs
             else:
                 algebraic_equations.append(eq)
-        
+
         # Classify array equations (when expand_arrays=False)
         for arr_eq in array_equations:
             if arr_eq.is_derivative:
@@ -1882,8 +1876,8 @@ class ModelInstance:
                 # Key is base variable name, value is the RHS SymbolicVar
                 base_name = arr_eq.lhs_var.base_name
                 array_derivative_equations[base_name] = {
-                    'shape': arr_eq.lhs_var.shape,
-                    'rhs': arr_eq.rhs,  # The RHS SymbolicVar (e.g., vel for der(pos) == vel)
+                    "shape": arr_eq.lhs_var.shape,
+                    "rhs": arr_eq.rhs,  # The RHS SymbolicVar (e.g., vel for der(pos) == vel)
                 }
             # TODO: Handle non-derivative array equations (output, algebraic)
 
@@ -1899,28 +1893,41 @@ class ModelInstance:
                         sub_derivatives.add(f"{sub_name}.{der_name}")
                     for der_name in _find_derivatives(eq.rhs):
                         sub_derivatives.add(f"{sub_name}.{der_name}")
-            
+
             for name, v in sub._metadata.variables.items():
                 full_name = f"{sub_name}.{name}"
-                
+
                 # Skip if already processed
-                if (full_name in state_vars or full_name in input_vars or 
-                    full_name in output_vars or full_name in param_vars or
-                    full_name in algebraic_vars):
+                if (
+                    full_name in state_vars
+                    or full_name in input_vars
+                    or full_name in output_vars
+                    or full_name in param_vars
+                    or full_name in algebraic_vars
+                ):
                     continue
-                
+
                 # Create a copy of the Var with the full name
                 sub_v = Var(
                     dtype=v.dtype,
-                    default=v.default, shape=v.shape, unit=v.unit, desc=v.desc,
-                    start=v.start, fixed=v.fixed, min=v.min, max=v.max,
+                    default=v.default,
+                    shape=v.shape,
+                    unit=v.unit,
+                    desc=v.desc,
+                    start=v.start,
+                    fixed=v.fixed,
+                    min=v.min,
+                    max=v.max,
                     nominal=v.nominal,
-                    parameter=v.parameter, discrete=v.discrete,
-                    input=v.input, output=v.output, constant=v.constant,
+                    parameter=v.parameter,
+                    discrete=v.discrete,
+                    input=v.input,
+                    output=v.output,
+                    constant=v.constant,
                     protected=v.protected,
-                    name=full_name
+                    name=full_name,
                 )
-                
+
                 # Classify based on flags and der() usage
                 if v.constant or v.parameter:
                     sub_v.kind = VarKind.CONSTANT if v.constant else VarKind.PARAMETER
@@ -2039,10 +2046,11 @@ def model(cls: Type[Any]) -> Type[Any]:
     # non-conformant. Output variables are just vars with output=True flag.
     original_equations = getattr(cls, "equations", None)
     original_algorithm = getattr(cls, "algorithm", None)
-    
+
     # Deprecation check: warn if user defines output_equations (non-Modelica)
     if hasattr(cls, "output_equations"):
         import warnings
+
         warnings.warn(
             f"Model '{cls.__name__}' defines output_equations(). This is deprecated "
             "and non-Modelica-conformant. In Modelica, all equations (including output "
@@ -2064,7 +2072,7 @@ def model(cls: Type[Any]) -> Type[Any]:
         def equations(self) -> Generator[Equation, None, None]:
             if original_equations is not None:
                 yield from original_equations(self)
-        
+
         def algorithm(self) -> Generator[Assignment, None, None]:
             if original_algorithm is not None:
                 yield from original_algorithm(self)
@@ -2093,6 +2101,7 @@ Model = ModelInstance
 @dataclass
 class FunctionMetadata:
     """Metadata for a function, extracted from FlatModel."""
+
     name: str
     input_names: List[str] = field(default_factory=list)
     output_names: List[str] = field(default_factory=list)
@@ -2106,16 +2115,16 @@ class FunctionMetadata:
 def function(cls: Type[Any]) -> Type[Any]:
     """
     Decorator to convert a class into a Cyecca function.
-    
+
     A function is a restricted model (Modelica Ch. 12) that:
     - Uses only algorithm sections (no equations)
     - All public non-parameter variables must be input or output
     - Cannot have states (no der())
     - Is evaluated once when called, not continuously simulated
-    
+
     This is similar to @block but even more restricted - blocks can have
     equations, functions can only have algorithms.
-    
+
     Example
     -------
     >>> @function
@@ -2132,7 +2141,7 @@ def function(cls: Type[Any]) -> Type[Any]:
     ...             f.lo,
     ...             if_then_else(f.x > f.hi, f.hi, f.x)
     ...         )
-    
+
     >>> @function
     ... class Quadratic:
     ...     '''Solve quadratic equation ax^2 + bx + c = 0.'''
@@ -2141,15 +2150,15 @@ def function(cls: Type[Any]) -> Type[Any]:
     ...     c = var(input=True)
     ...     x1 = var(output=True)
     ...     x2 = var(output=True)
-    ...     
+    ...
     ...     # Protected variable for intermediate calculation
     ...     d = var(protected=True)
-    ...     
+    ...
     ...     def algorithm(f):
     ...         yield f.d @ sqrt(f.b**2 - 4*f.a*f.c)
     ...         yield f.x1 @ (-f.b + f.d) / (2*f.a)
     ...         yield f.x2 @ (-f.b - f.d) / (2*f.a)
-    
+
     Notes
     -----
     Unlike models, functions:
@@ -2157,7 +2166,7 @@ def function(cls: Type[Any]) -> Type[Any]:
     - Are called/evaluated once, not continuously simulated
     - Cannot have states (no der())
     - Can be called from model equations (future feature)
-    
+
     Raises
     ------
     TypeError
@@ -2166,13 +2175,14 @@ def function(cls: Type[Any]) -> Type[Any]:
     """
     # Validate function constraints
     errors = []
-    
+
     # Check for equations method (not allowed in functions)
-    if hasattr(cls, 'equations'):
+    if hasattr(cls, "equations"):
         # Check if it's overridden (not just inherited empty generator)
-        equations_method = getattr(cls, 'equations')
+        equations_method = getattr(cls, "equations")
         # Try to detect if it's a real implementation
         import inspect
+
         source_lines = []
         try:
             source_lines = inspect.getsourcelines(equations_method)[0]
@@ -2180,10 +2190,8 @@ def function(cls: Type[Any]) -> Type[Any]:
             pass
         # If there's more than just "def equations(m): pass" or similar
         if len(source_lines) > 2:
-            errors.append(
-                f"Functions cannot have equations() method - use algorithm() only"
-            )
-    
+            errors.append(f"Functions cannot have equations() method - use algorithm() only")
+
     # Validate all public non-parameter variables have input/output
     for name, value in vars(cls).items():
         if isinstance(value, Var):
@@ -2199,37 +2207,29 @@ def function(cls: Type[Any]) -> Type[Any]:
                     f"  - '{name}': must have input=True or output=True "
                     f"(or use protected=True for intermediate variables)"
                 )
-    
+
     if errors:
-        error_msg = (
-            f"Function '{cls.__name__}' violates Modelica function constraints.\n"
-            + "\n".join(errors)
-        )
+        error_msg = f"Function '{cls.__name__}' violates Modelica function constraints.\n" + "\n".join(errors)
         raise TypeError(error_msg)
-    
+
     # Check algorithm method exists
-    if not hasattr(cls, 'algorithm'):
-        raise TypeError(
-            f"Function '{cls.__name__}' must have an algorithm() method"
-        )
-    
+    if not hasattr(cls, "algorithm"):
+        raise TypeError(f"Function '{cls.__name__}' must have an algorithm() method")
+
     # Use the model decorator to do the actual work
     model_cls = model(cls)
-    
+
     # Mark it as a function
     model_cls._is_function = True
-    
+
     # Add helper method to get function metadata
     def get_function_metadata(self) -> FunctionMetadata:
         """Get function-specific metadata."""
         flat = self.flatten()
-        
+
         # Collect protected variable names
-        protected_names = [
-            name for name, v in self._metadata.variables.items()
-            if v.protected
-        ]
-        
+        protected_names = [name for name, v in self._metadata.variables.items() if v.protected]
+
         return FunctionMetadata(
             name=flat.name,
             input_names=flat.input_names,
@@ -2239,9 +2239,9 @@ def function(cls: Type[Any]) -> Type[Any]:
             algorithm_assignments=flat.algorithm_assignments,
             algorithm_locals=flat.algorithm_locals,
         )
-    
+
     model_cls.get_function_metadata = get_function_metadata
-    
+
     return model_cls
 
 
@@ -2254,22 +2254,22 @@ def function(cls: Type[Any]) -> Type[Any]:
 def block(cls: Type[Any]) -> Type[Any]:
     """
     Decorator to convert a class into a Cyecca block.
-    
+
     A block is a specialized model for signal-flow (causal) modeling.
     In Modelica, blocks have a key restriction: all public (non-protected)
     variables that are not parameters must have input or output prefix.
-    
+
     This is enforced at decoration time to catch errors early.
-    
+
     Use blocks for:
     - Control systems (PID controllers, filters, state machines)
     - Signal processing (gains, limiters, delays)
     - Any causal input-output system
-    
+
     Use models (not blocks) for:
     - Physical systems with energy exchange (electrical, mechanical)
     - Acausal connections (connectors with flow variables)
-    
+
     Example
     -------
     >>> @block
@@ -2278,19 +2278,19 @@ def block(cls: Type[Any]) -> Type[Any]:
     ...     setpoint = var(input=True)
     ...     measurement = var(input=True)
     ...     command = var(output=True)
-    ...     
+    ...
     ...     # Parameters (allowed without input/output)
     ...     Kp = var(1.0, parameter=True)
     ...     Ki = var(0.1, parameter=True)
-    ...     
+    ...
     ...     # Protected variables (internal, no input/output required)
     ...     integral = var(start=0.0, protected=True)
-    ...     
+    ...
     ...     def equations(m):
     ...         error = m.setpoint - m.measurement
     ...         yield der(m.integral) == error
     ...         yield m.command == m.Kp * error + m.Ki * m.integral
-    
+
     Raises
     ------
     TypeError
@@ -2312,21 +2312,20 @@ def block(cls: Type[Any]) -> Type[Any]:
                     f"  - '{name}': public variable must have input=True or output=True "
                     f"(or use protected=True for internal variables)"
                 )
-    
+
     if errors:
         error_msg = (
             f"Block '{cls.__name__}' violates Modelica block constraints.\n"
-            f"All public non-parameter variables must have input or output prefix:\n"
-            + "\n".join(errors)
+            f"All public non-parameter variables must have input or output prefix:\n" + "\n".join(errors)
         )
         raise TypeError(error_msg)
-    
+
     # Use the model decorator to do the actual work
     model_cls = model(cls)
-    
+
     # Mark it as a block for potential future use
     model_cls._is_block = True
-    
+
     return model_cls
 
 
@@ -2339,33 +2338,34 @@ def block(cls: Type[Any]) -> Type[Any]:
 class FlatModel:
     """
     Flattened model representation - the output of the DSL.
-    
+
     This is a backend-agnostic representation of the model that contains:
     - All variables (states, inputs, outputs, params) with metadata
     - All equations as expression trees
     - Default values for initialization
-    
+
     Variable Classification (Modelica-conformant)
     ---------------------------------------------
     In Modelica, `input` and `output` are just **prefixes** on variables that
     indicate causality (how the variable interfaces with the outside world).
     They are NOT separate equation categories.
-    
+
     - parameter=True → parameter (constant during simulation)
     - discrete=True → discrete (piecewise constant, changes at events)
     - input=True → input (value provided externally)
     - output=True → output (value computed internally, exposed externally)
     - der(var) in equations → state
     - otherwise → algebraic
-    
+
     All equations come from a single equations() method. The `output_equations`
     field is populated by extracting equations of the form `output_var == expr`
     for backend convenience.
-    
+
     Backends (CasADi, JAX, etc.) compile this into executable functions.
     """
+
     name: str
-    
+
     # Variable lists (ordered)
     state_names: List[str]
     input_names: List[str]
@@ -2373,7 +2373,7 @@ class FlatModel:
     param_names: List[str]
     discrete_names: List[str]
     algebraic_names: List[str]
-    
+
     # Variable metadata (using unified Var type)
     state_vars: Dict[str, Var]
     input_vars: Dict[str, Var]
@@ -2381,35 +2381,35 @@ class FlatModel:
     param_vars: Dict[str, Var]
     discrete_vars: Dict[str, Var]
     algebraic_vars: Dict[str, Var]
-    
+
     # Equations
     # NOTE: In Modelica, all equations are in one section. The separation here
     # is for backend convenience only. Output equations are extracted from
     # equations that define output variables (var with output=True).
     derivative_equations: Dict[str, Expr]  # state_name -> rhs expression for der(state)
-    output_equations: Dict[str, Expr]      # output_name -> rhs (extracted from equations())
-    algebraic_equations: List[Equation]    # 0 = f(x, z) equations
-    
+    output_equations: Dict[str, Expr]  # output_name -> rhs (extracted from equations())
+    algebraic_equations: List[Equation]  # 0 = f(x, z) equations
+
     # Default values
     state_defaults: Dict[str, Any]
     input_defaults: Dict[str, Any]
     discrete_defaults: Dict[str, Any]
     param_defaults: Dict[str, Any]
-    
+
     # Array derivative equations (when expand_arrays=False)
     # For CasADi MX backend: keeps array structure for efficient matrix operations
     # Key is base variable name (e.g., 'pos'), value is {'shape': (3,), 'rhs': SymbolicVar}
     array_derivative_equations: Dict[str, Any] = field(default_factory=dict)
-    
+
     # Algorithm section
     # Ordered list of assignments from algorithm() method
     algorithm_assignments: List[Assignment] = field(default_factory=list)
     # Local variables declared in algorithm section
     algorithm_locals: List[str] = field(default_factory=list)
-    
+
     # Flattening mode
     expand_arrays: bool = True  # If False, array equations are kept as-is for MX backend
-    
+
     def __repr__(self) -> str:
         parts = [f"'{self.name}'"]
         if self.state_names:

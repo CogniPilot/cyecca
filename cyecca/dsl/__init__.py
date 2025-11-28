@@ -137,7 +137,28 @@ from cyecca.dsl.model import (
     submodel,
     var,
 )
-from cyecca.dsl.operators import abs, acos, asin, atan, atan2, cos, exp, log, sin, sqrt, tan
+from cyecca.dsl.operators import (
+    abs,
+    acos,
+    asin,
+    atan,
+    atan2,
+    ceil,
+    cos,
+    cosh,
+    exp,
+    floor,
+    log,
+    log10,
+    max,
+    min,
+    sign,
+    sin,
+    sinh,
+    sqrt,
+    tan,
+    tanh,
+)
 from cyecca.dsl.simulation import SimulationResult, Simulator
 from cyecca.dsl.types import DType, Indices, Shape, Var, VarKind
 
@@ -193,5 +214,14 @@ __all__ = [
     "sqrt",
     "exp",
     "log",
+    "log10",
     "abs",
+    "sign",
+    "floor",
+    "ceil",
+    "sinh",
+    "cosh",
+    "tanh",
+    "min",
+    "max",
 ]

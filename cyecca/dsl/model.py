@@ -136,7 +136,16 @@ class ExprKind(Enum):
     SQRT = auto()
     EXP = auto()
     LOG = auto()
+    LOG10 = auto()  # Base-10 logarithm
     ABS = auto()
+    SIGN = auto()  # Sign function (-1, 0, or 1)
+    FLOOR = auto()  # Floor function
+    CEIL = auto()  # Ceiling function
+    SINH = auto()  # Hyperbolic sine
+    COSH = auto()  # Hyperbolic cosine
+    TANH = auto()  # Hyperbolic tangent
+    MIN = auto()  # Minimum of two values
+    MAX = auto()  # Maximum of two values
 
 
 @dataclass(frozen=True)
@@ -197,11 +206,22 @@ class Expr:
             ExprKind.SQRT,
             ExprKind.EXP,
             ExprKind.LOG,
+            ExprKind.LOG10,
             ExprKind.ABS,
+            ExprKind.SIGN,
+            ExprKind.FLOOR,
+            ExprKind.CEIL,
+            ExprKind.SINH,
+            ExprKind.COSH,
+            ExprKind.TANH,
         ):
             return f"{self.kind.name.lower()}({self.children[0]})"
         elif self.kind == ExprKind.ATAN2:
             return f"atan2({self.children[0]}, {self.children[1]})"
+        elif self.kind == ExprKind.MIN:
+            return f"min({self.children[0]}, {self.children[1]})"
+        elif self.kind == ExprKind.MAX:
+            return f"max({self.children[0]}, {self.children[1]})"
         elif self.kind == ExprKind.PRE:
             return f"pre({self.name})"
         elif self.kind == ExprKind.EDGE:
@@ -1683,6 +1703,46 @@ class ModelInstance:
         return
         yield  # Make this a generator
 
+    def initial_equations(self) -> Generator[Equation, None, None]:
+        """
+        Override this method to define initial equations.
+
+        Initial equations (Modelica: `initial equation` section) are used to
+        specify initial conditions for simulation. They are solved once at
+        t=0 to determine initial values of states and algebraic variables.
+
+        This provides more flexibility than just using `start` values:
+        - Can specify relationships between initial values
+        - Can use equations rather than just fixed values
+        - Can leave some variables to be computed from others
+
+        Example
+        -------
+        >>> @model
+        ... class Pendulum:
+        ...     theta = var()
+        ...     omega = var()
+        ...
+        ...     def equations(m):
+        ...         yield der(m.theta) == m.omega
+        ...         yield der(m.omega) == -9.81 * sin(m.theta)
+        ...
+        ...     def initial_equations(m):
+        ...         yield m.theta == 0.5  # Initial angle
+        ...         yield m.omega == 0.0  # Start at rest
+
+        Notes
+        -----
+        Modelica Spec: Section 8.6 - Initialization, Initial Equation, and Initial Algorithm
+
+        In Modelica, initial equations form a system that is solved to find
+        consistent initial values. Variables with `fixed=True` use their `start`
+        values as fixed constraints. Other variables are determined by the
+        initial equation system.
+        """
+        return
+        yield  # Make this a generator
+
     def flatten(self, expand_arrays: bool = True) -> "FlatModel":
         """
         Flatten the model into a backend-agnostic representation.
@@ -1762,6 +1822,34 @@ class ModelInstance:
                     algorithm_locals.append(assign.target)
             else:
                 raise TypeError(f"Expected Assignment in algorithm(), got {type(assign)}")
+
+        # Collect initial equations
+        raw_initial_equations = self.initial_equations()
+        initial_equations_list: List[Equation] = []
+
+        for eq in raw_initial_equations:
+            if isinstance(eq, Equation):
+                initial_equations_list.append(eq)
+            elif isinstance(eq, ArrayEquation):
+                if expand_arrays:
+                    initial_equations_list.extend(eq.expand())
+                # For non-expanded case, we could add array initial equations
+                # but for now just expand them
+                else:
+                    initial_equations_list.extend(eq.expand())
+            else:
+                raise TypeError(f"Expected Equation in initial_equations(), got {type(eq)}")
+
+        # Collect initial equations from submodels
+        for sub_name, sub_instance in self._submodels.items():
+            for eq in sub_instance.initial_equations():
+                if isinstance(eq, Equation):
+                    prefixed_eq = eq._prefix_names(sub_name)
+                    initial_equations_list.append(prefixed_eq)
+                elif isinstance(eq, ArrayEquation):
+                    for scalar_eq in eq.expand():
+                        prefixed_eq = scalar_eq._prefix_names(sub_name)
+                        initial_equations_list.append(prefixed_eq)
 
         # Find all derivatives (der(x)) used in equations to identify states
         derivatives_used: set[str] = set()
@@ -1991,6 +2079,7 @@ class ModelInstance:
             input_defaults=input_defaults,
             discrete_defaults=discrete_defaults,
             param_defaults=param_defaults,
+            initial_equations=initial_equations_list,
             algorithm_assignments=algorithm_assignments,
             algorithm_locals=algorithm_locals,
             expand_arrays=expand_arrays,
@@ -2046,6 +2135,7 @@ def model(cls: Type[Any]) -> Type[Any]:
     # non-conformant. Output variables are just vars with output=True flag.
     original_equations = getattr(cls, "equations", None)
     original_algorithm = getattr(cls, "algorithm", None)
+    original_initial_equations = getattr(cls, "initial_equations", None)
 
     # Deprecation check: warn if user defines output_equations (non-Modelica)
     if hasattr(cls, "output_equations"):
@@ -2076,6 +2166,10 @@ def model(cls: Type[Any]) -> Type[Any]:
         def algorithm(self) -> Generator[Assignment, None, None]:
             if original_algorithm is not None:
                 yield from original_algorithm(self)
+
+        def initial_equations(self) -> Generator[Equation, None, None]:
+            if original_initial_equations is not None:
+                yield from original_initial_equations(self)
 
     # Copy the metadata reference
     ModelClass._dsl_metadata = metadata
@@ -2395,6 +2489,10 @@ class FlatModel:
     input_defaults: Dict[str, Any]
     discrete_defaults: Dict[str, Any]
     param_defaults: Dict[str, Any]
+
+    # Initial equations (Modelica: initial equation section)
+    # These are solved once at t=0 to determine initial values
+    initial_equations: List[Equation] = field(default_factory=list)
 
     # Array derivative equations (when expand_arrays=False)
     # For CasADi MX backend: keeps array structure for efficient matrix operations

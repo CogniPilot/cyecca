@@ -275,3 +275,201 @@ def abs(x: Any) -> Union[Expr, float]:
     if isinstance(val, float):
         return __builtins__["abs"](val) if isinstance(__builtins__, dict) else val if val >= 0 else -val
     return Expr(ExprKind.ABS, (val,))
+
+
+@beartype
+def sign(x: Any) -> Union[Expr, float]:
+    """Sign function.
+
+    Returns -1 if x < 0, 0 if x == 0, +1 if x > 0.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        if val < 0:
+            return -1.0
+        elif val > 0:
+            return 1.0
+        else:
+            return 0.0
+    return Expr(ExprKind.SIGN, (val,))
+
+
+@beartype
+def floor(x: Any) -> Union[Expr, float]:
+    """Floor function - largest integer not greater than x.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        import math
+
+        return float(math.floor(val))
+    return Expr(ExprKind.FLOOR, (val,))
+
+
+@beartype
+def ceil(x: Any) -> Union[Expr, float]:
+    """Ceiling function - smallest integer not less than x.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        import math
+
+        return float(math.ceil(val))
+    return Expr(ExprKind.CEIL, (val,))
+
+
+@beartype
+def sinh(x: Any) -> Union[Expr, float]:
+    """Hyperbolic sine function.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        import math
+
+        return math.sinh(val)
+    return Expr(ExprKind.SINH, (val,))
+
+
+@beartype
+def cosh(x: Any) -> Union[Expr, float]:
+    """Hyperbolic cosine function.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        import math
+
+        return math.cosh(val)
+    return Expr(ExprKind.COSH, (val,))
+
+
+@beartype
+def tanh(x: Any) -> Union[Expr, float]:
+    """Hyperbolic tangent function.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        import math
+
+        return math.tanh(val)
+    return Expr(ExprKind.TANH, (val,))
+
+
+@beartype
+def log10(x: Any) -> Union[Expr, float]:
+    """Base-10 logarithm function.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        import math
+
+        return math.log10(val)
+    return Expr(ExprKind.LOG10, (val,))
+
+
+@beartype
+def min(x: Any, y: Any) -> Union[Expr, float]:
+    """Minimum of two values.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Parameters
+    ----------
+    x : numeric or Expr
+        First value
+    y : numeric or Expr
+        Second value
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val_x = _to_symbolic(x)
+    val_y = _to_symbolic(y)
+    if isinstance(val_x, float) and isinstance(val_y, float):
+        return val_x if val_x <= val_y else val_y
+    # At least one is symbolic - convert both to Expr
+    if isinstance(val_x, float):
+        val_x = Expr(ExprKind.CONSTANT, value=val_x)
+    if isinstance(val_y, float):
+        val_y = Expr(ExprKind.CONSTANT, value=val_y)
+    return Expr(ExprKind.MIN, (val_x, val_y))
+
+
+@beartype
+def max(x: Any, y: Any) -> Union[Expr, float]:
+    """Maximum of two values.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Parameters
+    ----------
+    x : numeric or Expr
+        First value
+    y : numeric or Expr
+        Second value
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val_x = _to_symbolic(x)
+    val_y = _to_symbolic(y)
+    if isinstance(val_x, float) and isinstance(val_y, float):
+        return val_x if val_x >= val_y else val_y
+    # At least one is symbolic - convert both to Expr
+    if isinstance(val_x, float):
+        val_x = Expr(ExprKind.CONSTANT, value=val_x)
+    if isinstance(val_y, float):
+        val_y = Expr(ExprKind.CONSTANT, value=val_y)
+    return Expr(ExprKind.MAX, (val_x, val_y))

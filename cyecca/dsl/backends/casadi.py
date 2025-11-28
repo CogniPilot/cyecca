@@ -197,8 +197,35 @@ class CasadiBackend:
             elif expr.kind == ExprKind.LOG:
                 return ca.log(expr_to_casadi(expr.children[0]))
 
+            elif expr.kind == ExprKind.LOG10:
+                return ca.log10(expr_to_casadi(expr.children[0]))
+
             elif expr.kind == ExprKind.ABS:
                 return ca.fabs(expr_to_casadi(expr.children[0]))
+
+            elif expr.kind == ExprKind.SIGN:
+                return ca.sign(expr_to_casadi(expr.children[0]))
+
+            elif expr.kind == ExprKind.FLOOR:
+                return ca.floor(expr_to_casadi(expr.children[0]))
+
+            elif expr.kind == ExprKind.CEIL:
+                return ca.ceil(expr_to_casadi(expr.children[0]))
+
+            elif expr.kind == ExprKind.SINH:
+                return ca.sinh(expr_to_casadi(expr.children[0]))
+
+            elif expr.kind == ExprKind.COSH:
+                return ca.cosh(expr_to_casadi(expr.children[0]))
+
+            elif expr.kind == ExprKind.TANH:
+                return ca.tanh(expr_to_casadi(expr.children[0]))
+
+            elif expr.kind == ExprKind.MIN:
+                return ca.fmin(expr_to_casadi(expr.children[0]), expr_to_casadi(expr.children[1]))
+
+            elif expr.kind == ExprKind.MAX:
+                return ca.fmax(expr_to_casadi(expr.children[0]), expr_to_casadi(expr.children[1]))
 
             # Relational operators
             elif expr.kind == ExprKind.LT:
@@ -451,8 +478,35 @@ class CasadiBackend:
             elif expr.kind == ExprKind.LOG:
                 return ca.log(expr_to_casadi_mx(expr.children[0]))
 
+            elif expr.kind == ExprKind.LOG10:
+                return ca.log10(expr_to_casadi_mx(expr.children[0]))
+
             elif expr.kind == ExprKind.ABS:
                 return ca.fabs(expr_to_casadi_mx(expr.children[0]))
+
+            elif expr.kind == ExprKind.SIGN:
+                return ca.sign(expr_to_casadi_mx(expr.children[0]))
+
+            elif expr.kind == ExprKind.FLOOR:
+                return ca.floor(expr_to_casadi_mx(expr.children[0]))
+
+            elif expr.kind == ExprKind.CEIL:
+                return ca.ceil(expr_to_casadi_mx(expr.children[0]))
+
+            elif expr.kind == ExprKind.SINH:
+                return ca.sinh(expr_to_casadi_mx(expr.children[0]))
+
+            elif expr.kind == ExprKind.COSH:
+                return ca.cosh(expr_to_casadi_mx(expr.children[0]))
+
+            elif expr.kind == ExprKind.TANH:
+                return ca.tanh(expr_to_casadi_mx(expr.children[0]))
+
+            elif expr.kind == ExprKind.MIN:
+                return ca.fmin(expr_to_casadi_mx(expr.children[0]), expr_to_casadi_mx(expr.children[1]))
+
+            elif expr.kind == ExprKind.MAX:
+                return ca.fmax(expr_to_casadi_mx(expr.children[0]), expr_to_casadi_mx(expr.children[1]))
 
             # Relational operators
             elif expr.kind == ExprKind.LT:

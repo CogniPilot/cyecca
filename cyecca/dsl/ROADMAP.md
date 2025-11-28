@@ -4,7 +4,7 @@
 
 This document provides an analysis of how the current Cyecca DSL implementation aligns with the Modelica Language Specification v3.7-dev and outlines a roadmap for future development.
 
-**Current Status**: The DSL implements approximately **50-55%** of core Modelica specification features, covering:
+**Current Status**: The DSL implements approximately **55-60%** of core Modelica specification features, covering:
 - Basic ODE modeling with `der()` operator
 - Discrete variability with `pre()`, `edge()`, `change()` operators
 - Blocks with causality enforcement (`@block` decorator)
@@ -15,6 +15,8 @@ This document provides an analysis of how the current Cyecca DSL implementation 
 - Algorithm sections with local variables
 - Protected visibility for internal variables
 - Array indexing and derivatives
+- **When-clauses for hybrid systems** (`when()`, `reinit()`)
+- **@equations decorator** for clean, yield-free equation syntax
 
 ---
 
@@ -35,8 +37,9 @@ This document provides an analysis of how the current Cyecca DSL implementation 
 | Boolean operators | Ch. 3.5 | ✅ Complete | `and_()`, `or_()`, `not_()` functions |
 | If-expressions | Ch. 3.6.5 | ✅ Complete | `if_then_else()` function |
 | Math functions | Ch. 3.7.3 | ✅ Complete | `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sqrt`, `exp`, `log`, `log10`, `abs`, `sign`, `floor`, `ceil`, `sinh`, `cosh`, `tanh`, `min`, `max` |
-| Equations | Ch. 8.3 | ✅ Complete | ODE/DAE equations via `yield` syntax |
+| Equations | Ch. 8.3 | ✅ Complete | `@equations` decorator with auto-capture |
 | Initial equations | Ch. 8.6 | ✅ Complete | `initial_equations()` method |
+| **When-clauses** | **Ch. 8.5** | **✅ Complete** | **`when()` context manager, `reinit()` for hybrid systems** |
 | Algorithm sections | Ch. 11 | ✅ Complete | `algorithm()` with `local()` and `@` operator |
 | User-defined functions | Ch. 12 | ✅ Complete | `@function` decorator |
 | Model flattening | Ch. 5.6 | ✅ Complete | Hierarchical flattening with prefixes |
@@ -57,16 +60,17 @@ This document provides an analysis of how the current Cyecca DSL implementation 
 | `model.py` | 92% | `test/dsl/test_model.py` |
 | `simulation.py` | 91% | `test/dsl/test_simulation.py` |
 | `backends/casadi.py` | 64% | `test/dsl/test_backends_casadi.py` |
+| `when_clauses` | - | `test/dsl/test_when_clauses.py` |
 | **Total** | **85%** | `test/dsl/test_integration.py` |
 
 ---
 
 ## Part 2: Feature Examples
 
-### Basic Model with Equations
+### Basic Model with @equations Decorator
 
 ```python
-from cyecca.dsl import model, var, der
+from cyecca.dsl import model, var, der, equations
 
 @model
 class MassSpringDamper:
@@ -77,15 +81,16 @@ class MassSpringDamper:
     x = var(start=1.0, unit="m")
     v = var(start=0.0, unit="m/s")
     
-    def equations(m):
-        yield der(m.x) == m.v
-        yield m.m * der(m.v) == -m.k * m.x - m.c * m.v
+    @equations
+    def _(m):
+        der(m.x) == m.v
+        m.m * der(m.v) == -m.k * m.x - m.c * m.v
 ```
 
 ### Block with Input/Output Causality
 
 ```python
-from cyecca.dsl import block, var, der, if_then_else
+from cyecca.dsl import block, var, der, if_then_else, equations
 
 @block
 class PIDController:
@@ -99,10 +104,11 @@ class PIDController:
     output = var(output=True)
     integral = var(start=0.0, protected=True)
     
-    def equations(m):
-        yield der(m.integral) == m.error
+    @equations
+    def _(m):
+        der(m.integral) == m.error
         raw = m.Kp * m.error + m.Ki * m.integral + m.Kd * der(m.error)
-        yield m.output == if_then_else(
+        m.output == if_then_else(
             raw > m.u_max, m.u_max,
             if_then_else(raw < -m.u_max, -m.u_max, raw)
         )
@@ -129,28 +135,10 @@ class QuadraticSolver:
         yield f.x2 @ ((-f.b - f.discriminant) / (2*f.a))
 ```
 
-### Discrete Events
-
-```python
-from cyecca.dsl import model, var, der, pre, edge, change
-from cyecca.dsl.types import DType
-
-@model
-class Counter:
-    """Event counter using discrete operators."""
-    trigger = var(dtype=DType.BOOLEAN)
-    count = var(dtype=DType.INTEGER, discrete=True, start=0)
-    prev_count = var(dtype=DType.INTEGER)
-    
-    def equations(m):
-        yield m.prev_count == pre(m.count)
-        # Note: actual increment would need when-clause (not yet implemented)
-```
-
 ### Boolean and Conditional Logic
 
 ```python
-from cyecca.dsl import model, var, and_, or_, not_, if_then_else
+from cyecca.dsl import model, var, and_, or_, not_, if_then_else, equations
 from cyecca.dsl.types import DType
 
 @model
@@ -162,126 +150,33 @@ class Thermostat:
     heater_on = var(dtype=DType.BOOLEAN, output=True)
     in_range = var(dtype=DType.BOOLEAN)
     
-    def equations(m):
-        yield m.in_range == and_(m.T > m.T_set - m.hysteresis,
-                                  m.T < m.T_set + m.hysteresis)
-        yield m.heater_on == (m.T < m.T_set)
+    @equations
+    def _(m):
+        m.in_range == and_(m.T > m.T_set - m.hysteresis,
+                           m.T < m.T_set + m.hysteresis)
+        m.heater_on == (m.T < m.T_set)
 ```
 
----
-
-## Part 3: Planned Features (Not Yet Implemented)
-
-### High Priority
-
-| Feature | MLS Chapter | Complexity | Notes |
-|---------|-------------|------------|-------|
-| Connectors & Connections | Ch. 9 | High | Physical ports with flow/effort |
-| Inheritance (extends) | Ch. 7.1 | Medium | Class inheritance |
-| Modifications | Ch. 7.2 | Medium | Override inherited values |
-| When-clauses | Ch. 8.5 | High | Event handling |
-| reinit() | Ch. 8.5 | Medium | State reinitialization |
-
-### Medium Priority
-
-| Feature | MLS Chapter | Complexity | Notes |
-|---------|-------------|------------|-------|
-| Full array support | Ch. 10 | High | Slicing, matrix ops |
-| Packages | Ch. 13 | Medium | Namespace organization |
-| Balanced model checking | Ch. 4.8 | Medium | Equation counting |
-| Unit checking | Ch. 4.9 | Medium | Dimensional analysis |
-| If-equations | Ch. 8.3.4 | Medium | Conditional equations |
-
-### Low Priority
-
-| Feature | MLS Chapter | Complexity | Notes |
-|---------|-------------|------------|-------|
-| Stream connectors | Ch. 15 | High | Thermo-fluid modeling |
-| Synchronous semantics | Ch. 16 | Very High | Clocked systems |
-| State machines | Ch. 17 | High | Discrete state logic |
-| Annotations | Ch. 18 | Medium | Metadata |
-| Overloaded operators | Ch. 14 | Medium | Custom operator definitions |
-
----
-
-## Part 4: Target Syntax for Planned Features
-
-### Connectors (High Priority)
+### When-Clauses (Hybrid Systems) ✅
 
 ```python
-@connector
-class ElectricalPin:
-    """Electrical connector with potential and flow."""
-    v = var(unit="V")                    # Potential variable
-    i = var(flow=True, unit="A")         # Flow variable
+from cyecca.dsl import model, var, der, when, reinit, pre, equations
 
-@model
-class Resistor:
-    R = var(100.0, parameter=True, unit="Ohm")
-    p = submodel(ElectricalPin)
-    n = submodel(ElectricalPin)
-    
-    def equations(m):
-        yield m.p.v - m.n.v == m.R * m.p.i
-    
-    def connections(m):
-        yield connect(m.p, m.n)  # Generates flow sum = 0
-```
-
-### Inheritance
-
-```python
-@model
-class PartialMechanical:
-    """Base class for mechanical components."""
-    x = var(unit="m")
-    v = var(unit="m/s")
-    F = var(unit="N")
-    
-    def equations(m):
-        yield der(m.x) == m.v
-
-@model
-class Mass(extends=PartialMechanical):
-    """Point mass."""
-    m = var(1.0, parameter=True, unit="kg")
-    
-    def equations(m):
-        yield m.m * der(m.v) == m.F
-```
-
-### Initial Equations
-
-```python
-@model
-class Pendulum:
-    theta = var(unit="rad")
-    omega = var(unit="rad/s")
-    
-    def equations(m):
-        yield der(m.theta) == m.omega
-        yield der(m.omega) == -9.81 * sin(m.theta)
-    
-    def initial_equations(m):
-        yield m.theta == 0.5
-        yield m.omega == 0.0
-```
-
-### When-Clauses (Hybrid Systems)
-
-```python
 @model
 class BouncingBall:
     h = var(start=1.0, unit="m")
     v = var(start=0.0, unit="m/s")
     e = var(0.8, parameter=True)  # Restitution coefficient
     
-    def equations(m):
-        yield der(m.h) == m.v
-        yield der(m.v) == -9.81
+    @equations
+    def _(m):
+        # Continuous dynamics
+        der(m.h) == m.v
+        der(m.v) == -9.81
         
-        when(m.h < 0):
-            yield reinit(m.v, -m.e * pre(m.v))
+        # When-clause for bounce - auto-registered!
+        with when(m.h < 0):
+            reinit(m.v, -m.e * pre(m.v))
 ```
 
 ---
@@ -326,3 +221,5 @@ The DSL uses an immutable expression tree (`Expr` dataclass) with operation kind
 - **2025-11**: Streamlined test suite, 85% coverage achieved
 - **2025-11**: Added math functions: `log10`, `sign`, `floor`, `ceil`, `sinh`, `cosh`, `tanh`, `min`, `max`
 - **2025-11**: Implemented initial equations (`initial_equations()` method per Modelica Spec Section 8.6)
+- **2025-01**: **Implemented when-clauses for hybrid systems** (`when()` context manager, `reinit()` operator, event-detecting simulation with zero-crossing detection)
+- **2025-01**: **Migrated to `@equations` decorator syntax** - Replaced yield-based equation definitions with side-effect based `@equations` decorator. Equations are now defined using `==` operator within `@equations`-decorated methods, which auto-registers them via thread-local context. Cleaner, more Pythonic syntax inspired by Modelica.

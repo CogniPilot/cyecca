@@ -38,7 +38,7 @@ import casadi as ca
 import numpy as np
 from beartype import beartype
 
-from cyecca.dsl.model import Expr, ExprKind, FlatModel, SymbolicVar
+from cyecca.dsl.model import Expr, ExprKind, FlatModel, Reinit, SymbolicVar, WhenClause
 from cyecca.dsl.simulation import SimulationResult, Simulator
 
 
@@ -316,6 +316,110 @@ class CasadiBackend:
         # Create output function f_y(x, u, p, t) -> y
         f_y = ca.Function("f_y", [x, u, p, t_sym], [y], ["x", "u", "p", "t"], ["y"]) if y_exprs else None
 
+        # Build when-clause functions for event handling
+        # Each when-clause becomes:
+        # - f_event: (x, u, p, t) -> condition_value (for zero-crossing detection)
+        # - f_reinit: (x, u, p, t) -> x_new (for state reinitialization)
+        when_clause_funcs: List[Dict[str, Any]] = []
+
+        # Create pre-event state symbols for pre() operator
+        pre_syms: Dict[str, ca.SX] = {}
+        for name in model.state_names:
+            v = model.state_vars[name]
+            pre_syms[name] = ca.SX.sym(f"pre_{name}", v.size) if v.size > 1 else ca.SX.sym(f"pre_{name}")
+
+        # Merge pre-symbols with base symbols for when-clause expression compilation
+        when_clause_syms = {**base_syms, **{f"__pre_{k}": v for k, v in pre_syms.items()}}
+
+        def expr_to_casadi_when(expr: Expr) -> ca.SX:
+            """Convert Expr to CasADi, handling pre() for when-clauses."""
+            if expr.kind == ExprKind.PRE:
+                # pre(x) -> use pre-event state symbol
+                pre_name = expr.name
+                if pre_name in pre_syms:
+                    return pre_syms[pre_name]
+                # If not a state, just use current value
+                if pre_name in base_syms:
+                    return base_syms[pre_name]
+                raise ValueError(f"Unknown variable in pre(): {pre_name}")
+            elif expr.kind == ExprKind.VARIABLE:
+                if expr.name in base_syms:
+                    return base_syms[expr.name]
+                raise ValueError(f"Unknown variable: {expr.name}")
+            elif expr.kind == ExprKind.CONSTANT:
+                return ca.SX(expr.value)
+            elif expr.kind == ExprKind.TIME:
+                return t_sym
+            elif expr.kind == ExprKind.NEG:
+                return -expr_to_casadi_when(expr.children[0])
+            elif expr.kind == ExprKind.ADD:
+                return expr_to_casadi_when(expr.children[0]) + expr_to_casadi_when(expr.children[1])
+            elif expr.kind == ExprKind.SUB:
+                return expr_to_casadi_when(expr.children[0]) - expr_to_casadi_when(expr.children[1])
+            elif expr.kind == ExprKind.MUL:
+                return expr_to_casadi_when(expr.children[0]) * expr_to_casadi_when(expr.children[1])
+            elif expr.kind == ExprKind.DIV:
+                return expr_to_casadi_when(expr.children[0]) / expr_to_casadi_when(expr.children[1])
+            elif expr.kind == ExprKind.POW:
+                return expr_to_casadi_when(expr.children[0]) ** expr_to_casadi_when(expr.children[1])
+            elif expr.kind == ExprKind.LT:
+                return expr_to_casadi_when(expr.children[0]) - expr_to_casadi_when(expr.children[1])
+            elif expr.kind == ExprKind.LE:
+                return expr_to_casadi_when(expr.children[0]) - expr_to_casadi_when(expr.children[1])
+            elif expr.kind == ExprKind.GT:
+                return expr_to_casadi_when(expr.children[1]) - expr_to_casadi_when(expr.children[0])
+            elif expr.kind == ExprKind.GE:
+                return expr_to_casadi_when(expr.children[1]) - expr_to_casadi_when(expr.children[0])
+            else:
+                # Fallback to regular expression conversion
+                return expr_to_casadi(expr)
+
+        # Build pre-event state vector
+        pre_list = [pre_syms[n] for n in model.state_names]
+        x_pre = ca.vertcat(*pre_list) if pre_list else ca.SX.sym("x_pre", 0)
+
+        for i, wc in enumerate(model.when_clauses):
+            # Build event function: returns value that crosses zero
+            # For conditions like (h < 0), we want (h - 0) = h as the zero-crossing function
+            event_expr = expr_to_casadi_when(wc.condition)
+            f_event = ca.Function(
+                f"f_event_{i}",
+                [x, u, p, t_sym],
+                [event_expr],
+                ["x", "u", "p", "t"],
+                ["event"],
+            )
+
+            # Build reinit function: computes new state after event
+            # Start with identity (x_new = x_pre), then apply reinits
+            x_new_list = [pre_syms[n] for n in model.state_names]
+
+            for item in wc.body:
+                if isinstance(item, Reinit):
+                    # Find the state index
+                    var_name = item.var_name
+                    if var_name in model.state_names:
+                        idx = model.state_names.index(var_name)
+                        # Compile the reinit expression
+                        new_val = expr_to_casadi_when(item.expr)
+                        x_new_list[idx] = new_val
+
+            x_new = ca.vertcat(*x_new_list) if x_new_list else ca.SX.sym("x_new", 0)
+
+            f_reinit = ca.Function(
+                f"f_reinit_{i}",
+                [x_pre, u, p, t_sym],
+                [x_new],
+                ["x_pre", "u", "p", "t"],
+                ["x_new"],
+            )
+
+            when_clause_funcs.append({
+                "condition": wc.condition,
+                "f_event": f_event,
+                "f_reinit": f_reinit,
+            })
+
         return CompiledModel(
             name=model.name,
             f_x=f_x,
@@ -327,6 +431,7 @@ class CasadiBackend:
             state_defaults=model.state_defaults,
             input_defaults=model.input_defaults,
             param_defaults=model.param_defaults,
+            when_clause_funcs=when_clause_funcs,
         )
 
     @staticmethod
@@ -636,6 +741,7 @@ class CasadiBackend:
             state_defaults=model.state_defaults,
             input_defaults=model.input_defaults,
             param_defaults=model.param_defaults,
+            when_clause_funcs=[],  # MX backend doesn't support when-clauses yet
         )
 
 
@@ -646,6 +752,11 @@ class CompiledModel(Simulator):
 
     Contains CasADi functions and metadata for numerical integration.
     Implements the Simulator interface for unified simulation/plotting.
+
+    When-Clauses (Hybrid Systems)
+    -----------------------------
+    If the model has when-clauses, the simulator uses event detection to
+    find zero-crossings and applies state reinitializations at events.
     """
 
     name: str
@@ -658,6 +769,11 @@ class CompiledModel(Simulator):
     state_defaults: Dict[str, Any]
     input_defaults: Dict[str, Any]
     param_defaults: Dict[str, Any]
+    when_clause_funcs: List[Dict[str, Any]] = None  # Event functions for when-clauses
+
+    def __post_init__(self):
+        if self.when_clause_funcs is None:
+            self.when_clause_funcs = []
 
     @property
     def state_names(self) -> List[str]:
@@ -675,6 +791,11 @@ class CompiledModel(Simulator):
     def param_names(self) -> List[str]:
         return self._param_names
 
+    @property
+    def has_events(self) -> bool:
+        """True if this model has when-clauses (event handling)."""
+        return len(self.when_clause_funcs) > 0
+
     @beartype
     def simulate(
         self,
@@ -685,9 +806,13 @@ class CompiledModel(Simulator):
         u: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         u_func: Optional[Callable[[float], Dict[str, Any]]] = None,
+        max_events: int = 1000,
     ) -> SimulationResult:
         """
-        Simulate the model using RK4 integration.
+        Simulate the model using RK4 integration with event detection.
+
+        For models with when-clauses, the simulator detects zero-crossings
+        and applies state reinitializations at event times.
 
         Parameters
         ----------
@@ -705,6 +830,8 @@ class CompiledModel(Simulator):
             Parameter values (overrides defaults)
         u_func : callable, optional
             Function u_func(t) -> dict for time-varying inputs
+        max_events : int, default=1000
+            Maximum number of events before stopping (prevents infinite loops)
 
         Returns
         -------
@@ -750,7 +877,49 @@ class CompiledModel(Simulator):
             elif name in self.input_defaults:
                 u_const[i] = self.input_defaults[name]
 
-        # Time vector
+        def get_input(ti: float) -> np.ndarray:
+            """Get input vector at time ti."""
+            if u_func is not None:
+                u_dict = u_func(ti)
+                u_vec = np.zeros(n_inputs)
+                for j, name in enumerate(self._input_names):
+                    u_vec[j] = u_dict.get(name, u_const[j])
+                return u_vec
+            return u_const
+
+        def rk4_step(x: np.ndarray, ti: float, h: float) -> np.ndarray:
+            """Single RK4 integration step."""
+            u_vec = get_input(ti)
+            k1 = np.array(self.f_x(x, u_vec, p, ti)).flatten()
+            k2 = np.array(self.f_x(x + 0.5 * h * k1, u_vec, p, ti + 0.5 * h)).flatten()
+            k3 = np.array(self.f_x(x + 0.5 * h * k2, u_vec, p, ti + 0.5 * h)).flatten()
+            k4 = np.array(self.f_x(x + h * k3, u_vec, p, ti + h)).flatten()
+            return x + (h / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+
+        def check_events(x: np.ndarray, ti: float) -> List[Tuple[int, float]]:
+            """Check event functions and return list of (event_idx, value)."""
+            u_vec = get_input(ti)
+            events = []
+            for i, wc_func in enumerate(self.when_clause_funcs):
+                val = float(np.array(wc_func["f_event"](x, u_vec, p, ti)).flatten()[0])
+                events.append((i, val))
+            return events
+
+        def apply_reinit(x: np.ndarray, event_idx: int, ti: float) -> np.ndarray:
+            """Apply reinit for the given event."""
+            u_vec = get_input(ti)
+            wc_func = self.when_clause_funcs[event_idx]
+            x_new = np.array(wc_func["f_reinit"](x, u_vec, p, ti)).flatten()
+            return x_new
+
+        # Use event-detecting simulation if we have when-clauses
+        if self.has_events:
+            return self._simulate_with_events(
+                t0, tf, dt, x_init, p, n_inputs, n_states,
+                get_input, rk4_step, check_events, apply_reinit, max_events
+            )
+
+        # Simple RK4 integration without events
         t = np.arange(t0, tf + dt, dt)
         n_steps = len(t)
 
@@ -763,15 +932,7 @@ class CompiledModel(Simulator):
         x = x_init.copy()
         for i in range(n_steps):
             ti = t[i]
-
-            # Get input at this time
-            if u_func is not None:
-                u_dict = u_func(ti)
-                u_vec = np.zeros(n_inputs)
-                for j, name in enumerate(self._input_names):
-                    u_vec[j] = u_dict.get(name, u_const[j])
-            else:
-                u_vec = u_const
+            u_vec = get_input(ti)
 
             # Record input
             if u_hist is not None:
@@ -779,12 +940,143 @@ class CompiledModel(Simulator):
 
             # RK4 step (except for last point)
             if i < n_steps - 1:
-                k1 = np.array(self.f_x(x, u_vec, p, ti)).flatten()
-                k2 = np.array(self.f_x(x + 0.5 * dt * k1, u_vec, p, ti + 0.5 * dt)).flatten()
-                k3 = np.array(self.f_x(x + 0.5 * dt * k2, u_vec, p, ti + 0.5 * dt)).flatten()
-                k4 = np.array(self.f_x(x + dt * k3, u_vec, p, ti + dt)).flatten()
-                x = x + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+                x = rk4_step(x, ti, dt)
                 x_hist[i + 1] = x
+
+        return self._build_result(t, x_hist, u_hist, n_inputs, p, get_input)
+
+    def _simulate_with_events(
+        self,
+        t0: float,
+        tf: float,
+        dt: float,
+        x_init: np.ndarray,
+        p: np.ndarray,
+        n_inputs: int,
+        n_states: int,
+        get_input: Callable,
+        rk4_step: Callable,
+        check_events: Callable,
+        apply_reinit: Callable,
+        max_events: int,
+    ) -> SimulationResult:
+        """
+        Simulate with event detection using bisection for zero-crossing.
+
+        This implements a simple event-locating integrator:
+        1. Take a tentative RK4 step
+        2. Check if any event function changed sign (zero-crossing)
+        3. If yes, use bisection to find the event time
+        4. Apply reinit and continue from there
+        """
+        # Use variable-length lists for event-triggered simulation
+        t_list: List[float] = [t0]
+        x_list: List[np.ndarray] = [x_init.copy()]
+        u_list: List[np.ndarray] = [get_input(t0)] if n_inputs > 0 else None
+
+        x = x_init.copy()
+        t = t0
+        n_events = 0
+        event_times: List[float] = []
+
+        # Track previous event values for edge detection
+        prev_events = check_events(x, t)
+
+        while t < tf and n_events < max_events:
+            # Tentative step
+            h = min(dt, tf - t)
+            x_next = rk4_step(x, t, h)
+            t_next = t + h
+
+            # Check for events (sign changes in event functions)
+            curr_events = check_events(x_next, t_next)
+
+            event_occurred = False
+            triggered_event = -1
+
+            for i, (_, val) in enumerate(curr_events):
+                prev_val = prev_events[i][1]
+                # Detect negative-going zero crossing (condition becomes True)
+                # For (h < 0), we want to trigger when h goes from positive to negative
+                if prev_val > 0 and val <= 0:
+                    event_occurred = True
+                    triggered_event = i
+                    break
+
+            if event_occurred:
+                # Bisection to find event time
+                t_lo, t_hi = t, t_next
+                x_lo = x.copy()
+
+                for _ in range(20):  # Max 20 bisection iterations
+                    t_mid = 0.5 * (t_lo + t_hi)
+                    h_mid = t_mid - t
+                    x_mid = rk4_step(x, t, h_mid)
+                    mid_events = check_events(x_mid, t_mid)
+                    mid_val = mid_events[triggered_event][1]
+
+                    if mid_val <= 0:
+                        t_hi = t_mid
+                    else:
+                        t_lo = t_mid
+                        x_lo = x_mid
+
+                    if abs(t_hi - t_lo) < 1e-10:
+                        break
+
+                # Event time is t_hi, state just before event is at t_lo
+                t_event = t_hi
+                x_pre = rk4_step(x, t, t_event - t)
+
+                # Apply reinit
+                x_post = apply_reinit(x_pre, triggered_event, t_event)
+
+                # Record event
+                t_list.append(t_event)
+                x_list.append(x_post.copy())
+                if u_list is not None:
+                    u_list.append(get_input(t_event))
+
+                event_times.append(t_event)
+                n_events += 1
+
+                # Continue from post-event state
+                x = x_post.copy()
+                t = t_event
+                prev_events = check_events(x, t)
+
+            else:
+                # No event - accept the step
+                t = t_next
+                x = x_next.copy()
+                t_list.append(t)
+                x_list.append(x.copy())
+                if u_list is not None:
+                    u_list.append(get_input(t))
+                prev_events = curr_events
+
+        if n_events >= max_events:
+            import warnings
+            warnings.warn(f"Maximum number of events ({max_events}) reached. Simulation may be incomplete.")
+
+        # Convert lists to arrays
+        t_arr = np.array(t_list)
+        x_arr = np.array(x_list)
+        u_arr = np.array(u_list) if u_list is not None else None
+
+        return self._build_result(t_arr, x_arr, u_arr, n_inputs, p, get_input)
+
+    def _build_result(
+        self,
+        t: np.ndarray,
+        x_hist: np.ndarray,
+        u_hist: Optional[np.ndarray],
+        n_inputs: int,
+        p: np.ndarray,
+        get_input: Callable,
+    ) -> SimulationResult:
+        """Build SimulationResult from trajectory data."""
+        n_steps = len(t)
 
         # Convert states to named dict
         states: Dict[str, np.ndarray] = {}
@@ -806,13 +1098,7 @@ class CompiledModel(Simulator):
             y_hist = np.zeros((n_steps, n_outputs))
             for i in range(n_steps):
                 ti = t[i]
-                if u_func is not None:
-                    u_dict = u_func(ti)
-                    u_vec = np.zeros(n_inputs)
-                    for j, name in enumerate(self._input_names):
-                        u_vec[j] = u_dict.get(name, u_const[j])
-                else:
-                    u_vec = u_const
+                u_vec = get_input(ti)
                 y_hist[i] = np.array(self.f_y(x_hist[i], u_vec, p, ti)).flatten()
 
             for j, name in enumerate(self._output_names):
@@ -841,4 +1127,6 @@ class CompiledModel(Simulator):
             parts.append(f"params={self._param_names}")
         if self._output_names:
             parts.append(f"outputs={self._output_names}")
+        if self.has_events:
+            parts.append(f"events={len(self.when_clause_funcs)}")
         return f"CompiledModel({', '.join(parts)})"

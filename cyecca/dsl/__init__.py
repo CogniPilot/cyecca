@@ -52,7 +52,7 @@ DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
 Example
 -------
 >>> import matplotlib.pyplot as plt
->>> from cyecca.dsl import model, var, sin, cos, der
+>>> from cyecca.dsl import model, var, sin, cos, der, equations
 >>> from cyecca.dsl.backends import CasadiBackend
 >>>
 >>> @model
@@ -70,11 +70,12 @@ Example
 ...     x = var(output=True)
 ...     y = var(output=True)
 ...
-...     def equations(m):  # Use 'm' for model namespace (cleaner than 'self')
-...         yield der(m.theta) == m.omega
-...         yield der(m.omega) == -m.g / m.l * sin(m.theta)
-...         yield m.x == m.l * sin(m.theta)
-...         yield m.y == -m.l * cos(m.theta)
+...     @equations
+...     def _(m):  # Use 'm' for model namespace (cleaner than 'self')
+...         der(m.theta) == m.omega
+...         der(m.omega) == -m.g / m.l * sin(m.theta)
+...         m.x == m.l * sin(m.theta)
+...         m.y == -m.l * cos(m.theta)
 >>>
 >>> # Create, compile, and simulate
 >>> pend = Pendulum()
@@ -121,12 +122,15 @@ from cyecca.dsl.model import (
     FlatModel,
     FunctionMetadata,
     Model,
+    Reinit,
+    WhenClause,
     and_,
     assign,
     block,
     change,
     der,
     edge,
+    equations,
     function,
     if_then_else,
     local,
@@ -134,8 +138,10 @@ from cyecca.dsl.model import (
     not_,
     or_,
     pre,
+    reinit,
     submodel,
     var,
+    when,
 )
 from cyecca.dsl.operators import (
     abs,
@@ -167,6 +173,7 @@ __all__ = [
     "model",
     "block",
     "function",
+    "equations",
     # Variable declaration
     "var",
     "Var",
@@ -181,6 +188,11 @@ __all__ = [
     "pre",
     "edge",
     "change",
+    # When-clauses (hybrid systems)
+    "when",
+    "reinit",
+    "WhenClause",
+    "Reinit",
     # Boolean operators
     "and_",
     "or_",

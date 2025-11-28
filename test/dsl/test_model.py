@@ -306,14 +306,15 @@ class TestSymbolicVar:
     """Test SymbolicVar class."""
 
     def test_basic_properties(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 0
+            @equations
+            def _(m):
+                der(m.x) == 0
 
         m = M()
         assert m.x.name == "x"
@@ -325,14 +326,15 @@ class TestSymbolicVar:
         assert m.x.indices == ()
 
     def test_array_properties(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             pos = var(shape=(3,))
 
-            def equations(m):
-                yield der(m.pos) == 0
+            @equations
+            def _(m):
+                der(m.pos) == 0
 
         m = M()
         assert m.pos.is_scalar() is False
@@ -342,16 +344,17 @@ class TestSymbolicVar:
         assert len(m.pos) == 3
 
     def test_indexing(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             pos = var(shape=(3,))
             matrix = var(shape=(2, 3))
 
-            def equations(m):
-                yield der(m.pos) == 0
-                yield der(m.matrix) == 0
+            @equations
+            def _(m):
+                der(m.pos) == 0
+                der(m.matrix) == 0
 
         m = M()
         # 1D indexing
@@ -365,14 +368,15 @@ class TestSymbolicVar:
         assert m.matrix[0][1].is_scalar() is True
 
     def test_iteration(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             pos = var(shape=(3,))
 
-            def equations(m):
-                yield der(m.pos) == 0
+            @equations
+            def _(m):
+                der(m.pos) == 0
 
         m = M()
         elements = list(m.pos)
@@ -380,16 +384,17 @@ class TestSymbolicVar:
         assert elements[0].indices == (0,)
 
     def test_index_errors(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             x = var()
             pos = var(shape=(3,))
 
-            def equations(m):
-                yield der(m.x) == 0
-                yield der(m.pos) == 0
+            @equations
+            def _(m):
+                der(m.x) == 0
+                der(m.pos) == 0
 
         m = M()
         with pytest.raises(TypeError, match="Too many indices"):
@@ -400,14 +405,15 @@ class TestSymbolicVar:
             _ = m.pos["str"]  # type: ignore
 
     def test_arithmetic(self) -> None:
-        from cyecca.dsl import ExprKind, der, model, var
+        from cyecca.dsl import ExprKind, der, equations, model, var
 
         @model
         class M:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 0
+            @equations
+            def _(m):
+                der(m.x) == 0
 
         m = M()
         assert (m.x + 1).kind == ExprKind.ADD
@@ -422,14 +428,15 @@ class TestSymbolicVar:
         assert (-m.x).kind == ExprKind.NEG
 
     def test_comparisons(self) -> None:
-        from cyecca.dsl import ExprKind, der, model, var
+        from cyecca.dsl import ExprKind, der, equations, model, var
 
         @model
         class M:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 0
+            @equations
+            def _(m):
+                der(m.x) == 0
 
         m = M()
         assert (m.x < 5).kind == ExprKind.LT
@@ -438,14 +445,15 @@ class TestSymbolicVar:
         assert (m.x >= 5).kind == ExprKind.GE
 
     def test_len_iter_errors_scalar(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 0
+            @equations
+            def _(m):
+                der(m.x) == 0
 
         m = M()
         with pytest.raises(TypeError, match="no length"):
@@ -463,21 +471,22 @@ class TestDerivativeExpr:
     """Test DerivativeExpr class."""
 
     def test_der_repr(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 0
+            @equations
+            def _(m):
+                der(m.x) == 0
 
         m = M()
         deriv = der(m.x)
         assert "der(x)" in repr(deriv)
 
     def test_der_arithmetic(self) -> None:
-        from cyecca.dsl import ExprKind, der, model, var
+        from cyecca.dsl import ExprKind, der, equations, model, var
 
         @model
         class M:
@@ -485,10 +494,11 @@ class TestDerivativeExpr:
             y = var()
             z = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 1.0
-                yield der(m.y) == 1.0
-                yield m.z == der(m.x) + der(m.y)
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                der(m.y) == 1.0
+                m.z == der(m.x) + der(m.y)
 
         flat = M().flatten()
         assert flat.output_equations["z"].kind == ExprKind.ADD
@@ -498,32 +508,34 @@ class TestArrayDerivativeExpr:
     """Test ArrayDerivativeExpr class."""
 
     def test_array_der_repr(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             pos = var(shape=(3,))
             vel = var(shape=(3,))
 
-            def equations(m):
-                yield der(m.pos) == m.vel
+            @equations
+            def _(m):
+                der(m.pos) == m.vel
 
         m = M()
         arr_der = der(m.pos)
         assert "der(pos)" in repr(arr_der)
 
     def test_array_der_indexing(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             pos = var(shape=(3,))
             vel = var(shape=(3,))
 
-            def equations(m):
-                yield der(m.pos)[0] == m.vel[0]
-                yield der(m.pos)[1] == m.vel[1]
-                yield der(m.pos)[2] == m.vel[2]
+            @equations
+            def _(m):
+                der(m.pos)[0] == m.vel[0]
+                der(m.pos)[1] == m.vel[1]
+                der(m.pos)[2] == m.vel[2]
 
         flat = M().flatten()
         assert "pos[0]" in flat.derivative_equations
@@ -653,64 +665,64 @@ class TestDiscreteOperators:
     """Test pre(), edge(), change() operators."""
 
     def test_pre_scalar(self) -> None:
-        from cyecca.dsl import model, var
+        from cyecca.dsl import equations, model, var
         from cyecca.dsl.model import ExprKind, pre
 
         @model
         class M:
             count = var(0, discrete=True)
 
-            def equations(m):
-                return
-                yield
+            @equations
+            def _(m):
+                pass
 
         m = M()
         expr = pre(m.count)
         assert expr.kind == ExprKind.PRE
 
     def test_edge_scalar(self) -> None:
-        from cyecca.dsl import DType, model, var
+        from cyecca.dsl import DType, equations, model, var
         from cyecca.dsl.model import ExprKind, edge
 
         @model
         class M:
             flag = var(False, dtype=DType.BOOLEAN, discrete=True)
 
-            def equations(m):
-                return
-                yield
+            @equations
+            def _(m):
+                pass
 
         m = M()
         expr = edge(m.flag)
         assert expr.kind == ExprKind.EDGE
 
     def test_change_scalar(self) -> None:
-        from cyecca.dsl import model, var
+        from cyecca.dsl import equations, model, var
         from cyecca.dsl.model import ExprKind, change
 
         @model
         class M:
             mode = var(0, discrete=True)
 
-            def equations(m):
-                return
-                yield
+            @equations
+            def _(m):
+                pass
 
         m = M()
         expr = change(m.mode)
         assert expr.kind == ExprKind.CHANGE
 
     def test_discrete_non_scalar_error(self) -> None:
-        from cyecca.dsl import model, var
+        from cyecca.dsl import equations, model, var
         from cyecca.dsl.model import change, edge, pre
 
         @model
         class M:
             arr = var(shape=(3,), discrete=True)
 
-            def equations(m):
-                return
-                yield
+            @equations
+            def _(m):
+                pass
 
         m = M()
         with pytest.raises(TypeError, match="scalar"):
@@ -730,14 +742,15 @@ class TestModelDecorator:
     """Test @model decorator."""
 
     def test_basic_model(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         m = M()
         flat = m.flatten()
@@ -745,28 +758,30 @@ class TestModelDecorator:
         assert "x" in flat.state_names
 
     def test_model_t_property(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.model import TimeVar
 
         @model
         class M:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == m.t
+            @equations
+            def _(m):
+                der(m.x) == m.t
 
         m = M()
         assert isinstance(m.t, TimeVar)
 
     def test_model_getattr_missing(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 0
+            @equations
+            def _(m):
+                der(m.x) == 0
 
         m = M()
         with pytest.raises(AttributeError, match="no attribute"):
@@ -782,51 +797,53 @@ class TestSubmodel:
     """Test submodel composition."""
 
     def test_submodel_access(self) -> None:
-        from cyecca.dsl import der, model, submodel, var
+        from cyecca.dsl import der, equations, model, submodel, var
 
         @model
         class Inner:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         @model
         class Outer:
             sub = submodel(Inner)
 
-            def equations(m):
-                return
-                yield
+            @equations
+            def _(m):
+                pass
 
         outer = Outer()
         flat = outer.flatten()
         assert "sub.x" in flat.state_names
 
     def test_submodel_missing_attr(self) -> None:
-        from cyecca.dsl import der, model, submodel, var
+        from cyecca.dsl import der, equations, model, submodel, var
 
         @model
         class Inner:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         @model
         class Outer:
             sub = submodel(Inner)
 
-            def equations(m):
-                return
-                yield
+            @equations
+            def _(m):
+                pass
 
         outer = Outer()
         with pytest.raises(AttributeError, match="no attribute 'nonexistent'"):
             _ = outer.sub.nonexistent
 
     def test_submodel_variable_classification(self) -> None:
-        from cyecca.dsl import der, model, submodel, var
+        from cyecca.dsl import der, equations, model, submodel, var
 
         @model
         class Inner:
@@ -836,17 +853,18 @@ class TestSubmodel:
             x = var(start=0.0)
             count = var(0, discrete=True)
 
-            def equations(m):
-                yield der(m.x) == m.k * m.u
-                yield m.y == m.x
+            @equations
+            def _(m):
+                der(m.x) == m.k * m.u
+                m.y == m.x
 
         @model
         class Outer:
             sub = submodel(Inner)
 
-            def equations(m):
-                return
-                yield
+            @equations
+            def _(m):
+                pass
 
         flat = Outer().flatten()
         assert "sub.k" in flat.param_names
@@ -866,16 +884,17 @@ class TestInitialEquations:
 
     def test_basic_initial_equations(self) -> None:
         """Test basic initial equations definition."""
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class Spring:
             x = var()
             v = var()
 
-            def equations(m):
-                yield der(m.x) == m.v
-                yield der(m.v) == -10.0 * m.x
+            @equations
+            def _(m):
+                der(m.x) == m.v
+                der(m.v) == -10.0 * m.x
 
             def initial_equations(m):
                 yield m.x == 1.0
@@ -891,16 +910,17 @@ class TestInitialEquations:
 
     def test_initial_equations_with_expressions(self) -> None:
         """Test initial equations with RHS expressions."""
-        from cyecca.dsl import der, model, sin, var
+        from cyecca.dsl import der, equations, model, sin, var
 
         @model
         class Pendulum:
             theta = var()
             omega = var()
 
-            def equations(m):
-                yield der(m.theta) == m.omega
-                yield der(m.omega) == -9.81 * sin(m.theta)
+            @equations
+            def _(m):
+                der(m.theta) == m.omega
+                der(m.omega) == -9.81 * sin(m.theta)
 
             def initial_equations(m):
                 yield m.theta == 0.5  # 0.5 radians
@@ -918,16 +938,17 @@ class TestInitialEquations:
 
     def test_initial_equations_with_submodels(self) -> None:
         """Test initial equations are properly prefixed in submodels."""
-        from cyecca.dsl import der, model, submodel, var
+        from cyecca.dsl import der, equations, model, submodel, var
 
         @model
         class Spring:
             x = var()
             v = var()
 
-            def equations(m):
-                yield der(m.x) == m.v
-                yield der(m.v) == -10.0 * m.x
+            @equations
+            def _(m):
+                der(m.x) == m.v
+                der(m.v) == -10.0 * m.x
 
             def initial_equations(m):
                 yield m.x == 1.0
@@ -938,9 +959,9 @@ class TestInitialEquations:
             spring1 = submodel(Spring)
             spring2 = submodel(Spring)
 
-            def equations(m):
-                return
-                yield
+            @equations
+            def _(m):
+                pass
 
         flat = TwoSprings().flatten()
         assert len(flat.initial_equations) == 4
@@ -954,28 +975,30 @@ class TestInitialEquations:
 
     def test_no_initial_equations(self) -> None:
         """Test model without initial_equations method."""
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class Simple:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         flat = Simple().flatten()
         assert len(flat.initial_equations) == 0
 
     def test_empty_initial_equations(self) -> None:
         """Test model with empty initial_equations method."""
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class Simple:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
             def initial_equations(m):
                 return
@@ -986,15 +1009,16 @@ class TestInitialEquations:
 
     def test_initial_equations_structure(self) -> None:
         """Test that initial equations have proper Equation structure."""
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.model import Equation, Expr
 
         @model
         class Model:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
             def initial_equations(m):
                 yield m.x == 5.0
@@ -1081,7 +1105,7 @@ class TestBlockDecorator:
     """Test @block decorator."""
 
     def test_valid_block(self) -> None:
-        from cyecca.dsl import block, der, var
+        from cyecca.dsl import block, der, equations, var
 
         @block
         class Integrator:
@@ -1089,16 +1113,17 @@ class TestBlockDecorator:
             y = var(output=True)
             x = var(protected=True)
 
-            def equations(m):
-                yield der(m.x) == m.u
-                yield m.y == m.x
+            @equations
+            def _(m):
+                der(m.x) == m.u
+                m.y == m.x
 
         flat = Integrator().flatten()
         assert "u" in flat.input_names
         assert "y" in flat.output_names
 
     def test_block_rejects_public_without_causality(self) -> None:
-        from cyecca.dsl import block, der, var
+        from cyecca.dsl import block, der, equations, var
 
         with pytest.raises(TypeError, match="violates Modelica block constraints"):
 
@@ -1108,9 +1133,10 @@ class TestBlockDecorator:
                 u = var(input=True)
                 y = var(output=True)
 
-                def equations(m):
-                    yield der(m.x) == m.u
-                    yield m.y == m.x
+                @equations
+                def _(m):
+                    der(m.x) == m.u
+                    m.y == m.x
 
 
 # =============================================================================
@@ -1122,16 +1148,17 @@ class TestFlatten:
     """Test model flattening."""
 
     def test_flatten_states_from_der(self) -> None:
-        from cyecca.dsl import VarKind, der, model, var
+        from cyecca.dsl import VarKind, der, equations, model, var
 
         @model
         class M:
             x = var(start=0.0)
             v = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == m.v
-                yield der(m.v) == -9.81
+            @equations
+            def _(m):
+                der(m.x) == m.v
+                der(m.v) == -9.81
 
         flat = M().flatten()
         assert "x" in flat.state_names
@@ -1139,31 +1166,33 @@ class TestFlatten:
         assert flat.state_vars["x"].kind == VarKind.STATE
 
     def test_flatten_algebraic_without_der(self) -> None:
-        from cyecca.dsl import VarKind, der, model, var
+        from cyecca.dsl import VarKind, der, equations, model, var
 
         @model
         class M:
             x = var()
             y = var()
 
-            def equations(m):
-                yield der(m.x) == 1.0
-                yield m.y == m.x * 2
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                m.y == m.x * 2
 
         flat = M().flatten()
         assert "y" in flat.algebraic_names
         assert flat.algebraic_vars["y"].kind == VarKind.ALGEBRAIC
 
     def test_flatten_array_equations_expand(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             pos = var(shape=(3,))
             vel = var(shape=(3,))
 
-            def equations(m):
-                yield der(m.pos) == m.vel
+            @equations
+            def _(m):
+                der(m.pos) == m.vel
 
         flat = M().flatten()
         assert len(flat.derivative_equations) == 3
@@ -1172,36 +1201,38 @@ class TestFlatten:
         assert "pos[2]" in flat.derivative_equations
 
     def test_flatten_array_equation_shape_mismatch(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             pos = var(shape=(3,))
             vel = var(shape=(2,))
 
-            def equations(m):
-                yield der(m.pos) == m.vel
+            @equations
+            def _(m):
+                der(m.pos) == m.vel
 
         with pytest.raises(ValueError, match="Shape mismatch"):
             M().flatten()
 
     def test_flatten_expand_arrays_false(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
             pos = var(shape=(3,))
             vel = var(shape=(3,))
 
-            def equations(m):
-                yield der(m.pos) == m.vel
+            @equations
+            def _(m):
+                der(m.pos) == m.vel
 
         flat = M().flatten(expand_arrays=False)
         assert flat.expand_arrays is False
         assert "pos" in flat.array_derivative_equations
 
     def test_flat_model_repr(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:
@@ -1211,9 +1242,10 @@ class TestFlatten:
             k = var(1.0, parameter=True)
             count = var(0, discrete=True)
 
-            def equations(m):
-                yield der(m.x) == m.k * m.u
-                yield m.y == m.x
+            @equations
+            def _(m):
+                der(m.x) == m.k * m.u
+                m.y == m.x
 
         repr_str = repr(M().flatten())
         assert "states=" in repr_str
@@ -1268,7 +1300,7 @@ class TestToExpr:
     def test_to_expr_types(self) -> None:
         import numpy as np
 
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.model import Expr, ExprKind, _to_expr
 
         # float
@@ -1289,8 +1321,9 @@ class TestToExpr:
         class M:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 0
+            @equations
+            def _(m):
+                der(m.x) == 0
 
         m = M()
         result = _to_expr(m.x)

@@ -16,22 +16,23 @@ class TestCasadiBackendCompile:
     """Test CasadiBackend.compile()."""
 
     def test_compile_basic_model(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         compiled = CasadiBackend.compile(M().flatten())
         assert compiled.name == "M"
         assert compiled.state_names == ["x"]
 
     def test_compile_with_inputs(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -39,14 +40,15 @@ class TestCasadiBackendCompile:
             x = var(start=0.0)
             u = var(input=True)
 
-            def equations(m):
-                yield der(m.x) == m.u
+            @equations
+            def _(m):
+                der(m.x) == m.u
 
         compiled = CasadiBackend.compile(M().flatten())
         assert "u" in compiled.input_names
 
     def test_compile_with_outputs(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -54,15 +56,16 @@ class TestCasadiBackendCompile:
             x = var(start=0.0)
             y = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 1.0
-                yield m.y == m.x * 2
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                m.y == m.x * 2
 
         compiled = CasadiBackend.compile(M().flatten())
         assert "y" in compiled.output_names
 
     def test_compile_with_params(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -70,8 +73,9 @@ class TestCasadiBackendCompile:
             x = var(start=0.0)
             k = var(2.0, parameter=True)
 
-            def equations(m):
-                yield der(m.x) == m.k
+            @equations
+            def _(m):
+                der(m.x) == m.k
 
         compiled = CasadiBackend.compile(M().flatten())
         assert "k" in compiled.param_names
@@ -82,7 +86,7 @@ class TestCasadiBackendMathOperators:
     """Test CasadiBackend compilation of math operators."""
 
     def test_trig_functions(self) -> None:
-        from cyecca.dsl import acos, asin, atan, cos, der, model, sin, tan, var
+        from cyecca.dsl import acos, asin, atan, cos, der, equations, model, sin, tan, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -95,21 +99,22 @@ class TestCasadiBackendMathOperators:
             y_acos = var(output=True)
             y_atan = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 0.0
-                yield m.y_sin == sin(m.x)
-                yield m.y_cos == cos(m.x)
-                yield m.y_tan == tan(m.x)
-                yield m.y_asin == asin(m.x)
-                yield m.y_acos == acos(m.x)
-                yield m.y_atan == atan(m.x)
+            @equations
+            def _(m):
+                der(m.x) == 0.0
+                m.y_sin == sin(m.x)
+                m.y_cos == cos(m.x)
+                m.y_tan == tan(m.x)
+                m.y_asin == asin(m.x)
+                m.y_acos == acos(m.x)
+                m.y_atan == atan(m.x)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=0.1)
         assert all(k in result.outputs for k in ["y_sin", "y_cos", "y_tan", "y_asin", "y_acos", "y_atan"])
 
     def test_atan2(self) -> None:
-        from cyecca.dsl import atan2, der, model, var
+        from cyecca.dsl import atan2, der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -118,10 +123,11 @@ class TestCasadiBackendMathOperators:
             a = var(start=0.5)
             y = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 0.0
-                yield der(m.a) == 0.0
-                yield m.y == atan2(m.a, m.x)
+            @equations
+            def _(m):
+                der(m.x) == 0.0
+                der(m.a) == 0.0
+                m.y == atan2(m.a, m.x)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=0.1)
@@ -129,7 +135,7 @@ class TestCasadiBackendMathOperators:
 
     def test_exp_log_sqrt_abs(self) -> None:
         from cyecca.dsl import abs as dsl_abs
-        from cyecca.dsl import der, exp, log, model, sqrt, var
+        from cyecca.dsl import der, equations, exp, log, model, sqrt, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -140,19 +146,20 @@ class TestCasadiBackendMathOperators:
             y_sqrt = var(output=True)
             y_abs = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 0.1
-                yield m.y_exp == exp(m.x)
-                yield m.y_log == log(m.x)
-                yield m.y_sqrt == sqrt(m.x)
-                yield m.y_abs == dsl_abs(m.x)
+            @equations
+            def _(m):
+                der(m.x) == 0.1
+                m.y_exp == exp(m.x)
+                m.y_log == log(m.x)
+                m.y_sqrt == sqrt(m.x)
+                m.y_abs == dsl_abs(m.x)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=0.1)
         assert all(k in result.outputs for k in ["y_exp", "y_log", "y_sqrt", "y_abs"])
 
     def test_log10(self) -> None:
-        from cyecca.dsl import der, log10, model, var
+        from cyecca.dsl import der, equations, log10, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -160,9 +167,10 @@ class TestCasadiBackendMathOperators:
             x = var(start=100.0)
             y = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 0.0
-                yield m.y == log10(m.x)
+            @equations
+            def _(m):
+                der(m.x) == 0.0
+                m.y == log10(m.x)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=0.1)
@@ -171,7 +179,7 @@ class TestCasadiBackendMathOperators:
         assert result.outputs["y"][0] == pytest.approx(2.0, abs=1e-10)
 
     def test_sign_floor_ceil(self) -> None:
-        from cyecca.dsl import ceil, der, floor, model, sign, var
+        from cyecca.dsl import ceil, der, equations, floor, model, sign, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -181,11 +189,12 @@ class TestCasadiBackendMathOperators:
             y_floor = var(output=True)
             y_ceil = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 0.0
-                yield m.y_sign == sign(m.x)
-                yield m.y_floor == floor(m.x)
-                yield m.y_ceil == ceil(m.x)
+            @equations
+            def _(m):
+                der(m.x) == 0.0
+                m.y_sign == sign(m.x)
+                m.y_floor == floor(m.x)
+                m.y_ceil == ceil(m.x)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=0.1)
@@ -198,7 +207,7 @@ class TestCasadiBackendMathOperators:
         assert result.outputs["y_ceil"][0] == pytest.approx(-2.0)
 
     def test_hyperbolic_functions(self) -> None:
-        from cyecca.dsl import cosh, der, model, sinh, tanh, var
+        from cyecca.dsl import cosh, der, equations, model, sinh, tanh, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -208,11 +217,12 @@ class TestCasadiBackendMathOperators:
             y_cosh = var(output=True)
             y_tanh = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 0.0
-                yield m.y_sinh == sinh(m.x)
-                yield m.y_cosh == cosh(m.x)
-                yield m.y_tanh == tanh(m.x)
+            @equations
+            def _(m):
+                der(m.x) == 0.0
+                m.y_sinh == sinh(m.x)
+                m.y_cosh == cosh(m.x)
+                m.y_tanh == tanh(m.x)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=0.1)
@@ -223,7 +233,7 @@ class TestCasadiBackendMathOperators:
         assert result.outputs["y_tanh"][0] == pytest.approx(math.tanh(1.0))
 
     def test_min_max(self) -> None:
-        from cyecca.dsl import der
+        from cyecca.dsl import der, equations
         from cyecca.dsl import max as dsl_max
         from cyecca.dsl import min as dsl_min
         from cyecca.dsl import model, var
@@ -236,11 +246,12 @@ class TestCasadiBackendMathOperators:
             y_min = var(output=True)
             y_max = var(output=True)
 
-            def equations(m):
-                yield der(m.a) == 0.0
-                yield der(m.b) == 0.0
-                yield m.y_min == dsl_min(m.a, m.b)
-                yield m.y_max == dsl_max(m.a, m.b)
+            @equations
+            def _(m):
+                der(m.a) == 0.0
+                der(m.b) == 0.0
+                m.y_min == dsl_min(m.a, m.b)
+                m.y_max == dsl_max(m.a, m.b)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=0.1)
@@ -252,7 +263,7 @@ class TestCasadiBackendConditionals:
     """Test CasadiBackend compilation of conditionals."""
 
     def test_if_then_else(self) -> None:
-        from cyecca.dsl import der, if_then_else, model, var
+        from cyecca.dsl import der, equations, if_then_else, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -260,16 +271,17 @@ class TestCasadiBackendConditionals:
             x = var(start=0.0)
             y = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 1.0
-                yield m.y == if_then_else(m.x < 0.5, 0.0, 1.0)
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                m.y == if_then_else(m.x < 0.5, 0.0, 1.0)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=1.0)
         assert "y" in result.outputs
 
     def test_comparison_operators(self) -> None:
-        from cyecca.dsl import der, if_then_else, model, var
+        from cyecca.dsl import der, equations, if_then_else, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -280,19 +292,20 @@ class TestCasadiBackendConditionals:
             y_gt = var(output=True)
             y_ge = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 1.0
-                yield m.y_lt == if_then_else(m.x < 0.5, 1.0, 0.0)
-                yield m.y_le == if_then_else(m.x <= 0.5, 1.0, 0.0)
-                yield m.y_gt == if_then_else(m.x > 0.5, 1.0, 0.0)
-                yield m.y_ge == if_then_else(m.x >= 0.5, 1.0, 0.0)
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                m.y_lt == if_then_else(m.x < 0.5, 1.0, 0.0)
+                m.y_le == if_then_else(m.x <= 0.5, 1.0, 0.0)
+                m.y_gt == if_then_else(m.x > 0.5, 1.0, 0.0)
+                m.y_ge == if_then_else(m.x >= 0.5, 1.0, 0.0)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=1.0)
         assert all(k in result.outputs for k in ["y_lt", "y_le", "y_gt", "y_ge"])
 
     def test_boolean_operators(self) -> None:
-        from cyecca.dsl import and_, der, if_then_else, model, not_, or_, var
+        from cyecca.dsl import and_, der, equations, if_then_else, model, not_, or_, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -302,11 +315,12 @@ class TestCasadiBackendConditionals:
             y_or = var(output=True)
             y_not = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 1.0
-                yield m.y_and == if_then_else(and_(m.x > 0.25, m.x < 0.75), 1.0, 0.0)
-                yield m.y_or == if_then_else(or_(m.x < 0.25, m.x > 0.75), 1.0, 0.0)
-                yield m.y_not == if_then_else(not_(m.x > 0.5), 1.0, 0.0)
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                m.y_and == if_then_else(and_(m.x > 0.25, m.x < 0.75), 1.0, 0.0)
+                m.y_or == if_then_else(or_(m.x < 0.25, m.x > 0.75), 1.0, 0.0)
+                m.y_not == if_then_else(not_(m.x > 0.5), 1.0, 0.0)
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=1.0)
@@ -322,7 +336,7 @@ class TestCompiledModel:
     """Test CompiledModel properties and methods."""
 
     def test_properties(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -332,9 +346,10 @@ class TestCompiledModel:
             k = var(1.0, parameter=True)
             y = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == m.k * m.u
-                yield m.y == m.x
+            @equations
+            def _(m):
+                der(m.x) == m.k * m.u
+                m.y == m.x
 
         compiled = CasadiBackend.compile(M().flatten())
         assert compiled.name == "M"
@@ -345,15 +360,16 @@ class TestCompiledModel:
         assert compiled.param_defaults == {"k": 1.0}
 
     def test_repr(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         compiled = CasadiBackend.compile(M().flatten())
         repr_str = repr(compiled)
@@ -370,15 +386,16 @@ class TestSimulate:
     """Test CompiledModel.simulate()."""
 
     def test_basic_simulation(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=1.0)
@@ -387,15 +404,16 @@ class TestSimulate:
         assert result["x"][-1] == pytest.approx(1.0, abs=0.1)
 
     def test_simulate_with_x0(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=1.0, x0={"x": 5.0})
@@ -404,7 +422,7 @@ class TestSimulate:
         assert result["x"][-1] == pytest.approx(6.0, abs=0.1)
 
     def test_simulate_with_constant_input(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -412,8 +430,9 @@ class TestSimulate:
             x = var(start=0.0)
             u = var(input=True)
 
-            def equations(m):
-                yield der(m.x) == m.u
+            @equations
+            def _(m):
+                der(m.x) == m.u
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=1.0, u={"u": 2.0})
@@ -421,7 +440,7 @@ class TestSimulate:
         assert result["x"][-1] == pytest.approx(2.0, abs=0.1)
 
     def test_simulate_with_u_func(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -429,8 +448,9 @@ class TestSimulate:
             x = var(start=0.0)
             u = var(input=True)
 
-            def equations(m):
-                yield der(m.x) == m.u
+            @equations
+            def _(m):
+                der(m.x) == m.u
 
         compiled = CasadiBackend.compile(M().flatten())
 
@@ -444,7 +464,7 @@ class TestSimulate:
         assert abs(result["x"][-1]) < 0.1
 
     def test_simulate_with_params(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -452,8 +472,9 @@ class TestSimulate:
             x = var(start=0.0)
             k = var(1.0, parameter=True)
 
-            def equations(m):
-                yield der(m.x) == m.k
+            @equations
+            def _(m):
+                der(m.x) == m.k
 
         compiled = CasadiBackend.compile(M().flatten())
         result = compiled.simulate(tf=1.0, params={"k": 3.0})
@@ -470,15 +491,16 @@ class TestSimulationResult:
     """Test SimulationResult properties and methods."""
 
     def test_t_property(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0)
 
@@ -486,7 +508,7 @@ class TestSimulationResult:
         assert result.t[-1] == pytest.approx(1.0, abs=0.01)
 
     def test_states_property(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -494,9 +516,10 @@ class TestSimulationResult:
             x = var(start=0.0)
             y = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
-                yield der(m.y) == -m.y
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                der(m.y) == -m.y
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0)
 
@@ -506,7 +529,7 @@ class TestSimulationResult:
         assert isinstance(states["x"], np.ndarray)
 
     def test_outputs_property(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -514,9 +537,10 @@ class TestSimulationResult:
             x = var(start=0.0)
             y = var(output=True)
 
-            def equations(m):
-                yield der(m.x) == 1.0
-                yield m.y == m.x * 2
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                m.y == m.x * 2
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0)
 
@@ -525,7 +549,7 @@ class TestSimulationResult:
         assert isinstance(outputs["y"], np.ndarray)
 
     def test_inputs_property(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -533,8 +557,9 @@ class TestSimulationResult:
             u = var(input=True)
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == m.u
+            @equations
+            def _(m):
+                der(m.x) == m.u
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0, u={"u": 1.0})
 
@@ -542,15 +567,16 @@ class TestSimulationResult:
         assert "u" in inputs
 
     def test_data_property(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0)
 
@@ -559,15 +585,16 @@ class TestSimulationResult:
         assert "x" in data
 
     def test_getitem_t(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0)
 
@@ -575,15 +602,16 @@ class TestSimulationResult:
         assert t[0] == 0.0
 
     def test_getitem_keyerror(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0)
 
@@ -591,15 +619,16 @@ class TestSimulationResult:
             _ = result["nonexistent"]
 
     def test_call_with_string(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0)
 
@@ -607,15 +636,16 @@ class TestSimulationResult:
         assert len(x_data) > 0
 
     def test_call_with_symbolic_var(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         m = M()
         result = CasadiBackend.compile(m.flatten()).simulate(tf=1.0)
@@ -624,15 +654,16 @@ class TestSimulationResult:
         assert len(x_data) > 0
 
     def test_call_keyerror(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0)
 
@@ -640,15 +671,16 @@ class TestSimulationResult:
             result("nonexistent")
 
     def test_call_typeerror(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         result = CasadiBackend.compile(M().flatten()).simulate(tf=1.0)
 
@@ -665,15 +697,16 @@ class TestCasadiMXBackend:
     """Test CasADi MX backend (alternative symbolic type)."""
 
     def test_mx_backend_basic(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
         class M:
             x = var(start=0.0)
 
-            def equations(m):
-                yield der(m.x) == 1.0
+            @equations
+            def _(m):
+                der(m.x) == 1.0
 
         flat = M().flatten(expand_arrays=False)
         compiled = CasadiBackend.compile(flat, symbolic_type=SymbolicType.MX)
@@ -681,7 +714,7 @@ class TestCasadiMXBackend:
         assert "x" in result.states
 
     def test_mx_backend_with_input(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
@@ -689,8 +722,9 @@ class TestCasadiMXBackend:
             x = var(start=0.0)
             u = var(input=True)
 
-            def equations(m):
-                yield der(m.x) == m.u
+            @equations
+            def _(m):
+                der(m.x) == m.u
 
         flat = M().flatten(expand_arrays=False)
         compiled = CasadiBackend.compile(flat, symbolic_type=SymbolicType.MX)
@@ -698,7 +732,7 @@ class TestCasadiMXBackend:
         assert "x" in result.states
 
     def test_mx_backend_with_param(self) -> None:
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
@@ -706,8 +740,9 @@ class TestCasadiMXBackend:
             x = var(start=0.0)
             k = var(1.0, parameter=True)
 
-            def equations(m):
-                yield der(m.x) == m.k
+            @equations
+            def _(m):
+                der(m.x) == m.k
 
         flat = M().flatten(expand_arrays=False)
         compiled = CasadiBackend.compile(flat, symbolic_type=SymbolicType.MX)

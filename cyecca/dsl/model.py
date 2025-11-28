@@ -51,7 +51,7 @@ DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
 
 Example
 -------
->>> from cyecca.dsl import model, var, der, sin
+>>> from cyecca.dsl import model, var, der, sin, equations
 >>>
 >>> @model
 ... class Pendulum:
@@ -60,10 +60,11 @@ Example
 ...     omega = var()
 ...     x = var(output=True)
 ...
-...     def equations(m):
-...         yield der(m.theta) == m.omega
-...         yield der(m.omega) == -m.g * sin(m.theta)
-...         yield m.x == sin(m.theta)
+...     @equations
+...     def _(m):
+...         der(m.theta) == m.omega
+...         der(m.omega) == -m.g * sin(m.theta)
+...         m.x == sin(m.theta)
 """
 
 from __future__ import annotations
@@ -146,6 +147,9 @@ class ExprKind(Enum):
     TANH = auto()  # Hyperbolic tangent
     MIN = auto()  # Minimum of two values
     MAX = auto()  # Maximum of two values
+
+    # Hybrid system operators (Modelica MLS 8.5)
+    REINIT = auto()  # reinit(x, expr) - reinitialize state at event
 
 
 @dataclass(frozen=True)
@@ -248,6 +252,8 @@ class Expr:
             return f"(not {self.children[0]})"
         elif self.kind == ExprKind.IF_THEN_ELSE:
             return f"(if {self.children[0]} then {self.children[1]} else {self.children[2]})"
+        elif self.kind == ExprKind.REINIT:
+            return f"reinit({self.name}, {self.children[0]})"
         return f"Expr({self.kind})"
 
     @property
@@ -664,6 +670,92 @@ class Assignment:
         return f"Assign({self.target} := {self.expr})"
 
 
+@dataclass(frozen=True)
+class Reinit:
+    """
+    Represents a reinit statement: reinit(x, expr).
+
+    In Modelica, reinit(x, expr) is used within when-clauses to reinitialize
+    a continuous-time state variable x to a new value when an event occurs.
+
+    This is essential for hybrid systems like bouncing balls, where the
+    velocity needs to be reset (with reversal) when the ball hits the ground.
+
+    Example
+    -------
+    >>> when(m.h < 0):
+    ...     yield reinit(m.v, -m.e * pre(m.v))
+
+    Modelica Spec: Section 8.5 - When-Equations, reinit()
+    """
+
+    var_name: str  # Name of state variable to reinitialize
+    expr: Expr  # New value expression
+
+    def __repr__(self) -> str:
+        return f"reinit({self.var_name}, {self.expr})"
+
+    def _prefix_names(self, prefix: str) -> "Reinit":
+        """Create a new Reinit with all variable names prefixed."""
+        new_var_name = f"{prefix}.{self.var_name}"
+        new_expr = _prefix_expr(self.expr, prefix)
+        return Reinit(var_name=new_var_name, expr=new_expr)
+
+
+@dataclass
+class WhenClause:
+    """
+    Represents a when-clause for event handling.
+
+    In Modelica, when-clauses are used for event-driven behavior:
+
+        when condition then
+            // equations or reinit statements
+        end when;
+
+    The condition is a Boolean expression that triggers the when-clause
+    when it becomes True (rising edge). The body contains equations or
+    reinit statements that are executed at the event instant.
+
+    Example
+    -------
+    >>> @model
+    ... class BouncingBall:
+    ...     h = var(start=1.0)  # height
+    ...     v = var(start=0.0)  # velocity
+    ...     e = var(0.8, parameter=True)  # restitution
+    ...
+    ...     def equations(m):
+    ...         yield der(m.h) == m.v
+    ...         yield der(m.v) == -9.81
+    ...
+    ...     def when_equations(m):
+    ...         with when(m.h < 0):
+    ...             yield reinit(m.v, -m.e * pre(m.v))
+
+    Modelica Spec: Section 8.5 - When-Equations
+    """
+
+    condition: Expr  # Boolean condition that triggers the event
+    body: List[Union[Equation, "Reinit"]]  # Equations or reinit statements
+
+    def __repr__(self) -> str:
+        return f"WhenClause({self.condition}, body={len(self.body)} items)"
+
+    def _prefix_names(self, prefix: str) -> "WhenClause":
+        """Create a new WhenClause with all variable names prefixed."""
+        new_condition = _prefix_expr(self.condition, prefix)
+        new_body = []
+        for item in self.body:
+            if isinstance(item, Equation):
+                new_body.append(item._prefix_names(prefix))
+            elif isinstance(item, Reinit):
+                new_body.append(item._prefix_names(prefix))
+            else:
+                new_body.append(item)
+        return WhenClause(condition=new_condition, body=new_body)
+
+
 # =============================================================================
 # Symbolic variable wrappers (user-facing)
 # =============================================================================
@@ -828,10 +920,21 @@ class SymbolicVar:
             yield self[i]
 
     # Comparison operators for equations
-    def __eq__(self, other: Any) -> "Equation":  # type: ignore[override]
-        """Capture equation: x == expr."""
+    def __eq__(self, other: Any) -> Optional["Equation"]:  # type: ignore[override]
+        """Capture equation: x == expr.
+        
+        If inside an @equations block, auto-registers and returns None.
+        Otherwise returns an Equation object (for legacy compatibility).
+        """
         rhs = _to_expr(other)
-        return Equation(lhs=self._expr, rhs=rhs)
+        eq = Equation(lhs=self._expr, rhs=rhs)
+        
+        # Auto-register if in @equations context
+        ctx = _get_current_equation_context()
+        if ctx is not None:
+            ctx.add_equation(eq)
+            return None
+        return eq
 
     # Arithmetic operations - return Expr
     def __add__(self, other: Any) -> Expr:
@@ -908,15 +1011,26 @@ class DerivativeExpr:
     def __repr__(self) -> str:
         return f"der({self._var_name})"
 
-    def __eq__(self, other: Any) -> Equation:  # type: ignore[override]
-        """Capture equation: der(x) == expr."""
+    def __eq__(self, other: Any) -> Optional[Equation]:  # type: ignore[override]
+        """Capture equation: der(x) == expr.
+        
+        If inside an @equations block, auto-registers and returns None.
+        Otherwise returns an Equation object.
+        """
         rhs = _to_expr(other)
-        return Equation(
+        eq = Equation(
             lhs=self._expr,
             rhs=rhs,
             is_derivative=True,
             var_name=self._var_name,
         )
+        
+        # Auto-register if in @equations context
+        ctx = _get_current_equation_context()
+        if ctx is not None:
+            ctx.add_equation(eq)
+            return None
+        return eq
 
     # Arithmetic (for expressions like der(x) + y)
     def __add__(self, other: Any) -> Expr:
@@ -992,13 +1106,24 @@ class ArrayDerivativeExpr:
     def __repr__(self) -> str:
         return f"der({self._var._name})"
 
-    def __eq__(self, other: Any) -> "ArrayEquation":  # type: ignore[override]
-        """Capture array equation: der(pos) == vel."""
-        return ArrayEquation(
+    def __eq__(self, other: Any) -> Optional["ArrayEquation"]:  # type: ignore[override]
+        """Capture array equation: der(pos) == vel.
+        
+        If inside an @equations block, auto-registers and returns None.
+        Otherwise returns an ArrayEquation object.
+        """
+        eq = ArrayEquation(
             lhs_var=self._var,
             rhs=other,
             is_derivative=True,
         )
+        
+        # Auto-register if in @equations context
+        ctx = _get_current_equation_context()
+        if ctx is not None:
+            ctx.add_equation(eq)
+            return None
+        return eq
 
     def __getitem__(self, index: Union[int, Indices]) -> "DerivativeExpr":
         """Allow der(pos)[i] syntax as alternative to der(pos[i])."""
@@ -1405,6 +1530,377 @@ def if_then_else(condition: Any, then_expr: Any, else_expr: Any) -> Expr:
 
 
 # =============================================================================
+# Equation context for @equations decorator (side-effect based capture)
+# =============================================================================
+
+
+import threading
+from functools import wraps
+from typing import Callable
+
+# Thread-local storage for equation context stack
+_equation_context = threading.local()
+
+
+class EquationContext:
+    """
+    Context for collecting equations via side effects.
+
+    When active, expressions using == (like `der(m.x) == m.y`) automatically
+    register themselves as equations instead of returning Equation objects.
+
+    This enables the clean @equations decorator syntax without yield:
+
+        @equations
+        def _(m):
+            der(m.theta) == m.omega
+            der(m.omega) == -9.81 * sin(m.theta)
+    """
+
+    def __init__(self) -> None:
+        self.equations: List[Union[Equation, "ArrayEquation", WhenClause]] = []
+        self._current_when: Optional["WhenContext"] = None
+
+    def add_equation(self, eq: Union[Equation, "ArrayEquation"]) -> None:
+        """Add an equation to the current context."""
+        if self._current_when is not None:
+            # If we're inside a when-clause, add to that instead
+            self._current_when.body.append(eq)
+        else:
+            self.equations.append(eq)
+
+    def add_when_clause(self, wc: WhenClause) -> None:
+        """Add a completed when-clause to the context."""
+        self.equations.append(wc)
+
+    def add_reinit(self, r: "Reinit") -> None:
+        """Add a reinit statement (must be inside a when-clause)."""
+        if self._current_when is None:
+            raise RuntimeError("reinit() can only be used inside a when() block")
+        self._current_when.body.append(r)
+
+    def enter_when(self, when_ctx: "WhenContext") -> None:
+        """Enter a when-clause context."""
+        self._current_when = when_ctx
+
+    def exit_when(self) -> None:
+        """Exit a when-clause context and register it."""
+        if self._current_when is not None:
+            wc = self._current_when.to_when_clause()
+            self.equations.append(wc)
+            self._current_when = None
+
+
+def _get_current_equation_context() -> Optional[EquationContext]:
+    """Get the current equation context, or None if not in an @equations block."""
+    if not hasattr(_equation_context, "stack") or not _equation_context.stack:
+        return None
+    return _equation_context.stack[-1]
+
+
+def _push_equation_context() -> EquationContext:
+    """Push a new equation context onto the stack."""
+    if not hasattr(_equation_context, "stack"):
+        _equation_context.stack = []
+    ctx = EquationContext()
+    _equation_context.stack.append(ctx)
+    return ctx
+
+
+def _pop_equation_context() -> EquationContext:
+    """Pop the current equation context from the stack."""
+    return _equation_context.stack.pop()
+
+
+# Marker attribute for @equations decorated methods
+_EQUATIONS_MARKER = "_cyecca_equations_method"
+
+
+def equations(func: Callable) -> Callable:
+    """
+    Decorator to mark a method as an equations block.
+
+    Methods decorated with @equations use side-effect based equation capture.
+    Instead of yielding equations, simply write them as statements:
+
+        @equations
+        def _(m):
+            der(m.theta) == m.omega
+            der(m.omega) == -9.81 * sin(m.theta)
+            m.x == sin(m.theta)
+
+            with when(m.h < 0):
+                reinit(m.v, -m.e * pre(m.v))
+
+    The == operator auto-registers equations when inside an @equations block.
+    The reinit() function auto-registers when inside a when() block.
+
+    Parameters
+    ----------
+    func : Callable
+        The equations method (conventionally named `_` since self isn't used)
+
+    Returns
+    -------
+    Callable
+        The decorated method with equation capture marker
+
+    Example
+    -------
+    >>> @model
+    ... class Pendulum:
+    ...     theta = var(start=0.5)
+    ...     omega = var()
+    ...     g = var(9.81, parameter=True)
+    ...
+    ...     @equations
+    ...     def _(m):
+    ...         der(m.theta) == m.omega
+    ...         der(m.omega) == -m.g * sin(m.theta)
+    """
+    setattr(func, _EQUATIONS_MARKER, True)
+    return func
+
+
+def _is_equations_method(func: Any) -> bool:
+    """Check if a function is marked as an @equations method."""
+    return getattr(func, _EQUATIONS_MARKER, False)
+
+
+def _execute_equations_method(
+    func: Callable, model_instance: "ModelInstance"
+) -> List[Union[Equation, "ArrayEquation", WhenClause]]:
+    """
+    Execute an @equations method and collect equations via context.
+
+    Parameters
+    ----------
+    func : Callable
+        The @equations decorated method
+    model_instance : ModelInstance
+        The model instance to pass to the method
+
+    Returns
+    -------
+    List[Union[Equation, ArrayEquation, WhenClause]]
+        The collected equations
+    """
+    ctx = _push_equation_context()
+    try:
+        func(model_instance)
+    finally:
+        _pop_equation_context()
+    return ctx.equations
+
+
+# =============================================================================
+# When-clause support (Modelica MLS 8.5)
+# =============================================================================
+
+
+# Thread-local storage for the current when context (legacy, kept for compatibility)
+_when_context = threading.local()
+
+
+class WhenContext:
+    """
+    Context manager for building when-clauses.
+
+    This is used internally by the `when()` function to collect
+    equations and reinit statements within a when-clause.
+
+    Supports two modes:
+    1. @equations decorator mode: reinit() auto-registers, no yield needed
+    2. Legacy yield mode: use w.add() and yield w.to_when_clause()
+    """
+
+    def __init__(self, condition: Expr):
+        self.condition = condition
+        self.body: List[Union[Equation, Reinit]] = []
+        self._in_equations_context = False
+
+    def __enter__(self) -> "WhenContext":
+        # Push this context onto the legacy when-context stack
+        if not hasattr(_when_context, "stack"):
+            _when_context.stack = []
+        _when_context.stack.append(self)
+        
+        # Check if we're inside an @equations block
+        eq_ctx = _get_current_equation_context()
+        if eq_ctx is not None:
+            self._in_equations_context = True
+            eq_ctx.enter_when(self)
+        
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        # Pop from the legacy when-context stack
+        _when_context.stack.pop()
+        
+        # If in @equations context, auto-register the when-clause
+        if self._in_equations_context:
+            eq_ctx = _get_current_equation_context()
+            if eq_ctx is not None:
+                eq_ctx.exit_when()
+        
+        return None
+
+    def add(self, item: Union[Equation, Reinit]) -> None:
+        """Add an equation or reinit to this when-clause (legacy API)."""
+        self.body.append(item)
+
+    def to_when_clause(self) -> WhenClause:
+        """Convert to a WhenClause object (legacy API)."""
+        return WhenClause(condition=self.condition, body=self.body)
+
+
+def _get_current_when_context() -> Optional[WhenContext]:
+    """Get the current when context, or None if not in a when block."""
+    if not hasattr(_when_context, "stack") or not _when_context.stack:
+        return None
+    return _when_context.stack[-1]
+
+
+@beartype
+def when(condition: Any) -> WhenContext:
+    """
+    Create a when-clause for event handling (Modelica MLS 8.5).
+
+    When-clauses define event-driven behavior in hybrid systems. The body
+    of a when-clause is executed when the condition changes from False to
+    True (rising edge).
+
+    Use this as a context manager in an @equations method:
+
+        @equations
+        def _(m):
+            der(m.h) == m.v
+            der(m.v) == -9.81
+            
+            with when(m.h < 0):
+                reinit(m.v, -m.e * pre(m.v))
+
+    The condition can be:
+    - A relational expression (m.h < 0)
+    - A Boolean variable (m.trigger)
+    - edge(m.trigger) - rising edge of Boolean
+    - change(m.mode) - any value change
+
+    Parameters
+    ----------
+    condition : Expr or SymbolicVar
+        Boolean condition that triggers the when-clause
+
+    Returns
+    -------
+    WhenContext
+        A context manager for the when-clause body
+
+    Example
+    -------
+    >>> @model
+    ... class BouncingBall:
+    ...     h = var(start=1.0, unit="m")
+    ...     v = var(start=0.0, unit="m/s")
+    ...     e = var(0.8, parameter=True)  # Restitution coefficient
+    ...
+    ...     @equations
+    ...     def _(m):
+    ...         der(m.h) == m.v
+    ...         der(m.v) == -9.81
+    ...
+    ...         with when(m.h < 0):
+    ...             reinit(m.v, -m.e * pre(m.v))
+
+    Notes
+    -----
+    Modelica Spec: Section 8.5 - When-Equations
+
+    In Modelica, when-equations are triggered on the rising edge of the
+    condition. The condition is typically a relational expression that
+    crosses zero (like h < 0), and the simulator uses root-finding to
+    detect the exact crossing time.
+
+    Within a when-clause, you can use:
+    - reinit(x, expr): Reinitialize state x to expr
+    - Discrete variable assignments (future)
+    - Regular equations for discrete variables (future)
+    """
+    return WhenContext(_to_expr(condition))
+
+
+@beartype
+def reinit(var: SymbolicVar, expr: Any) -> Optional[Reinit]:
+    """
+    Reinitialize a continuous-time state variable at an event.
+
+    This is used within when-clauses to set a new value for a state
+    variable when an event occurs. The reinit takes effect instantaneously
+    at the event time.
+
+    When used inside an @equations block with a when() context, the reinit
+    is automatically registered. No yield or explicit add() is needed.
+
+    Parameters
+    ----------
+    var : SymbolicVar
+        The state variable to reinitialize
+    expr : Expr or numeric
+        The new value expression (can use pre() for previous values)
+
+    Returns
+    -------
+    Reinit or None
+        Returns None when auto-registered in @equations context,
+        otherwise returns a Reinit object.
+
+    Example
+    -------
+    >>> @model
+    ... class BouncingBall:
+    ...     h = var(start=1.0)
+    ...     v = var(start=0.0)
+    ...     e = var(0.8, parameter=True)
+    ...
+    ...     @equations
+    ...     def _(m):
+    ...         der(m.h) == m.v
+    ...         der(m.v) == -9.81
+    ...
+    ...         with when(m.h < 0):
+    ...             reinit(m.v, -m.e * pre(m.v))
+
+    Notes
+    -----
+    Modelica Spec: Section 8.5 - reinit()
+
+    The reinit() function:
+    - Can only be used within when-clauses
+    - Can only reinitialize continuous-time state variables
+    - The new value is computed using values from just before the event
+    - Use pre(x) to access the value of x just before the event
+
+    Common uses:
+    - Bouncing ball: reinit(v, -e * pre(v)) to reverse velocity
+    - Clutch engagement: reinit velocity to match coupled system
+    - Mode switches: reset integrator states
+    """
+    if not isinstance(var, SymbolicVar):
+        raise TypeError(f"reinit() expects a SymbolicVar as first argument, got {type(var)}")
+    if not var.is_scalar():
+        raise TypeError(f"reinit() currently only supports scalar variables, got shape {var.shape}")
+
+    r = Reinit(var_name=var._name, expr=_to_expr(expr))
+    
+    # Auto-register if in @equations context
+    ctx = _get_current_equation_context()
+    if ctx is not None:
+        ctx.add_reinit(r)
+        return None
+    return r
+
+
+# =============================================================================
 # Algorithm section support
 # =============================================================================
 
@@ -1658,22 +2154,22 @@ class ModelInstance:
         """Time variable."""
         return self._t
 
-    def equations(m) -> Generator[Equation, None, None]:
+    # Subclasses store their @equations methods here
+    _equations_methods: List[Callable] = []
+
+    def get_equations(self) -> List[Union[Equation, "ArrayEquation", WhenClause]]:
         """
-        Override this method to define model equations.
+        Execute all @equations methods and collect equations.
 
-        Use 'm' as the first parameter (model namespace) instead of 'self'.
-        Yield equations using the == operator.
+        This is overridden by the @model decorator to execute the
+        actual @equations decorated methods.
 
-        Example
+        Returns
         -------
-        >>> def equations(m):
-        ...     yield der(m.theta) == m.omega
-        ...     yield der(m.omega) == -m.g / m.l * sin(m.theta)
-        ...     yield m.x == m.l * sin(m.theta)  # Output equation
+        List[Union[Equation, ArrayEquation, WhenClause]]
+            All equations collected from @equations methods
         """
-        return
-        yield  # Make this a generator
+        return []
 
     def algorithm(m) -> Generator[Assignment, None, None]:
         """
@@ -1723,9 +2219,10 @@ class ModelInstance:
         ...     theta = var()
         ...     omega = var()
         ...
-        ...     def equations(m):
-        ...         yield der(m.theta) == m.omega
-        ...         yield der(m.omega) == -9.81 * sin(m.theta)
+        ...     @equations
+        ...     def _(m):
+        ...         der(m.theta) == m.omega
+        ...         der(m.omega) == -9.81 * sin(m.theta)
         ...
         ...     def initial_equations(m):
         ...         yield m.theta == 0.5  # Initial angle
@@ -1775,11 +2272,12 @@ class ModelInstance:
         """
         md = self._metadata
 
-        # Collect equations by iterating the generator
-        # Include both this model's equations AND submodel equations
-        raw_equations = self.equations()
+        # Collect equations using the new @equations-based approach
+        # get_equations() executes all @equations methods and returns the collected equations
+        raw_equations = self.get_equations()
         equations: List[Equation] = []
         array_equations: List[ArrayEquation] = []
+        when_clauses_from_equations: List[WhenClause] = []
 
         for eq in raw_equations:
             if isinstance(eq, ArrayEquation):
@@ -1791,12 +2289,15 @@ class ModelInstance:
                     array_equations.append(eq)
             elif isinstance(eq, Equation):
                 equations.append(eq)
+            elif isinstance(eq, WhenClause):
+                # When-clauses from @equations methods
+                when_clauses_from_equations.append(eq)
             else:
-                raise TypeError(f"Expected Equation or ArrayEquation, got {type(eq)}")
+                raise TypeError(f"Expected Equation, ArrayEquation, or WhenClause, got {type(eq)}")
 
         # Collect equations from submodels (with prefixed variable names)
         for sub_name, sub_instance in self._submodels.items():
-            for eq in sub_instance.equations():
+            for eq in sub_instance.get_equations():
                 if isinstance(eq, Equation):
                     # Prefix variable names in the equation
                     prefixed_eq = eq._prefix_names(sub_name)
@@ -1809,6 +2310,10 @@ class ModelInstance:
                     else:
                         # TODO: prefix array equations
                         array_equations.append(eq)
+                elif isinstance(eq, WhenClause):
+                    # When-clauses from submodels need prefixing
+                    prefixed_wc = eq._prefix_names(sub_name)
+                    when_clauses_from_equations.append(prefixed_wc)
 
         # Collect algorithm assignments
         raw_algorithm = self.algorithm()
@@ -1850,6 +2355,9 @@ class ModelInstance:
                     for scalar_eq in eq.expand():
                         prefixed_eq = scalar_eq._prefix_names(sub_name)
                         initial_equations_list.append(prefixed_eq)
+
+        # When-clauses are now collected from get_equations() only
+        when_clauses_list: List[WhenClause] = list(when_clauses_from_equations)
 
         # Find all derivatives (der(x)) used in equations to identify states
         derivatives_used: set[str] = set()
@@ -1974,7 +2482,7 @@ class ModelInstance:
         for sub_name, sub in self._submodels.items():
             # Find derivatives in submodel equations (with prefixed names)
             sub_derivatives: set[str] = set()
-            for eq in sub.equations():
+            for eq in sub.get_equations():
                 if isinstance(eq, Equation):
                     # Find derivatives and prefix them
                     for der_name in _find_derivatives(eq.lhs):
@@ -2080,6 +2588,7 @@ class ModelInstance:
             discrete_defaults=discrete_defaults,
             param_defaults=param_defaults,
             initial_equations=initial_equations_list,
+            when_clauses=when_clauses_list,
             algorithm_assignments=algorithm_assignments,
             algorithm_locals=algorithm_locals,
             expand_arrays=expand_arrays,
@@ -2110,10 +2619,11 @@ def model(cls: Type[Any]) -> Type[Any]:
     ...     omega = var()
     ...     x = var(output=True)
     ...
-    ...     def equations(m):
-    ...         yield der(m.theta) == m.omega
-    ...         yield der(m.omega) == -m.g / m.l * sin(m.theta)
-    ...         yield m.x == m.l * sin(m.theta)
+    ...     @equations
+    ...     def _(m):
+    ...         der(m.theta) == m.omega
+    ...         der(m.omega) == -m.g / m.l * sin(m.theta)
+    ...         m.x == m.l * sin(m.theta)
     """
     metadata = ModelMetadata()
 
@@ -2129,13 +2639,36 @@ def model(cls: Type[Any]) -> Type[Any]:
     # Store metadata on the class
     cls._dsl_metadata = metadata
 
-    # Get original equations method
-    # NOTE: In Modelica, all equations (including output definitions) are in one
-    # equation section. There is no separate output_equations() - that would be
-    # non-conformant. Output variables are just vars with output=True flag.
-    original_equations = getattr(cls, "equations", None)
+    # Find @equations decorated methods
+    equations_methods: List[Callable] = []
+    for name, value in vars(cls).items():
+        if callable(value) and _is_equations_method(value):
+            equations_methods.append(value)
+
+    # Get original algorithm and initial_equations methods (still generator-based)
     original_algorithm = getattr(cls, "algorithm", None)
     original_initial_equations = getattr(cls, "initial_equations", None)
+
+    # Deprecation check: warn if user defines old-style generator equations
+    old_equations = getattr(cls, "equations", None)
+    if old_equations is not None and not _is_equations_method(old_equations):
+        import warnings
+        import inspect
+        # Check if it looks like a generator (has yield)
+        try:
+            source = inspect.getsource(old_equations)
+            if "yield" in source:
+                warnings.warn(
+                    f"Model '{cls.__name__}' uses old-style yield-based equations(). "
+                    "Please migrate to the @equations decorator syntax:\n"
+                    "    @equations\n"
+                    "    def _(m):\n"
+                    "        der(m.x) == m.y  # No yield needed",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+        except (OSError, TypeError):
+            pass
 
     # Deprecation check: warn if user defines output_equations (non-Modelica)
     if hasattr(cls, "output_equations"):
@@ -2150,18 +2683,40 @@ def model(cls: Type[Any]) -> Type[Any]:
             stacklevel=2,
         )
 
+    # Deprecation check: warn if user defines when_equations
+    if hasattr(cls, "when_equations"):
+        import warnings
+
+        warnings.warn(
+            f"Model '{cls.__name__}' defines when_equations(). This is deprecated. "
+            "When-clauses should be defined inside @equations methods:\n"
+            "    @equations\n"
+            "    def _(m):\n"
+            "        with when(m.h < 0):\n"
+            "            reinit(m.v, -m.e * pre(m.v))",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     class ModelClass(ModelInstance):
         __doc__ = cls.__doc__
         __name__ = cls.__name__
         __qualname__ = cls.__qualname__
         __module__ = cls.__module__
+        
+        # Store equations methods for later execution
+        _equations_methods = equations_methods
 
         def __init__(self, name: str = ""):
             super().__init__(cls, name=name or cls.__name__)
 
-        def equations(self) -> Generator[Equation, None, None]:
-            if original_equations is not None:
-                yield from original_equations(self)
+        def get_equations(self) -> List[Union[Equation, ArrayEquation, WhenClause]]:
+            """Execute all @equations methods and collect equations."""
+            all_equations: List[Union[Equation, ArrayEquation, WhenClause]] = []
+            for method in self._equations_methods:
+                eqs = _execute_equations_method(method, self)
+                all_equations.extend(eqs)
+            return all_equations
 
         def algorithm(self) -> Generator[Assignment, None, None]:
             if original_algorithm is not None:
@@ -2494,6 +3049,10 @@ class FlatModel:
     # These are solved once at t=0 to determine initial values
     initial_equations: List[Equation] = field(default_factory=list)
 
+    # When-clauses (Modelica: when equations, MLS 8.5)
+    # Event-driven equations with conditions and reinit statements
+    when_clauses: List[WhenClause] = field(default_factory=list)
+
     # Array derivative equations (when expand_arrays=False)
     # For CasADi MX backend: keeps array structure for efficient matrix operations
     # Key is base variable name (e.g., 'pos'), value is {'shape': (3,), 'rhs': SymbolicVar}
@@ -2520,4 +3079,6 @@ class FlatModel:
             parts.append(f"outputs={self.output_names}")
         if self.param_names:
             parts.append(f"params={self.param_names}")
+        if self.when_clauses:
+            parts.append(f"when_clauses={len(self.when_clauses)}")
         return f"FlatModel({', '.join(parts)})"

@@ -114,35 +114,26 @@ The DSL is structured in two layers:
    - (future) backends/jax.py: Compiles FlatModel to JAX functions
 """
 
-from cyecca.dsl.model import (
-    Assignment,
-    Equation,
-    Expr,
-    ExprKind,
-    FlatModel,
-    FunctionMetadata,
-    Model,
-    Reinit,
-    WhenClause,
-    and_,
-    assign,
-    block,
-    change,
-    der,
-    edge,
-    equations,
-    function,
-    if_then_else,
-    local,
-    model,
-    not_,
-    or_,
-    pre,
-    reinit,
-    submodel,
-    var,
-    when,
-)
+# Algorithm support
+from cyecca.dsl.algorithm import AlgorithmVar, assign, local
+
+# Context and when-clause support
+from cyecca.dsl.context import equations, reinit, when
+
+# Decorators and var() factory
+from cyecca.dsl.decorators import FunctionMetadata, ModelMetadata, block, function, model, submodel, var
+
+# Equations and statements
+from cyecca.dsl.equations import Assignment, Equation, Reinit, WhenClause
+
+# Expression tree
+from cyecca.dsl.expr import Expr, ExprKind
+
+# Flat model representation
+from cyecca.dsl.flat_model import FlatModel
+
+# Model instance and alias
+from cyecca.dsl.instance import Model, ModelInstance
 from cyecca.dsl.operators import (
     abs,
     acos,
@@ -165,8 +156,14 @@ from cyecca.dsl.operators import (
     tan,
     tanh,
 )
+
+# Core operators
+from cyecca.dsl.operators_core import and_, change, der, edge, if_then_else, not_, or_, pre
 from cyecca.dsl.simulation import SimulationResult, Simulator
 from cyecca.dsl.types import DType, Indices, Shape, Var, VarKind
+
+# Variables
+from cyecca.dsl.variables import ArrayDerivativeExpr, DerivativeExpr, SymbolicVar, TimeVar
 
 __all__ = [
     # Decorators

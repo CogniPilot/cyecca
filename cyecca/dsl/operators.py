@@ -42,7 +42,8 @@ from typing import Any, Union
 
 from beartype import beartype
 
-from cyecca.dsl.model import DerivativeExpr, Expr, ExprKind, SymbolicVar, TimeVar, _to_expr
+from cyecca.dsl.expr import Expr, ExprKind, to_expr
+from cyecca.dsl.variables import DerivativeExpr, SymbolicVar, TimeVar
 
 
 def _to_symbolic(x: Any) -> Union[Expr, float]:
@@ -50,7 +51,7 @@ def _to_symbolic(x: Any) -> Union[Expr, float]:
     if isinstance(x, (int, float)):
         return float(x)
     if isinstance(x, (SymbolicVar, DerivativeExpr, TimeVar, Expr)):
-        return _to_expr(x)
+        return to_expr(x)
     raise TypeError(f"Cannot convert {type(x)} to symbolic expression")
 
 

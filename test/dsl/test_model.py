@@ -18,7 +18,7 @@ class TestExpr:
     """Test Expr class."""
 
     def test_constant_expr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         expr = Expr(ExprKind.CONSTANT, value=3.14)
         assert expr.kind == ExprKind.CONSTANT
@@ -26,7 +26,7 @@ class TestExpr:
         assert "3.14" in repr(expr)
 
     def test_variable_expr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         expr = Expr(ExprKind.VARIABLE, name="x")
         assert expr.kind == ExprKind.VARIABLE
@@ -34,13 +34,13 @@ class TestExpr:
         assert "x" in repr(expr)
 
     def test_time_expr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         expr = Expr(ExprKind.TIME)
         assert repr(expr) == "t"
 
     def test_indexed_variable_expr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         expr = Expr(ExprKind.VARIABLE, name="pos", indices=(0, 1))
         assert expr.indexed_name == "pos[0,1]"
@@ -51,7 +51,7 @@ class TestExprArithmetic:
     """Test Expr arithmetic operators."""
 
     def test_add(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         y = Expr(ExprKind.VARIABLE, name="y")
@@ -60,7 +60,7 @@ class TestExprArithmetic:
         assert "(x + y)" in repr(result)
 
     def test_sub(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         y = Expr(ExprKind.VARIABLE, name="y")
@@ -69,7 +69,7 @@ class TestExprArithmetic:
         assert "(x - y)" in repr(result)
 
     def test_mul(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         y = Expr(ExprKind.VARIABLE, name="y")
@@ -78,7 +78,7 @@ class TestExprArithmetic:
         assert "(x * y)" in repr(result)
 
     def test_div(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         y = Expr(ExprKind.VARIABLE, name="y")
@@ -87,7 +87,7 @@ class TestExprArithmetic:
         assert "(x / y)" in repr(result)
 
     def test_pow(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = x**2
@@ -95,7 +95,7 @@ class TestExprArithmetic:
         assert "x **" in repr(result)
 
     def test_neg(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = -x
@@ -103,35 +103,35 @@ class TestExprArithmetic:
         assert "(-x)" in repr(result)
 
     def test_radd(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = 5 + x
         assert result.kind == ExprKind.ADD
 
     def test_rsub(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = 5 - x
         assert result.kind == ExprKind.SUB
 
     def test_rmul(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = 5 * x
         assert result.kind == ExprKind.MUL
 
     def test_rtruediv(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = 5 / x
         assert result.kind == ExprKind.DIV
 
     def test_rpow(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = 2**x
@@ -142,7 +142,7 @@ class TestExprComparisons:
     """Test Expr comparison operators."""
 
     def test_lt(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = x < 5
@@ -150,7 +150,7 @@ class TestExprComparisons:
         assert "x <" in repr(result)
 
     def test_le(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = x <= 5
@@ -158,7 +158,7 @@ class TestExprComparisons:
         assert "x <=" in repr(result)
 
     def test_gt(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = x > 5
@@ -166,7 +166,7 @@ class TestExprComparisons:
         assert "x >" in repr(result) and ">=" not in repr(result)
 
     def test_ge(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         result = x >= 5
@@ -174,7 +174,7 @@ class TestExprComparisons:
         assert "x >=" in repr(result)
 
     def test_eq_ne(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         x = Expr(ExprKind.VARIABLE, name="x")
         eq = Expr(ExprKind.EQ, (x, Expr(ExprKind.CONSTANT, value=0)))
@@ -187,7 +187,7 @@ class TestExprReprMathFunctions:
     """Test Expr repr for math functions."""
 
     def test_math_func_reprs(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         child = Expr(ExprKind.VARIABLE, name="x")
         for kind in [
@@ -206,7 +206,7 @@ class TestExprReprMathFunctions:
             assert kind.name.lower() in repr(expr).lower()
 
     def test_atan2_repr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         y = Expr(ExprKind.VARIABLE, name="y")
         x = Expr(ExprKind.VARIABLE, name="x")
@@ -214,7 +214,7 @@ class TestExprReprMathFunctions:
         assert "atan2(y, x)" in repr(expr)
 
     def test_derivative_repr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         expr = Expr(ExprKind.DERIVATIVE, name="x")
         assert "der(x)" in repr(expr)
@@ -224,7 +224,7 @@ class TestExprReprBoolean:
     """Test Expr repr for boolean expressions."""
 
     def test_and_repr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         a = Expr(ExprKind.VARIABLE, name="a")
         b = Expr(ExprKind.VARIABLE, name="b")
@@ -232,7 +232,7 @@ class TestExprReprBoolean:
         assert "(a and b)" in repr(expr)
 
     def test_or_repr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         a = Expr(ExprKind.VARIABLE, name="a")
         b = Expr(ExprKind.VARIABLE, name="b")
@@ -240,14 +240,14 @@ class TestExprReprBoolean:
         assert "(a or b)" in repr(expr)
 
     def test_not_repr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         a = Expr(ExprKind.VARIABLE, name="a")
         expr = Expr(ExprKind.NOT, (a,))
         assert "(not a)" in repr(expr)
 
     def test_if_then_else_repr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         cond = Expr(ExprKind.VARIABLE, name="c")
         then_val = Expr(ExprKind.CONSTANT, value=1.0)
@@ -262,7 +262,7 @@ class TestExprReprDiscrete:
     """Test Expr repr for discrete operators."""
 
     def test_pre_edge_change_repr(self) -> None:
-        from cyecca.dsl.model import Expr, ExprKind
+        from cyecca.dsl.expr import Expr, ExprKind
 
         assert "pre(x)" in repr(Expr(ExprKind.PRE, name="x"))
         assert "edge(x)" in repr(Expr(ExprKind.EDGE, name="x"))
@@ -278,13 +278,14 @@ class TestTimeVar:
     """Test TimeVar class."""
 
     def test_repr(self) -> None:
-        from cyecca.dsl.model import TimeVar
+        from cyecca.dsl.variables import TimeVar
 
         t = TimeVar()
         assert repr(t) == "t"
 
     def test_arithmetic(self) -> None:
-        from cyecca.dsl.model import ExprKind, TimeVar
+        from cyecca.dsl.expr import ExprKind
+        from cyecca.dsl.variables import TimeVar
 
         t = TimeVar()
         assert (t + 1).kind == ExprKind.ADD
@@ -550,7 +551,8 @@ class TestEquation:
     """Test Equation class."""
 
     def test_equation_repr(self) -> None:
-        from cyecca.dsl.model import Equation, Expr, ExprKind
+        from cyecca.dsl.equations import Equation
+        from cyecca.dsl.expr import Expr, ExprKind
 
         lhs = Expr(ExprKind.VARIABLE, name="x")
         rhs = Expr(ExprKind.CONSTANT, value=1.0)
@@ -562,7 +564,8 @@ class TestAssignment:
     """Test Assignment class."""
 
     def test_assignment_repr(self) -> None:
-        from cyecca.dsl.model import Assignment, Expr, ExprKind
+        from cyecca.dsl.equations import Assignment
+        from cyecca.dsl.expr import Expr, ExprKind
 
         expr = Expr(ExprKind.CONSTANT, value=42.0)
         assign = Assignment(target="x", expr=expr)
@@ -579,14 +582,15 @@ class TestAlgorithmVar:
     """Test AlgorithmVar (local) class."""
 
     def test_local_repr(self) -> None:
-        from cyecca.dsl.model import local
+        from cyecca.dsl.algorithm import local
 
         temp = local("temp")
         assert repr(temp) == "local(temp)"
         assert temp.name == "temp"
 
     def test_local_arithmetic(self) -> None:
-        from cyecca.dsl.model import ExprKind, local
+        from cyecca.dsl.algorithm import local
+        from cyecca.dsl.expr import ExprKind
 
         temp = local("temp")
         assert (temp + 1).kind == ExprKind.ADD
@@ -601,7 +605,8 @@ class TestAlgorithmVar:
         assert (temp**2).kind == ExprKind.POW
 
     def test_local_comparisons(self) -> None:
-        from cyecca.dsl.model import ExprKind, local
+        from cyecca.dsl.algorithm import local
+        from cyecca.dsl.expr import ExprKind
 
         temp = local("temp")
         assert (temp < 5).kind == ExprKind.LT
@@ -610,7 +615,8 @@ class TestAlgorithmVar:
         assert (temp >= 5).kind == ExprKind.GE
 
     def test_local_matmul_assignment(self) -> None:
-        from cyecca.dsl.model import Assignment, local
+        from cyecca.dsl.algorithm import local
+        from cyecca.dsl.equations import Assignment
 
         temp = local("temp")
         assign = temp @ 42
@@ -629,7 +635,8 @@ class TestAssignFunction:
 
     def test_assign_symbolic_var(self) -> None:
         from cyecca.dsl import model, var
-        from cyecca.dsl.model import Assignment, assign
+        from cyecca.dsl.algorithm import assign
+        from cyecca.dsl.equations import Assignment
 
         @model
         class M:
@@ -641,7 +648,8 @@ class TestAssignFunction:
         assert assignment.is_local is False
 
     def test_assign_algorithm_var(self) -> None:
-        from cyecca.dsl.model import Assignment, assign, local
+        from cyecca.dsl.algorithm import assign, local
+        from cyecca.dsl.equations import Assignment
 
         temp = local("temp")
         assignment = assign(temp, 42)
@@ -649,7 +657,8 @@ class TestAssignFunction:
         assert assignment.is_local is True
 
     def test_assign_string(self) -> None:
-        from cyecca.dsl.model import Assignment, assign
+        from cyecca.dsl.algorithm import assign
+        from cyecca.dsl.equations import Assignment
 
         assignment = assign("temp", 42)
         assert isinstance(assignment, Assignment)
@@ -666,7 +675,8 @@ class TestDiscreteOperators:
 
     def test_pre_scalar(self) -> None:
         from cyecca.dsl import equations, model, var
-        from cyecca.dsl.model import ExprKind, pre
+        from cyecca.dsl.expr import ExprKind
+        from cyecca.dsl.operators_core import pre
 
         @model
         class M:
@@ -682,7 +692,8 @@ class TestDiscreteOperators:
 
     def test_edge_scalar(self) -> None:
         from cyecca.dsl import DType, equations, model, var
-        from cyecca.dsl.model import ExprKind, edge
+        from cyecca.dsl.expr import ExprKind
+        from cyecca.dsl.operators_core import edge
 
         @model
         class M:
@@ -698,7 +709,8 @@ class TestDiscreteOperators:
 
     def test_change_scalar(self) -> None:
         from cyecca.dsl import equations, model, var
-        from cyecca.dsl.model import ExprKind, change
+        from cyecca.dsl.expr import ExprKind
+        from cyecca.dsl.operators_core import change
 
         @model
         class M:
@@ -714,7 +726,7 @@ class TestDiscreteOperators:
 
     def test_discrete_non_scalar_error(self) -> None:
         from cyecca.dsl import equations, model, var
-        from cyecca.dsl.model import change, edge, pre
+        from cyecca.dsl.operators_core import change, edge, pre
 
         @model
         class M:
@@ -759,7 +771,7 @@ class TestModelDecorator:
 
     def test_model_t_property(self) -> None:
         from cyecca.dsl import der, equations, model, var
-        from cyecca.dsl.model import TimeVar
+        from cyecca.dsl.variables import TimeVar
 
         @model
         class M:
@@ -1010,7 +1022,8 @@ class TestInitialEquations:
     def test_initial_equations_structure(self) -> None:
         """Test that initial equations have proper Equation structure."""
         from cyecca.dsl import der, equations, model, var
-        from cyecca.dsl.model import Equation, Expr
+        from cyecca.dsl.equations import Equation
+        from cyecca.dsl.expr import Expr
 
         @model
         class Model:
@@ -1043,7 +1056,7 @@ class TestFunctionDecorator:
 
     def test_basic_function(self) -> None:
         from cyecca.dsl import function, var
-        from cyecca.dsl.model import local
+        from cyecca.dsl.algorithm import local
 
         @function
         class Saturate:
@@ -1264,57 +1277,57 @@ class TestHelperFunctions:
     """Test helper functions."""
 
     def test_get_base_name(self) -> None:
-        from cyecca.dsl.model import _get_base_name
+        from cyecca.dsl.expr import get_base_name
 
-        assert _get_base_name("pos[0,1]") == "pos"
-        assert _get_base_name("x") == "x"
+        assert get_base_name("pos[0,1]") == "pos"
+        assert get_base_name("x") == "x"
 
     def test_parse_indices(self) -> None:
-        from cyecca.dsl.model import _parse_indices
+        from cyecca.dsl.expr import parse_indices
 
-        name, indices = _parse_indices("pos[0,1]")
+        name, indices = parse_indices("pos[0,1]")
         assert name == "pos"
         assert indices == (0, 1)
 
-        name2, indices2 = _parse_indices("x")
+        name2, indices2 = parse_indices("x")
         assert name2 == "x"
         assert indices2 == ()
 
     def test_format_indices(self) -> None:
-        from cyecca.dsl.model import _format_indices
+        from cyecca.dsl.expr import format_indices
 
-        assert _format_indices((0, 1)) == "[0,1]"
-        assert _format_indices(()) == ""
+        assert format_indices((0, 1)) == "[0,1]"
+        assert format_indices(()) == ""
 
     def test_iter_indices(self) -> None:
-        from cyecca.dsl.model import _iter_indices
+        from cyecca.dsl.expr import iter_indices
 
-        assert list(_iter_indices(())) == [()]
-        assert list(_iter_indices((3,))) == [(0,), (1,), (2,)]
-        assert list(_iter_indices((2, 2))) == [(0, 0), (0, 1), (1, 0), (1, 1)]
+        assert list(iter_indices(())) == [()]
+        assert list(iter_indices((3,))) == [(0,), (1,), (2,)]
+        assert list(iter_indices((2, 2))) == [(0, 0), (0, 1), (1, 0), (1, 1)]
 
 
 class TestToExpr:
-    """Test _to_expr conversion."""
+    """Test to_expr conversion."""
 
     def test_to_expr_types(self) -> None:
         import numpy as np
 
         from cyecca.dsl import der, equations, model, var
-        from cyecca.dsl.model import Expr, ExprKind, _to_expr
+        from cyecca.dsl.expr import Expr, ExprKind, to_expr
 
         # float
-        expr = _to_expr(5.0)
+        expr = to_expr(5.0)
         assert expr.kind == ExprKind.CONSTANT
 
         # numpy scalar
         arr = np.array(5.0)
-        expr = _to_expr(arr)
+        expr = to_expr(arr)
         assert expr.kind == ExprKind.CONSTANT
 
         # Expr passthrough
         original = Expr(ExprKind.VARIABLE, name="x")
-        assert _to_expr(original) is original
+        assert to_expr(original) is original
 
         # SymbolicVar
         @model
@@ -1326,18 +1339,18 @@ class TestToExpr:
                 der(m.x) == 0
 
         m = M()
-        result = _to_expr(m.x)
+        result = to_expr(m.x)
         assert result is m.x._expr
 
         # TimeVar
-        result = _to_expr(m.t)
+        result = to_expr(m.t)
         assert result is m.t._expr
 
     def test_to_expr_invalid(self) -> None:
-        from cyecca.dsl.model import _to_expr
+        from cyecca.dsl.expr import to_expr
 
         with pytest.raises(TypeError, match="Cannot convert"):
-            _to_expr("a string")
+            to_expr("a string")
 
 
 if __name__ == "__main__":

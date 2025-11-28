@@ -464,3 +464,89 @@ The framework should support **three composition modes**:
 ---
 
 *Analysis last updated: November 27, 2025*
+
+---
+
+## Development Changelog
+
+### Session: November 2025 - DSL Integrator Support
+
+**Added CVODES and IDAS integrator support to DSL**:
+
+1. **Integrator enum** (`cyecca/dsl/backends/casadi.py`):
+   - `Integrator.RK4` - Fixed-step 4th-order Runge-Kutta (default)
+   - `Integrator.CVODES` - SUNDIALS variable-step BDF/Adams ODE solver
+   - `Integrator.IDAS` - SUNDIALS variable-step DAE solver (supports algebraic variables)
+
+2. **Updated function signatures**:
+   - `f_x(x, z, u, p, t) -> xdot` - Added z (algebraic variables) to ODE function
+   - `f_y(x, z, u, p, t) -> y` - Added z to output function
+   - `f_alg(x, z, u, p, t) -> residual` - New algebraic equation function
+
+3. **CompiledModel additions**:
+   - `_algebraic_names: List[str]` - Names of algebraic variables
+   - `algebraic_defaults: Dict[str, Any]` - Default values for algebraic variables
+   - `f_alg: Optional[ca.Function]` - Function for algebraic residuals (DAE systems)
+   - `has_algebraic: bool` - Property indicating if model has algebraic variables
+
+4. **Usage**:
+   ```python
+   from cyecca.dsl.backends import CasadiBackend, Integrator
+   
+   compiled = CasadiBackend.compile(model.flatten())
+   
+   # RK4 (default, fixed-step)
+   result = compiled.simulate(tf=5.0, integrator=Integrator.RK4)
+   
+   # CVODES (variable-step, more accurate for stiff systems)
+   result = compiled.simulate(tf=5.0, integrator=Integrator.CVODES)
+   
+   # IDAS (variable-step DAE solver, supports algebraic variables)
+   result = compiled.simulate(tf=5.0, integrator=Integrator.IDAS)
+   ```
+
+5. **Tests**: All 212 DSL tests passing
+
+### Session: November 28, 2025 - DSL SX/MX Refactor
+
+**Refactored CasADi backend to eliminate SX/MX code duplication**:
+
+1. **Created unified compiler infrastructure** (`cyecca/dsl/backends/casadi.py`):
+   - `ExprCompiler` - Unified expression compiler with dispatch table (`_OP_MAP`)
+   - `SymbolFactory` - Abstraction layer for SX/MX symbol creation
+   - `ModelCompiler` - Unified model compilation flow
+
+2. **Dispatch table pattern** for expression conversion:
+   ```python
+   _OP_MAP: Dict[ExprKind, Callable] = {
+       ExprKind.NEG: lambda c, ca_mod: lambda e: -c(e[0]),
+       ExprKind.ADD: lambda c, ca_mod: lambda e: c(e[0]) + c(e[1]),
+       ExprKind.SIN: lambda c, ca_mod: lambda e: ca_mod.sin(c(e[0])),
+       # ... 35+ operations
+   }
+   ```
+
+3. **SymbolFactory abstraction**:
+   ```python
+   class SymbolFactory:
+       def __init__(self, symbolic_type: SymbolicType):
+           self._sym_mod = ca.SX if symbolic_type == SymbolicType.SX else ca.MX
+       def sym(self, name: str, size: int = 1) -> Union[ca.SX, ca.MX]:
+           return self._sym_mod.sym(name, size)
+   ```
+
+4. **Results**:
+   - Reduced `casadi.py` from 1323 → 1157 lines (**12.5% reduction, ~166 lines**)
+   - Eliminated duplicate `_compile_sx()` and `_compile_mx()` methods
+   - Single `_compile()` method handles both SX and MX
+   - All 212 tests passing
+
+5. **Dead code removed**:
+   - `_when_context` stack (unused)
+   - `_get_current_when_context()` function (unused)
+   - Total ~20 lines of dead code removed from `model.py`
+
+6. **Documentation**:
+   - Created `cyecca/dsl/CODE_REVIEW.md` with comprehensive code review findings
+   - Updated `ROAD_MAP.md` with changelog entries
+

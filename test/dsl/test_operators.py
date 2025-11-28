@@ -322,9 +322,9 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.LOG10
 
     def test_abs_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, equations
+        from cyecca.dsl import ExprKind
         from cyecca.dsl import abs as dsl_abs
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
 
         @model
         class M:

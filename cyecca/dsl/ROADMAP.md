@@ -4,7 +4,7 @@
 
 This document provides an analysis of how the current Cyecca DSL implementation aligns with the Modelica Language Specification v3.7-dev and outlines a roadmap for future development.
 
-**Current Status**: The DSL implements approximately **55-60%** of core Modelica specification features, covering:
+**Current Status**: The DSL implements approximately **60-65%** of core Modelica specification features, with **88% test coverage** across 212 tests. Key features include:
 - Basic ODE modeling with `der()` operator
 - Discrete variability with `pre()`, `edge()`, `change()` operators
 - Blocks with causality enforcement (`@block` decorator)
@@ -49,19 +49,39 @@ This document provides an analysis of how the current Cyecca DSL implementation 
 | Protected visibility | Ch. 4.1 | ✅ Complete | `protected=True` for internal variables |
 | Array indexing | Ch. 10 | ✅ Partial | Basic `x[i]` indexing, `der(x[i])` |
 
-### Test Coverage
+### Module Structure (Post Phase 3 Refactor)
 
-| Module | Coverage | Tests |
-|--------|----------|-------|
-| `__init__.py` | 100% | - |
-| `backends/__init__.py` | 100% | - |
-| `operators.py` | 100% | `test/dsl/test_operators.py` |
-| `types.py` | 99% | `test/dsl/test_types.py` |
-| `model.py` | 92% | `test/dsl/test_model.py` |
-| `simulation.py` | 91% | `test/dsl/test_simulation.py` |
-| `backends/casadi.py` | 64% | `test/dsl/test_backends_casadi.py` |
-| `when_clauses` | - | `test/dsl/test_when_clauses.py` |
-| **Total** | **85%** | `test/dsl/test_integration.py` |
+The monolithic `model.py` has been split into focused, single-responsibility modules:
+
+| Module | Responsibility | Stmts | Coverage |
+|--------|---------------|-------|----------|
+| `expr.py` | `ExprKind`, `Expr` dataclass, expression helpers | 235 | 96% |
+| `variables.py` | `SymbolicVar`, `DerivativeExpr`, `ArrayDerivativeExpr`, `TimeVar` | 179 | 94% |
+| `equations.py` | `Equation`, `ArrayEquation`, `Assignment`, `Reinit`, `WhenClause` | 86 | 84% |
+| `context.py` | `EquationContext`, `WhenContext`, `@equations`, `when()`, `reinit()` | 91 | 92% |
+| `operators_core.py` | `der()`, `pre()`, `edge()`, `change()`, boolean operators | 45 | 91% |
+| `algorithm.py` | `AlgorithmVar`, `local()`, `assign()` | 57 | 98% |
+| `flat_model.py` | `FlatModel` dataclass | 49 | 98% |
+| `instance.py` | `ModelInstance`, `SubmodelProxy` | 245 | 87% |
+| `decorators.py` | `@model`, `@block`, `@function`, `ModelMetadata` | 136 | 88% |
+| `operators.py` | Math functions (`sin`, `cos`, `sqrt`, etc.) | 166 | 100% |
+| `types.py` | `DType`, `Variability`, type definitions | 94 | 99% |
+| `simulation.py` | `Backend`, simulation interface | 69 | 91% |
+| `backends/casadi.py` | CasADi backend with unified `ExprCompiler` | 547 | 74% |
+| `__init__.py` | Public API exports | 13 | 100% |
+| `backends/__init__.py` | Backend exports | 3 | 100% |
+
+### Test Coverage Summary
+
+| Category | Tests | Status |
+|----------|-------|--------|
+| Core DSL | 212 | ✅ All passing |
+| **Total Coverage** | **2015 stmts** | **88%** |
+
+Coverage areas needing attention:
+- `backends/casadi.py` (74%): CVODES/IDAS integration paths, some edge cases
+- `equations.py` (84%): Some equation edge cases
+- `instance.py` (87%): Submodel handling edge cases
 
 ---
 
@@ -223,3 +243,5 @@ The DSL uses an immutable expression tree (`Expr` dataclass) with operation kind
 - **2025-11**: Implemented initial equations (`initial_equations()` method per Modelica Spec Section 8.6)
 - **2025-01**: **Implemented when-clauses for hybrid systems** (`when()` context manager, `reinit()` operator, event-detecting simulation with zero-crossing detection)
 - **2025-01**: **Migrated to `@equations` decorator syntax** - Replaced yield-based equation definitions with side-effect based `@equations` decorator. Equations are now defined using `==` operator within `@equations`-decorated methods, which auto-registers them via thread-local context. Cleaner, more Pythonic syntax inspired by Modelica.
+- **2025-01**: **Phase 2 - SX/MX Refactor Complete** - Unified `ExprCompiler` class handles both CasADi SX and MX types. Simplified backend architecture with consistent compilation path.
+- **2025-01**: **Phase 3 - model.py Split Complete** - Monolithic 1200+ line `model.py` split into 9 focused modules: `expr.py`, `variables.py`, `equations.py`, `context.py`, `operators_core.py`, `algorithm.py`, `flat_model.py`, `instance.py`, `decorators.py`. Total coverage improved to 88% with all 212 tests passing.

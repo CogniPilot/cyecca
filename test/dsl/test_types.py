@@ -172,15 +172,16 @@ class TestSubmodelField:
 
     def test_submodel_field_repr(self) -> None:
         """Test SubmodelField __repr__."""
-        from cyecca.dsl import der, model, var
+        from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.types import SubmodelField
 
         @model
         class Inner:
             x = var()
 
-            def equations(m):
-                yield der(m.x) == 0
+            @equations
+            def _(m):
+                der(m.x) == 0
 
         field = SubmodelField(model_class=Inner)
         assert "submodel(" in repr(field)

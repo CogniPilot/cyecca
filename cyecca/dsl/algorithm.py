@@ -46,10 +46,11 @@ class AlgorithmVar:
 
     Example
     -------
-    >>> def algorithm(m):  # doctest: +SKIP
+    >>> @algorithm  # doctest: +SKIP
+    ... def _(m):
     ...     temp = local("temp")
-    ...     yield temp @ (m.x * 2)
-    ...     yield m.y @ (temp + 1)
+    ...     temp @ (m.x * 2)
+    ...     m.y @ (temp + 1)
     """
 
     def __init__(self, name: str):
@@ -66,7 +67,16 @@ class AlgorithmVar:
     # Assignment operator
     def __matmul__(self, other: Any) -> Assignment:
         """Create an assignment: local_var @ expr"""
-        return Assignment(target=self._name, expr=to_expr(other), is_local=True)
+        from cyecca.dsl.context import get_current_equation_context
+
+        assign = Assignment(target=self._name, expr=to_expr(other), is_local=True)
+
+        # If in an @algorithm context, register the assignment
+        ctx = get_current_equation_context()
+        if ctx is not None:
+            ctx.add_assignment(assign)
+
+        return assign
 
     # Arithmetic operators - return Expr
     def __add__(self, other: Any) -> Expr:
@@ -152,13 +162,14 @@ def assign(target: Union[SymbolicVar, AlgorithmVar, str], value: Any) -> Assignm
     Returns
     -------
     Assignment
-        An assignment that can be yielded in algorithm()
+        An assignment for use in @algorithm blocks
 
     Example
     -------
-    >>> def algorithm(m):
-    ...     yield assign(m.y, m.x * 2)
-    ...     # Equivalent to: yield m.y @ (m.x * 2)
+    >>> @algorithm  # doctest: +SKIP
+    ... def _(m):
+    ...     assign(m.y, m.x * 2)
+    ...     # Equivalent to: m.y @ (m.x * 2)
     """
     if isinstance(target, SymbolicVar):
         return Assignment(target=target._name, expr=to_expr(value), is_local=False)

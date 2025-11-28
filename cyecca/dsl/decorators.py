@@ -32,12 +32,19 @@ DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
 import numpy as np
 from beartype import beartype
 
-from cyecca.dsl.context import execute_equations_method, is_equations_method
+from cyecca.dsl.context import (
+    execute_algorithm_method,
+    execute_equations_method,
+    execute_initial_equations_method,
+    is_algorithm_method,
+    is_equations_method,
+    is_initial_equations_method,
+)
 from cyecca.dsl.equations import ArrayEquation, Assignment, Equation, WhenClause
 from cyecca.dsl.instance import ModelInstance
 from cyecca.dsl.types import DType, Shape, SubmodelField, Var, VarKind
@@ -241,57 +248,30 @@ def model(cls: Type[Any]) -> Type[Any]:
     # Store metadata on the class
     cls._dsl_metadata = metadata
 
-    # Find @equations decorated methods
+    # Find decorated methods
     equations_methods: List[Callable] = []
+    initial_equations_methods: List[Callable] = []
+    algorithm_methods: List[Callable] = []
     for name, value in vars(cls).items():
         if callable(value) and is_equations_method(value):
             equations_methods.append(value)
+        if callable(value) and is_initial_equations_method(value):
+            initial_equations_methods.append(value)
+        if callable(value) and is_algorithm_method(value):
+            algorithm_methods.append(value)
 
-    # Get original algorithm and initial_equations methods
-    original_algorithm = getattr(cls, "algorithm", None)
-    original_initial_equations = getattr(cls, "initial_equations", None)
+    # Validate: equations/initial_equations/algorithm must use decorators
+    equations_attr = getattr(cls, "equations", None)
+    if equations_attr is not None and not is_equations_method(equations_attr):
+        raise TypeError(f"Model '{cls.__name__}': equations() must use @equations decorator.")
 
-    # Deprecation check: warn if user defines old-style generator equations
-    old_equations = getattr(cls, "equations", None)
-    if old_equations is not None and not is_equations_method(old_equations):
-        import inspect
-        import warnings
+    initial_equations_attr = getattr(cls, "initial_equations", None)
+    if initial_equations_attr is not None and not is_initial_equations_method(initial_equations_attr):
+        raise TypeError(f"Model '{cls.__name__}': initial_equations() must use @initial_equations decorator.")
 
-        try:
-            source = inspect.getsource(old_equations)
-            if "yield" in source:
-                warnings.warn(
-                    f"Model '{cls.__name__}' uses old-style yield-based equations(). "
-                    "Please migrate to the @equations decorator syntax:\n"
-                    "    @equations\n"
-                    "    def _(m):\n"
-                    "        der(m.x) == m.y  # No yield needed",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-        except (OSError, TypeError):
-            pass
-
-    # Deprecation check: warn if user defines output_equations
-    if hasattr(cls, "output_equations"):
-        import warnings
-
-        warnings.warn(
-            f"Model '{cls.__name__}' defines output_equations(). This is deprecated " "and non-Modelica-conformant.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-    # Deprecation check: warn if user defines when_equations
-    if hasattr(cls, "when_equations"):
-        import warnings
-
-        warnings.warn(
-            f"Model '{cls.__name__}' defines when_equations(). This is deprecated. "
-            "When-clauses should be defined inside @equations methods.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+    algorithm_attr = getattr(cls, "algorithm", None)
+    if algorithm_attr is not None and not is_algorithm_method(algorithm_attr):
+        raise TypeError(f"Model '{cls.__name__}': algorithm() must use @algorithm decorator.")
 
     class ModelClass(ModelInstance):
         __doc__ = cls.__doc__
@@ -300,6 +280,8 @@ def model(cls: Type[Any]) -> Type[Any]:
         __module__ = cls.__module__
 
         _equations_methods = equations_methods
+        _initial_equations_methods = initial_equations_methods
+        _algorithm_methods = algorithm_methods
 
         def __init__(self, name: str = ""):
             super().__init__(cls, name=name or cls.__name__)
@@ -312,13 +294,21 @@ def model(cls: Type[Any]) -> Type[Any]:
                 all_equations.extend(eqs)
             return all_equations
 
-        def algorithm(self) -> Generator[Assignment, None, None]:
-            if original_algorithm is not None:
-                yield from original_algorithm(self)
+        def get_initial_equations(self) -> List[Equation]:
+            """Execute all @initial_equations methods and collect equations."""
+            all_equations: List[Equation] = []
+            for method in self._initial_equations_methods:
+                eqs = execute_initial_equations_method(method, self)
+                all_equations.extend(eqs)
+            return all_equations
 
-        def initial_equations(self) -> Generator[Equation, None, None]:
-            if original_initial_equations is not None:
-                yield from original_initial_equations(self)
+        def get_algorithm(self) -> List[Assignment]:
+            """Execute all @algorithm methods and collect assignments."""
+            all_assignments: List[Assignment] = []
+            for method in self._algorithm_methods:
+                assigns = execute_algorithm_method(method, self)
+                all_assignments.extend(assigns)
+            return all_assignments
 
     ModelClass._dsl_metadata = metadata
 
@@ -349,18 +339,11 @@ def function(cls: Type[Any]) -> Type[Any]:
     """
     errors = []
 
-    # Check for equations method (not allowed in functions)
-    if hasattr(cls, "equations"):
-        equations_method = getattr(cls, "equations")
-        import inspect
-
-        source_lines = []
-        try:
-            source_lines = inspect.getsourcelines(equations_method)[0]
-        except (OSError, TypeError):
-            pass
-        if len(source_lines) > 2:
-            errors.append(f"Functions cannot have equations() method - use algorithm() only")
+    # Check for @equations methods (not allowed in functions)
+    for name, value in vars(cls).items():
+        if callable(value) and is_equations_method(value):
+            errors.append("Functions cannot have @equations - use @algorithm only")
+            break
 
     # Validate all public non-parameter variables have input/output
     for name, value in vars(cls).items():
@@ -379,8 +362,10 @@ def function(cls: Type[Any]) -> Type[Any]:
         error_msg = f"Function '{cls.__name__}' violates Modelica function constraints.\n" + "\n".join(errors)
         raise TypeError(error_msg)
 
-    if not hasattr(cls, "algorithm"):
-        raise TypeError(f"Function '{cls.__name__}' must have an algorithm() method")
+    # Check for @algorithm methods
+    has_algorithm = any(callable(value) and is_algorithm_method(value) for name, value in vars(cls).items())
+    if not has_algorithm:
+        raise TypeError(f"Function '{cls.__name__}' must have an @algorithm method")
 
     model_cls = model(cls)
     model_cls._is_function = True

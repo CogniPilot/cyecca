@@ -65,7 +65,9 @@ class EquationContext:
 
     def __init__(self) -> None:
         self.equations: List[Union["Equation", "ArrayEquation", "WhenClause"]] = []
+        self.assignments: List["Assignment"] = []  # For @algorithm blocks
         self._current_when: Optional["WhenContext"] = None
+        self._building_expr_depth: int = 0  # Track if we're building a subexpression
 
     def add_equation(self, eq: Union["Equation", "ArrayEquation"]) -> None:
         """Add an equation to the current context."""
@@ -78,6 +80,23 @@ class EquationContext:
     def add_when_clause(self, wc: "WhenClause") -> None:
         """Add a completed when-clause to the context."""
         self.equations.append(wc)
+
+    @property
+    def is_building_expr(self) -> bool:
+        """Check if we're currently building a subexpression."""
+        return self._building_expr_depth > 0
+
+    def enter_expr(self) -> None:
+        """Enter subexpression building mode."""
+        self._building_expr_depth += 1
+
+    def exit_expr(self) -> None:
+        """Exit subexpression building mode."""
+        self._building_expr_depth -= 1
+
+    def add_assignment(self, assign: "Assignment") -> None:
+        """Add an assignment to the current context (for @algorithm blocks)."""
+        self.assignments.append(assign)
 
     def add_reinit(self, r: "Reinit") -> None:
         """Add a reinit statement (must be inside a when-clause)."""
@@ -160,6 +179,41 @@ def is_equations_method(func: Any) -> bool:
     return getattr(func, _EQUATIONS_MARKER, False)
 
 
+# Marker attribute for @initial_equations decorated methods
+_INITIAL_EQUATIONS_MARKER = "_cyecca_initial_equations_method"
+
+
+def initial_equations(func: Callable) -> Callable:
+    """
+    Decorator to mark a method as an initial equations block.
+
+    Methods decorated with @initial_equations use side-effect based capture,
+    just like @equations. Initial equations specify values at t=0.
+
+        @initial_equations
+        def _(m):
+            m.x == 1.0
+            m.v == 0.0
+
+    Parameters
+    ----------
+    func : Callable
+        The initial equations method
+
+    Returns
+    -------
+    Callable
+        The decorated method with initial equation capture marker
+    """
+    setattr(func, _INITIAL_EQUATIONS_MARKER, True)
+    return func
+
+
+def is_initial_equations_method(func: Any) -> bool:
+    """Check if a function is marked as an @initial_equations method."""
+    return getattr(func, _INITIAL_EQUATIONS_MARKER, False)
+
+
 def execute_equations_method(
     func: Callable, model_instance: "ModelInstance"
 ) -> List[Union["Equation", "ArrayEquation", "WhenClause"]]:
@@ -184,6 +238,96 @@ def execute_equations_method(
     finally:
         pop_equation_context()
     return ctx.equations
+
+
+def execute_initial_equations_method(func: Callable, model_instance: "ModelInstance") -> List["Equation"]:
+    """
+    Execute an @initial_equations method and collect equations via context.
+
+    Parameters
+    ----------
+    func : Callable
+        The @initial_equations decorated method
+    model_instance : ModelInstance
+        The model instance to pass to the method
+
+    Returns
+    -------
+    List[Equation]
+        The collected initial equations
+    """
+    ctx = push_equation_context()
+    try:
+        func(model_instance)
+    finally:
+        pop_equation_context()
+    # Filter to only Equation (no WhenClause in initial equations)
+    from cyecca.dsl.equations import Equation
+
+    return [eq for eq in ctx.equations if isinstance(eq, Equation)]
+
+
+# =============================================================================
+# Algorithm decorator (Modelica MLS Ch. 11)
+# =============================================================================
+
+# Marker attribute for @algorithm decorated methods
+_ALGORITHM_MARKER = "_cyecca_algorithm_method"
+
+
+def algorithm(func: Callable) -> Callable:
+    """
+    Decorator to mark a method as an algorithm block.
+
+    Methods decorated with @algorithm use side-effect based capture
+    for assignments. Use the @ operator for assignments:
+
+        @algorithm
+        def _(m):
+            m.y @ m.x * 2.0
+            m.z @ m.y + 1.0
+
+    Parameters
+    ----------
+    func : Callable
+        The algorithm method
+
+    Returns
+    -------
+    Callable
+        The decorated method with algorithm capture marker
+    """
+    setattr(func, _ALGORITHM_MARKER, True)
+    return func
+
+
+def is_algorithm_method(func: Any) -> bool:
+    """Check if a function is marked as an @algorithm method."""
+    return getattr(func, _ALGORITHM_MARKER, False)
+
+
+def execute_algorithm_method(func: Callable, model_instance: "ModelInstance") -> List["Assignment"]:
+    """
+    Execute an @algorithm method and collect assignments via context.
+
+    Parameters
+    ----------
+    func : Callable
+        The @algorithm decorated method
+    model_instance : ModelInstance
+        The model instance to pass to the method
+
+    Returns
+    -------
+    List[Assignment]
+        The collected assignments
+    """
+    ctx = push_equation_context()
+    try:
+        func(model_instance)
+    finally:
+        pop_equation_context()
+    return ctx.assignments
 
 
 # =============================================================================

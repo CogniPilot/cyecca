@@ -118,7 +118,7 @@ The DSL is structured in two layers:
 from cyecca.dsl.algorithm import AlgorithmVar, assign, local
 
 # Context and when-clause support
-from cyecca.dsl.context import equations, reinit, when
+from cyecca.dsl.context import algorithm, equations, initial_equations, reinit, when
 
 # Decorators and var() factory
 from cyecca.dsl.decorators import FunctionMetadata, ModelMetadata, block, function, model, submodel, var
@@ -158,7 +158,7 @@ from cyecca.dsl.operators import (
 )
 
 # Core operators
-from cyecca.dsl.operators_core import and_, change, der, edge, if_then_else, not_, or_, pre
+from cyecca.dsl.operators_core import and_, change, der, edge, eq, if_then_else, ne, not_, or_, pre
 from cyecca.dsl.simulation import SimulationResult, Simulator
 from cyecca.dsl.types import DType, Indices, Shape, Var, VarKind
 
@@ -171,6 +171,8 @@ __all__ = [
     "block",
     "function",
     "equations",
+    "initial_equations",
+    "algorithm",
     # Variable declaration
     "var",
     "Var",
@@ -194,6 +196,9 @@ __all__ = [
     "and_",
     "or_",
     "not_",
+    # Comparison operators (for use in expressions)
+    "eq",
+    "ne",
     # Conditional expression
     "if_then_else",
     # Algorithm section

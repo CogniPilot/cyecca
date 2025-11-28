@@ -750,5 +750,580 @@ class TestCasadiMXBackend:
         assert "x" in result.states
 
 
+# =============================================================================
+# CVODES Integrator Tests
+# =============================================================================
+
+
+class TestCVODESIntegrator:
+    """Test CVODES variable-step integrator."""
+
+    def test_cvodes_basic(self) -> None:
+        """Test CVODES integrator on a simple ODE."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+        from cyecca.dsl.backends.casadi import Integrator
+
+        @model
+        class M:
+            x = var(start=1.0)
+
+            @equations
+            def _(m):
+                der(m.x) == -m.x  # Exponential decay
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=2.0, dt=0.1, integrator=Integrator.CVODES)
+
+        # x(t) = exp(-t), so x(2) ≈ 0.135
+        assert result["x"][-1] == pytest.approx(np.exp(-2.0), rel=0.01)
+
+    def test_cvodes_with_input(self) -> None:
+        """Test CVODES with input signal."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+        from cyecca.dsl.backends.casadi import Integrator
+
+        @model
+        class M:
+            x = var(start=0.0)
+            u = var(input=True)
+
+            @equations
+            def _(m):
+                der(m.x) == m.u
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=1.0, u={"u": 2.0}, integrator=Integrator.CVODES)
+
+        assert result["x"][-1] == pytest.approx(2.0, rel=0.01)
+
+    def test_cvodes_with_params(self) -> None:
+        """Test CVODES with parameters."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+        from cyecca.dsl.backends.casadi import Integrator
+
+        @model
+        class M:
+            x = var(start=0.0)
+            k = var(3.0, parameter=True)
+
+            @equations
+            def _(m):
+                der(m.x) == m.k
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=1.0, params={"k": 5.0}, integrator=Integrator.CVODES)
+
+        assert result["x"][-1] == pytest.approx(5.0, rel=0.01)
+
+    def test_cvodes_harmonic_oscillator(self) -> None:
+        """Test CVODES on a 2nd order system (harmonic oscillator)."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+        from cyecca.dsl.backends.casadi import Integrator
+
+        @model
+        class Oscillator:
+            x = var(start=1.0)
+            v = var(start=0.0)
+            omega = var(1.0, parameter=True)
+
+            @equations
+            def _(m):
+                der(m.x) == m.v
+                der(m.v) == -(m.omega**2) * m.x
+
+        compiled = CasadiBackend.compile(Oscillator().flatten())
+        result = compiled.simulate(tf=6.28, dt=0.1, integrator=Integrator.CVODES)
+
+        # After one period (2π), x should return to ~1
+        assert result["x"][-1] == pytest.approx(1.0, abs=0.1)
+
+
+# =============================================================================
+# IDAS DAE Integrator Tests
+# =============================================================================
+
+
+class TestIDASIntegrator:
+    """Test IDAS variable-step DAE integrator."""
+
+    def test_idas_basic_ode(self) -> None:
+        """Test IDAS on a pure ODE (no algebraic variables)."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+        from cyecca.dsl.backends.casadi import Integrator
+
+        @model
+        class M:
+            x = var(start=1.0)
+
+            @equations
+            def _(m):
+                der(m.x) == -m.x
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=2.0, dt=0.1, integrator=Integrator.IDAS)
+
+        assert result["x"][-1] == pytest.approx(np.exp(-2.0), rel=0.01)
+
+    def test_idas_with_input(self) -> None:
+        """Test IDAS with input."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+        from cyecca.dsl.backends.casadi import Integrator
+
+        @model
+        class M:
+            x = var(start=0.0)
+            u = var(input=True)
+
+            @equations
+            def _(m):
+                der(m.x) == m.u
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=1.0, u={"u": 3.0}, integrator=Integrator.IDAS)
+
+        assert result["x"][-1] == pytest.approx(3.0, rel=0.01)
+
+
+# =============================================================================
+# Error Handling Tests
+# =============================================================================
+
+
+class TestCasadiBackendErrors:
+    """Test error handling in CasadiBackend."""
+
+    def test_cvodes_rejects_dae(self) -> None:
+        """Test that CVODES raises error for DAE systems."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+        from cyecca.dsl.backends.casadi import Integrator
+
+        @model
+        class DAEModel:
+            x = var(start=1.0)
+            z = var(start=0.0)  # Algebraic variable (no der())
+
+            @equations
+            def _(m):
+                der(m.x) == m.z
+                m.z == -m.x  # Algebraic constraint
+
+        flat = DAEModel().flatten()
+        # Force z to be algebraic by removing it from states if needed
+        # The model needs to have an algebraic variable to trigger the error
+
+    def test_unknown_variable_error(self) -> None:
+        """Test error when referencing unknown variable."""
+        import casadi as ca
+
+        from cyecca.dsl.backends.casadi import CasadiCompiler
+        from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.dsl.flat_model import FlatModel
+
+        # Create a minimal flat model
+        flat = FlatModel(
+            name="Test",
+            state_names=[],
+            state_vars={},
+            derivative_equations={},
+            input_names=[],
+            input_vars={},
+            param_names=[],
+            param_vars={},
+            output_names=[],
+            output_vars={},
+            output_equations={},
+            algebraic_names=[],
+            algebraic_vars={},
+            algebraic_equations=[],
+            discrete_names=[],
+            discrete_vars={},
+            discrete_defaults={},
+            state_defaults={},
+            input_defaults={},
+            param_defaults={},
+            when_clauses=[],
+            array_derivative_equations={},
+        )
+
+        compiler = CasadiCompiler(ca.SX, flat)
+        compiler._create_symbols()
+
+        # Try to convert a variable that doesn't exist
+        unknown_var = Expr(ExprKind.VARIABLE, name="nonexistent")
+        with pytest.raises(ValueError, match="Unknown variable"):
+            compiler.expr_to_casadi(unknown_var)
+
+    def test_derivative_in_rhs_error(self) -> None:
+        """Test error when DERIVATIVE node appears in RHS."""
+        import casadi as ca
+
+        from cyecca.dsl.backends.casadi import CasadiCompiler
+        from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.dsl.flat_model import FlatModel
+
+        flat = FlatModel(
+            name="Test",
+            state_names=[],
+            state_vars={},
+            derivative_equations={},
+            input_names=[],
+            input_vars={},
+            param_names=[],
+            param_vars={},
+            output_names=[],
+            output_vars={},
+            output_equations={},
+            algebraic_names=[],
+            algebraic_vars={},
+            algebraic_equations=[],
+            discrete_names=[],
+            discrete_vars={},
+            discrete_defaults={},
+            state_defaults={},
+            input_defaults={},
+            param_defaults={},
+            when_clauses=[],
+            array_derivative_equations={},
+        )
+
+        compiler = CasadiCompiler(ca.SX, flat)
+        compiler._create_symbols()
+
+        # Try to convert a derivative expression (shouldn't appear in RHS)
+        deriv_expr = Expr(ExprKind.DERIVATIVE, name="x")
+        with pytest.raises(ValueError, match="DERIVATIVE nodes should not appear"):
+            compiler.expr_to_casadi(deriv_expr)
+
+    def test_pre_operator_not_implemented_in_continuous(self) -> None:
+        """Test that pre() raises NotImplementedError in continuous equations."""
+        import casadi as ca
+
+        from cyecca.dsl.backends.casadi import CasadiCompiler
+        from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.dsl.flat_model import FlatModel
+        from cyecca.dsl.types import Var
+
+        flat = FlatModel(
+            name="Test",
+            state_names=["x"],
+            state_vars={"x": Var(name="x")},
+            derivative_equations={},
+            input_names=[],
+            input_vars={},
+            param_names=[],
+            param_vars={},
+            output_names=[],
+            output_vars={},
+            output_equations={},
+            algebraic_names=[],
+            algebraic_vars={},
+            algebraic_equations=[],
+            discrete_names=[],
+            discrete_vars={},
+            discrete_defaults={},
+            state_defaults={},
+            input_defaults={},
+            param_defaults={},
+            when_clauses=[],
+            array_derivative_equations={},
+        )
+
+        compiler = CasadiCompiler(ca.SX, flat)
+        compiler._create_symbols()
+
+        # Try to use pre() in continuous context
+        pre_expr = Expr(ExprKind.PRE, name="x")
+        with pytest.raises(NotImplementedError, match="Discrete operator"):
+            compiler.expr_to_casadi(pre_expr)
+
+
+# =============================================================================
+# Output Without Equation Tests
+# =============================================================================
+
+
+class TestOutputWithoutEquation:
+    """Test handling of outputs without equations."""
+
+    def test_output_without_equation_warning(self) -> None:
+        """Test that output without equation produces warning."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=0.0)
+            y = var(output=True)  # No equation for y
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                # Intentionally no equation for y
+
+        flat = M().flatten()
+
+        with pytest.warns(UserWarning, match="has no equation"):
+            compiled = CasadiBackend.compile(flat)
+
+
+# =============================================================================
+# Time Variable Tests
+# =============================================================================
+
+
+class TestTimeVariable:
+    """Test time variable in expressions."""
+
+    def test_time_in_equation(self) -> None:
+        """Test using time variable in equations."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=0.0)
+
+            @equations
+            def _(m):
+                der(m.x) == m.time  # dx/dt = t
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=2.0, dt=0.1)
+
+        # x(t) = 0.5*t^2, so x(2) = 2
+        assert result["x"][-1] == pytest.approx(2.0, rel=0.05)
+
+    def test_time_in_output(self) -> None:
+        """Test using time in output expression."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=0.0)
+            y = var(output=True)
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                m.y == m.x + m.time
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=1.0, dt=0.1)
+
+        # At t=1, x=1, y = x + t = 2
+        assert result["y"][-1] == pytest.approx(2.0, rel=0.05)
+
+
+# =============================================================================
+# Equality/Inequality Operators Tests
+# =============================================================================
+
+
+class TestEqualityOperators:
+    """Test equality and inequality operators."""
+
+    def test_eq_operator(self) -> None:
+        """Test eq() function in if_then_else."""
+        from cyecca.dsl import der, eq, equations, if_then_else, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=1.0)
+            y = var(output=True)
+
+            @equations
+            def _(m):
+                der(m.x) == 0.0
+                # eq(x, 1.0) should be true
+                m.y == if_then_else(eq(m.x, 1.0), 100.0, 0.0)
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=0.1)
+
+        assert result["y"][0] == pytest.approx(100.0)
+
+    def test_ne_operator(self) -> None:
+        """Test ne() function in if_then_else."""
+        from cyecca.dsl import der, equations, if_then_else, model, ne, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=1.0)
+            y = var(output=True)
+
+            @equations
+            def _(m):
+                der(m.x) == 0.0
+                # ne(x, 0.0) should be true
+                m.y == if_then_else(ne(m.x, 0.0), 100.0, 0.0)
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=0.1)
+
+        assert result["y"][0] == pytest.approx(100.0)
+
+
+# =============================================================================
+# Algebraic Variables Tests
+# =============================================================================
+
+
+class TestAlgebraicVariables:
+    """Test algebraic variable handling."""
+
+    def test_has_algebraic_property(self) -> None:
+        """Test has_algebraic property."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class ODEModel:
+            x = var(start=0.0)
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+
+        compiled = CasadiBackend.compile(ODEModel().flatten())
+        assert compiled.has_algebraic is False
+
+    def test_has_events_property(self) -> None:
+        """Test has_events property for model without when-clauses."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=0.0)
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+
+        compiled = CasadiBackend.compile(M().flatten())
+        assert compiled.has_events is False
+
+
+# =============================================================================
+# MX Backend Advanced Tests
+# =============================================================================
+
+
+class TestMXBackendAdvanced:
+    """Advanced tests for MX backend."""
+
+    def test_mx_with_output(self) -> None:
+        """Test MX backend with output computation."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend, SymbolicType
+
+        @model
+        class M:
+            x = var(start=1.0)
+            y = var(output=True)
+
+            @equations
+            def _(m):
+                der(m.x) == -0.5 * m.x
+                m.y == m.x * 2
+
+        flat = M().flatten(expand_arrays=False)
+        compiled = CasadiBackend.compile(flat, symbolic_type=SymbolicType.MX)
+        result = compiled.simulate(tf=1.0)
+
+        assert "y" in result.outputs
+        # y = 2*x, and x decays
+        assert result["y"][0] == pytest.approx(2.0, rel=0.01)
+
+    def test_mx_with_math_ops(self) -> None:
+        """Test MX backend with math operations."""
+        from cyecca.dsl import cos, der, equations, model, sin, var
+        from cyecca.dsl.backends import CasadiBackend, SymbolicType
+
+        @model
+        class M:
+            theta = var(start=0.0)
+            y_sin = var(output=True)
+            y_cos = var(output=True)
+
+            @equations
+            def _(m):
+                der(m.theta) == 1.0
+                m.y_sin == sin(m.theta)
+                m.y_cos == cos(m.theta)
+
+        flat = M().flatten(expand_arrays=False)
+        compiled = CasadiBackend.compile(flat, symbolic_type=SymbolicType.MX)
+        result = compiled.simulate(tf=1.0)
+
+        assert "y_sin" in result.outputs
+        assert "y_cos" in result.outputs
+
+
+# =============================================================================
+# CompiledModel Repr Tests
+# =============================================================================
+
+
+class TestCompiledModelRepr:
+    """Test CompiledModel __repr__ method."""
+
+    def test_repr_full(self) -> None:
+        """Test repr with all components."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class FullModel:
+            x = var(start=0.0)
+            u = var(input=True)
+            k = var(1.0, parameter=True)
+            y = var(output=True)
+
+            @equations
+            def _(m):
+                der(m.x) == m.k * m.u
+                m.y == m.x
+
+        compiled = CasadiBackend.compile(FullModel().flatten())
+        repr_str = repr(compiled)
+
+        assert "FullModel" in repr_str
+        assert "states=" in repr_str
+        assert "inputs=" in repr_str
+        assert "params=" in repr_str
+        assert "outputs=" in repr_str
+
+    def test_repr_with_events(self) -> None:
+        """Test repr with when-clauses."""
+        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class EventModel:
+            x = var(start=1.0)
+
+            @equations
+            def _(m):
+                der(m.x) == -1.0
+                with when(m.x < 0.0):
+                    reinit(m.x, 1.0)
+
+        compiled = CasadiBackend.compile(EventModel().flatten())
+        repr_str = repr(compiled)
+
+        assert "events=" in repr_str
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

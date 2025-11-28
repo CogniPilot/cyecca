@@ -196,24 +196,37 @@ class SymbolicVar:
             yield self[i]
 
     # Comparison operators for equations
-    def __eq__(self, other: Any) -> Optional["Equation"]:  # type: ignore[override]
-        """Capture equation: x == expr.
+    def __eq__(self, other: Any) -> Any:  # type: ignore[override]
+        """Capture equation or return comparison expression.
 
-        If inside an @equations block, auto-registers and returns None.
-        Otherwise returns an Equation object (for legacy compatibility).
+        Equation definition: m.y == <expr>  (y is a simple variable)
+        Comparison: m.x == 1.0 in if_then_else (returns Expr)
+
+        We distinguish by checking if we're in expression-building mode.
         """
         from cyecca.dsl.context import get_current_equation_context
         from cyecca.dsl.equations import Equation
 
         rhs = to_expr(other)
-        eq = Equation(lhs=self._expr, rhs=rhs)
 
-        # Auto-register if in @equations context
+        # Check if in @equations context
         ctx = get_current_equation_context()
         if ctx is not None:
+            # If building a subexpression, return comparison Expr
+            if ctx.is_building_expr:
+                return Expr(ExprKind.EQ, (self._expr, rhs))
+            # Otherwise, register as equation
+            eq = Equation(lhs=self._expr, rhs=rhs)
             ctx.add_equation(eq)
             return None
-        return eq
+
+        # Outside @equations context, return comparison Expr
+        return Expr(ExprKind.EQ, (self._expr, rhs))
+
+    def __ne__(self, other: Any) -> Expr:  # type: ignore[override]
+        """Return not-equal comparison expression."""
+        rhs = to_expr(other)
+        return Expr(ExprKind.NE, (self._expr, rhs))
 
     # Arithmetic operations - return Expr
     def __add__(self, other: Any) -> Expr:
@@ -264,13 +277,21 @@ class SymbolicVar:
         """
         Assignment operator for algorithm sections: m.x @ expr
 
-        This creates an Assignment object that can be yielded in algorithm().
+        This creates an Assignment and registers it with the current context.
         The @ operator is used because := is not valid Python syntax for this,
         and @ is free since we use * for matrix multiplication (like Modelica).
         """
+        from cyecca.dsl.context import get_current_equation_context
         from cyecca.dsl.equations import Assignment
 
-        return Assignment(target=self._name, expr=to_expr(other), is_local=False)
+        assign = Assignment(target=self._name, expr=to_expr(other), is_local=False)
+
+        # If in an @algorithm context, register the assignment
+        ctx = get_current_equation_context()
+        if ctx is not None:
+            ctx.add_assignment(assign)
+
+        return assign
 
 
 class DerivativeExpr:

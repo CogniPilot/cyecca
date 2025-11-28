@@ -183,7 +183,19 @@ def and_(a: Any, b: Any) -> Expr:
     Expr
         Boolean expression representing `a and b`
     """
-    return Expr(ExprKind.AND, (to_expr(a), to_expr(b)))
+    from cyecca.dsl.context import get_current_equation_context
+
+    ctx = get_current_equation_context()
+    if ctx is not None:
+        ctx.enter_expr()
+    try:
+        a_expr = to_expr(a)
+        b_expr = to_expr(b)
+    finally:
+        if ctx is not None:
+            ctx.exit_expr()
+
+    return Expr(ExprKind.AND, (a_expr, b_expr))
 
 
 @beartype
@@ -206,7 +218,19 @@ def or_(a: Any, b: Any) -> Expr:
     Expr
         Boolean expression representing `a or b`
     """
-    return Expr(ExprKind.OR, (to_expr(a), to_expr(b)))
+    from cyecca.dsl.context import get_current_equation_context
+
+    ctx = get_current_equation_context()
+    if ctx is not None:
+        ctx.enter_expr()
+    try:
+        a_expr = to_expr(a)
+        b_expr = to_expr(b)
+    finally:
+        if ctx is not None:
+            ctx.exit_expr()
+
+    return Expr(ExprKind.OR, (a_expr, b_expr))
 
 
 @beartype
@@ -227,7 +251,18 @@ def not_(a: Any) -> Expr:
     Expr
         Boolean expression representing `not a`
     """
-    return Expr(ExprKind.NOT, (to_expr(a),))
+    from cyecca.dsl.context import get_current_equation_context
+
+    ctx = get_current_equation_context()
+    if ctx is not None:
+        ctx.enter_expr()
+    try:
+        a_expr = to_expr(a)
+    finally:
+        if ctx is not None:
+            ctx.exit_expr()
+
+    return Expr(ExprKind.NOT, (a_expr,))
 
 
 # =============================================================================
@@ -262,4 +297,85 @@ def if_then_else(condition: Any, then_expr: Any, else_expr: Any) -> Expr:
     For smooth simulation, consider using smooth conditional functions
     like `smooth_if` (not yet implemented) to avoid discontinuities.
     """
-    return Expr(ExprKind.IF_THEN_ELSE, (to_expr(condition), to_expr(then_expr), to_expr(else_expr)))
+    from cyecca.dsl.context import get_current_equation_context
+
+    # Enter expression-building mode so == returns Expr instead of registering equation
+    ctx = get_current_equation_context()
+    if ctx is not None:
+        ctx.enter_expr()
+    try:
+        cond_expr = to_expr(condition)
+        then_ex = to_expr(then_expr)
+        else_ex = to_expr(else_expr)
+    finally:
+        if ctx is not None:
+            ctx.exit_expr()
+
+    return Expr(ExprKind.IF_THEN_ELSE, (cond_expr, then_ex, else_ex))
+
+
+# =============================================================================
+# Comparison operators: eq, ne
+# =============================================================================
+# Since == is overloaded for equation definition in @equations blocks,
+# use these functions when you need equality/inequality comparisons
+# inside expressions like if_then_else.
+
+
+@beartype
+def eq(a: Any, b: Any) -> Expr:
+    """
+    Equality comparison: a == b.
+
+    Use this function instead of == when you need an equality comparison
+    inside an expression (e.g., if_then_else condition) within an @equations
+    block. The == operator is reserved for equation definition.
+
+    Parameters
+    ----------
+    a : Expr or SymbolicVar or numeric
+        First operand
+    b : Expr or SymbolicVar or numeric
+        Second operand
+
+    Returns
+    -------
+    Expr
+        Boolean expression representing `a == b`
+
+    Example
+    -------
+    >>> from cyecca.dsl import model, var, der, equations, if_then_else, eq
+    >>> @model
+    ... class M:
+    ...     x = var(start=1.0)
+    ...     y = var(output=True)
+    ...     @equations
+    ...     def _(m):
+    ...         der(m.x) == 0.0
+    ...         m.y == if_then_else(eq(m.x, 1.0), 100.0, 0.0)
+    """
+    return Expr(ExprKind.EQ, (to_expr(a), to_expr(b)))
+
+
+@beartype
+def ne(a: Any, b: Any) -> Expr:
+    """
+    Inequality comparison: a != b.
+
+    Use this function instead of != when you need an inequality comparison
+    inside an expression within an @equations block.
+
+    Parameters
+    ----------
+    a : Expr or SymbolicVar or numeric
+        First operand
+    b : Expr or SymbolicVar or numeric
+        Second operand
+
+    Returns
+    -------
+    Expr
+        Boolean expression representing `a != b`
+    """
+    return Expr(ExprKind.NE, (to_expr(a), to_expr(b)))

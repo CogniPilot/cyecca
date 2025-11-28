@@ -769,7 +769,7 @@ class TestModelDecorator:
         assert flat.name == "M"
         assert "x" in flat.state_names
 
-    def test_model_t_property(self) -> None:
+    def test_model_time_property(self) -> None:
         from cyecca.dsl import der, equations, model, var
         from cyecca.dsl.variables import TimeVar
 
@@ -779,10 +779,10 @@ class TestModelDecorator:
 
             @equations
             def _(m):
-                der(m.x) == m.t
+                der(m.x) == m.time
 
         m = M()
-        assert isinstance(m.t, TimeVar)
+        assert isinstance(m.time, TimeVar)
 
     def test_model_getattr_missing(self) -> None:
         from cyecca.dsl import der, equations, model, var
@@ -896,7 +896,7 @@ class TestInitialEquations:
 
     def test_basic_initial_equations(self) -> None:
         """Test basic initial equations definition."""
-        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl import der, equations, initial_equations, model, var
 
         @model
         class Spring:
@@ -908,9 +908,10 @@ class TestInitialEquations:
                 der(m.x) == m.v
                 der(m.v) == -10.0 * m.x
 
-            def initial_equations(m):
-                yield m.x == 1.0
-                yield m.v == 0.0
+            @initial_equations
+            def _(m):
+                m.x == 1.0
+                m.v == 0.0
 
         flat = Spring().flatten()
         assert len(flat.initial_equations) == 2
@@ -922,7 +923,7 @@ class TestInitialEquations:
 
     def test_initial_equations_with_expressions(self) -> None:
         """Test initial equations with RHS expressions."""
-        from cyecca.dsl import der, equations, model, sin, var
+        from cyecca.dsl import der, equations, initial_equations, model, sin, var
 
         @model
         class Pendulum:
@@ -934,9 +935,10 @@ class TestInitialEquations:
                 der(m.theta) == m.omega
                 der(m.omega) == -9.81 * sin(m.theta)
 
-            def initial_equations(m):
-                yield m.theta == 0.5  # 0.5 radians
-                yield m.omega == 0.0  # At rest
+            @initial_equations
+            def _(m):
+                m.theta == 0.5  # 0.5 radians
+                m.omega == 0.0  # At rest
 
         flat = Pendulum().flatten()
         assert len(flat.initial_equations) == 2
@@ -950,7 +952,7 @@ class TestInitialEquations:
 
     def test_initial_equations_with_submodels(self) -> None:
         """Test initial equations are properly prefixed in submodels."""
-        from cyecca.dsl import der, equations, model, submodel, var
+        from cyecca.dsl import der, equations, initial_equations, model, submodel, var
 
         @model
         class Spring:
@@ -962,9 +964,10 @@ class TestInitialEquations:
                 der(m.x) == m.v
                 der(m.v) == -10.0 * m.x
 
-            def initial_equations(m):
-                yield m.x == 1.0
-                yield m.v == 0.0
+            @initial_equations
+            def _(m):
+                m.x == 1.0
+                m.v == 0.0
 
         @model
         class TwoSprings:
@@ -1002,7 +1005,7 @@ class TestInitialEquations:
 
     def test_empty_initial_equations(self) -> None:
         """Test model with empty initial_equations method."""
-        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl import der, equations, initial_equations, model, var
 
         @model
         class Simple:
@@ -1012,16 +1015,16 @@ class TestInitialEquations:
             def _(m):
                 der(m.x) == 1.0
 
-            def initial_equations(m):
-                return
-                yield
+            @initial_equations
+            def _(m):
+                pass  # Empty
 
         flat = Simple().flatten()
         assert len(flat.initial_equations) == 0
 
     def test_initial_equations_structure(self) -> None:
         """Test that initial equations have proper Equation structure."""
-        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl import der, equations, initial_equations, model, var
         from cyecca.dsl.equations import Equation
         from cyecca.dsl.expr import Expr
 
@@ -1033,8 +1036,9 @@ class TestInitialEquations:
             def _(m):
                 der(m.x) == 1.0
 
-            def initial_equations(m):
-                yield m.x == 5.0
+            @initial_equations
+            def _(m):
+                m.x == 5.0
 
         flat = Model().flatten()
         assert len(flat.initial_equations) == 1
@@ -1055,7 +1059,7 @@ class TestFunctionDecorator:
     """Test @function decorator."""
 
     def test_basic_function(self) -> None:
-        from cyecca.dsl import function, var
+        from cyecca.dsl import algorithm, function, var
         from cyecca.dsl.algorithm import local
 
         @function
@@ -1063,15 +1067,16 @@ class TestFunctionDecorator:
             x = var(input=True)
             y = var(output=True)
 
-            def algorithm(m):
-                yield m.y @ m.x
+            @algorithm
+            def _(m):
+                m.y @ m.x
 
         f = Saturate()
         assert hasattr(f, "_is_function")
         assert f._is_function is True
 
     def test_function_metadata(self) -> None:
-        from cyecca.dsl import function, var
+        from cyecca.dsl import algorithm, function, var
 
         @function
         class Func:
@@ -1080,9 +1085,10 @@ class TestFunctionDecorator:
             y = var(output=True)
             temp = var(protected=True)
 
-            def algorithm(m):
-                yield m.temp @ (m.x * m.k)
-                yield m.y @ m.temp
+            @algorithm
+            def _(m):
+                m.temp @ (m.x * m.k)
+                m.y @ m.temp
 
         meta = Func().get_function_metadata()
         assert "x" in meta.input_names
@@ -1093,7 +1099,7 @@ class TestFunctionDecorator:
     def test_function_requires_algorithm(self) -> None:
         from cyecca.dsl import function, var
 
-        with pytest.raises(TypeError, match="must have an algorithm"):
+        with pytest.raises(TypeError, match="must have an @algorithm"):
 
             @function
             class BadFunc:
@@ -1101,7 +1107,7 @@ class TestFunctionDecorator:
                 y = var(output=True)
 
     def test_function_requires_io(self) -> None:
-        from cyecca.dsl import function, var
+        from cyecca.dsl import algorithm, function, var
 
         with pytest.raises(TypeError, match="must have input=True or output=True"):
 
@@ -1110,8 +1116,9 @@ class TestFunctionDecorator:
                 x = var()  # Missing input/output
                 y = var(output=True)
 
-                def algorithm(m):
-                    yield m.y @ m.x
+                @algorithm
+                def _(m):
+                    m.y @ m.x
 
 
 class TestBlockDecorator:
@@ -1343,8 +1350,8 @@ class TestToExpr:
         assert result is m.x._expr
 
         # TimeVar
-        result = to_expr(m.t)
-        assert result is m.t._expr
+        result = to_expr(m.time)
+        assert result is m.time._expr
 
     def test_to_expr_invalid(self) -> None:
         from cyecca.dsl.expr import to_expr

@@ -64,9 +64,10 @@ class SimulationResult:
     ...     theta = var(start=0.5, state=True)
     ...     omega = var(state=True)
     ...
-    ...     def equations(m):
-    ...         yield der(m.theta) == m.omega
-    ...         yield der(m.omega) == -m.g * sin(m.theta)
+    ...     @equations
+    ...     def _(m):
+    ...         der(m.theta) == m.omega
+    ...         der(m.omega) == -m.g * sin(m.theta)
     >>>
     >>> pend = Pendulum()  # doctest: +SKIP
     >>> compiled = CasadiBackend.compile(pend.flatten())  # doctest: +SKIP

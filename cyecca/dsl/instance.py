@@ -73,7 +73,7 @@ class ModelInstance:
         self._sym_vars: Dict[str, SymbolicVar] = {}
         self._submodels: Dict[str, "ModelInstance"] = {}
 
-        self._t = TimeVar()  # Time variable
+        self._time = TimeVar()  # Time variable (Modelica built-in)
 
         self._create_symbols()
 
@@ -113,9 +113,9 @@ class ModelInstance:
         raise AttributeError(f"'{self._model_class.__name__}' has no attribute '{name}'")
 
     @property
-    def t(self) -> TimeVar:
-        """Time variable."""
-        return self._t
+    def time(self) -> TimeVar:
+        """Time variable (Modelica built-in)."""
+        return self._time
 
     # Subclasses store their @equations methods here
     _equations_methods: List[Callable] = []
@@ -134,7 +134,7 @@ class ModelInstance:
         """
         return []
 
-    def algorithm(self) -> Generator[Assignment, None, None]:
+    def get_algorithm(self) -> List[Assignment]:
         """
         Override this method to define algorithm sections.
 
@@ -149,13 +149,11 @@ class ModelInstance:
         Notes
         -----
         In Modelica, algorithm sections use := for assignment (vs == for equations).
-        In this DSL, we use @ since := is Python's walrus operator and @= can't
-        be used with yield (augmented assignment is a statement, not expression).
+        In this DSL, we use @ since := is Python's walrus operator.
         """
-        return
-        yield  # Make this a generator
+        return []
 
-    def initial_equations(self) -> Generator[Equation, None, None]:
+    def get_initial_equations(self) -> List[Equation]:
         """
         Override this method to define initial equations.
 
@@ -172,8 +170,7 @@ class ModelInstance:
         -----
         Modelica Spec: Section 8.6 - Initialization, Initial Equation, and Initial Algorithm
         """
-        return
-        yield  # Make this a generator
+        return []
 
     def flatten(self, expand_arrays: bool = True) -> FlatModel:
         """
@@ -239,33 +236,31 @@ class ModelInstance:
                     when_clauses_from_equations.append(prefixed_wc)
 
         # Collect algorithm assignments
-        raw_algorithm = self.algorithm()
         algorithm_assignments: List[Assignment] = []
         algorithm_locals: List[str] = []
 
-        for assign in raw_algorithm:
+        for assign in self.get_algorithm():
             if isinstance(assign, Assignment):
                 algorithm_assignments.append(assign)
                 if assign.is_local and assign.target not in algorithm_locals:
                     algorithm_locals.append(assign.target)
             else:
-                raise TypeError(f"Expected Assignment in algorithm(), got {type(assign)}")
+                raise TypeError(f"Expected Assignment in algorithm, got {type(assign)}")
 
         # Collect initial equations
-        raw_initial_equations = self.initial_equations()
         initial_equations_list: List[Equation] = []
 
-        for eq in raw_initial_equations:
+        for eq in self.get_initial_equations():
             if isinstance(eq, Equation):
                 initial_equations_list.append(eq)
             elif isinstance(eq, ArrayEquation):
                 initial_equations_list.extend(eq.expand())
             else:
-                raise TypeError(f"Expected Equation in initial_equations(), got {type(eq)}")
+                raise TypeError(f"Expected Equation in initial_equations, got {type(eq)}")
 
         # Collect initial equations from submodels
         for sub_name, sub_instance in self._submodels.items():
-            for eq in sub_instance.initial_equations():
+            for eq in sub_instance.get_initial_equations():
                 if isinstance(eq, Equation):
                     prefixed_eq = eq._prefix_names(sub_name)
                     initial_equations_list.append(prefixed_eq)

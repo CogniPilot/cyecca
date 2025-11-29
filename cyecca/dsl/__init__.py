@@ -170,7 +170,7 @@ from cyecca.dsl.decorators import (
 from cyecca.dsl.equations import Assignment, Equation, IfEquation, IfEquationBranch, Reinit, WhenClause
 
 # Expression tree
-from cyecca.dsl.expr import Expr, ExprKind
+from cyecca.dsl.expr import Expr, ExprKind, ExprLike
 
 # Flat model representation
 from cyecca.dsl.flat_model import FlatModel
@@ -221,7 +221,7 @@ from cyecca.dsl.operators_core import (
     terminal,
 )
 from cyecca.dsl.simulation import SimulationResult, Simulator
-from cyecca.dsl.types import DType, Indices, Shape, Var, VarKind
+from cyecca.dsl.types import DType, Indices, NumericValue, Shape, Var, VarKind
 
 # Variables
 from cyecca.dsl.variables import ArrayDerivativeExpr, DerivativeExpr, SymbolicVar, TimeVar
@@ -246,6 +246,7 @@ __all__ = [
     "DType",
     "Shape",
     "Indices",
+    "NumericValue",
     "submodel",
     # Free functions (continuous)
     "der",
@@ -291,6 +292,7 @@ __all__ = [
     "FlatModel",
     "Expr",
     "ExprKind",
+    "ExprLike",
     "Equation",
     # Causality analysis
     "analyze_causality",

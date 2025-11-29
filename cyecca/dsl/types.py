@@ -91,13 +91,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 
 if TYPE_CHECKING:
     pass
 
+# Type alias for parameter/variable values (scalar or array)
+NumericValue = Union[float, int, bool, str, List[float], List[int], np.ndarray]
 
 # Shape type: () for scalar, (n,) for vector, (n,m) for matrix, etc.
 Shape = Tuple[int, ...]
@@ -340,7 +342,7 @@ class SubmodelField:
         The model class to instantiate as a submodel
     name : str, optional
         Name of the submodel (set by @model decorator)
-    overrides : Dict[str, Any], optional
+    overrides : Dict[str, NumericValue], optional
         Parameter value overrides for this submodel instance.
         Keys are parameter names, values are the override values.
 
@@ -349,9 +351,9 @@ class SubmodelField:
     >>> R = submodel(Resistor, R=100.0)  # Override resistance parameter
     """
 
-    model_class: Type[Any]
+    model_class: Type  # Model class (decorated with @model)
     name: Optional[str] = None  # Set by @model decorator
-    overrides: Dict[str, Any] = field(default_factory=dict)  # Parameter overrides
+    overrides: Dict[str, NumericValue] = field(default_factory=dict)  # Parameter overrides
 
     def __repr__(self) -> str:
         if self.overrides:

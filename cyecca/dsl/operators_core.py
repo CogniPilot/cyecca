@@ -29,11 +29,11 @@ DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Union
 
 from beartype import beartype
 
-from cyecca.dsl.expr import Expr, ExprKind, to_expr
+from cyecca.dsl.expr import Expr, ExprKind, ExprLike, to_expr
 from cyecca.dsl.variables import ArrayDerivativeExpr, DerivativeExpr, SymbolicVar
 
 # =============================================================================
@@ -164,7 +164,7 @@ def change(var: SymbolicVar) -> Expr:
 
 
 @beartype
-def and_(a: Any, b: Any) -> Expr:
+def and_(a: ExprLike, b: ExprLike) -> Expr:
     """
     Logical AND of two Boolean expressions.
 
@@ -173,9 +173,9 @@ def and_(a: Any, b: Any) -> Expr:
 
     Parameters
     ----------
-    a : Expr or SymbolicVar or bool
+    a : ExprLike
         First Boolean operand
-    b : Expr or SymbolicVar or bool
+    b : ExprLike
         Second Boolean operand
 
     Returns
@@ -199,7 +199,7 @@ def and_(a: Any, b: Any) -> Expr:
 
 
 @beartype
-def or_(a: Any, b: Any) -> Expr:
+def or_(a: ExprLike, b: ExprLike) -> Expr:
     """
     Logical OR of two Boolean expressions.
 
@@ -208,9 +208,9 @@ def or_(a: Any, b: Any) -> Expr:
 
     Parameters
     ----------
-    a : Expr or SymbolicVar or bool
+    a : ExprLike
         First Boolean operand
-    b : Expr or SymbolicVar or bool
+    b : ExprLike
         Second Boolean operand
 
     Returns
@@ -234,7 +234,7 @@ def or_(a: Any, b: Any) -> Expr:
 
 
 @beartype
-def not_(a: Any) -> Expr:
+def not_(a: ExprLike) -> Expr:
     """
     Logical NOT of a Boolean expression.
 
@@ -243,7 +243,7 @@ def not_(a: Any) -> Expr:
 
     Parameters
     ----------
-    a : Expr or SymbolicVar or bool
+    a : ExprLike
         Boolean operand
 
     Returns
@@ -271,7 +271,7 @@ def not_(a: Any) -> Expr:
 
 
 @beartype
-def if_then_else(condition: Any, then_expr: Any, else_expr: Any) -> Expr:
+def if_then_else(condition: ExprLike, then_expr: ExprLike, else_expr: ExprLike) -> Expr:
     """
     Conditional expression: if condition then then_expr else else_expr.
 
@@ -280,11 +280,11 @@ def if_then_else(condition: Any, then_expr: Any, else_expr: Any) -> Expr:
 
     Parameters
     ----------
-    condition : Expr or SymbolicVar or bool
+    condition : ExprLike
         Boolean condition
-    then_expr : Expr or SymbolicVar or numeric
+    then_expr : ExprLike
         Value if condition is True
-    else_expr : Expr or SymbolicVar or numeric
+    else_expr : ExprLike
         Value if condition is False
 
     Returns
@@ -323,7 +323,7 @@ def if_then_else(condition: Any, then_expr: Any, else_expr: Any) -> Expr:
 
 
 @beartype
-def eq(a: Any, b: Any) -> Expr:
+def eq(a: ExprLike, b: ExprLike) -> Expr:
     """
     Equality comparison: a == b.
 
@@ -333,9 +333,9 @@ def eq(a: Any, b: Any) -> Expr:
 
     Parameters
     ----------
-    a : Expr or SymbolicVar or numeric
+    a : ExprLike
         First operand
-    b : Expr or SymbolicVar or numeric
+    b : ExprLike
         Second operand
 
     Returns
@@ -359,7 +359,7 @@ def eq(a: Any, b: Any) -> Expr:
 
 
 @beartype
-def ne(a: Any, b: Any) -> Expr:
+def ne(a: ExprLike, b: ExprLike) -> Expr:
     """
     Inequality comparison: a != b.
 
@@ -368,9 +368,9 @@ def ne(a: Any, b: Any) -> Expr:
 
     Parameters
     ----------
-    a : Expr or SymbolicVar or numeric
+    a : ExprLike
         First operand
-    b : Expr or SymbolicVar or numeric
+    b : ExprLike
         Second operand
 
     Returns

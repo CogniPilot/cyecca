@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Generator, Optional, Tuple
+from typing import TYPE_CHECKING, Generator, List, Optional, Tuple, Union
 
 import numpy as np
 from beartype import beartype
@@ -39,7 +39,28 @@ from beartype import beartype
 from cyecca.dsl.types import Indices, Shape
 
 if TYPE_CHECKING:
+    from cyecca.dsl.algorithm import AlgorithmVar
     from cyecca.dsl.variables import DerivativeExpr, SymbolicVar, TimeVar
+
+# Type alias for anything that can be converted to an Expr
+# Used in operators and functions that accept expressions
+# Note: At runtime, beartype uses object (accepting anything) and to_expr() validates.
+# For static type checking, the Union provides proper type hints.
+if TYPE_CHECKING:
+    ExprLike = Union[
+        "Expr",
+        "SymbolicVar",
+        "DerivativeExpr",
+        "TimeVar",
+        "AlgorithmVar",
+        float,
+        int,
+        List["ExprLike"],
+        np.ndarray,
+    ]
+else:
+    # At runtime, accept any object - to_expr() will validate and convert
+    ExprLike = object
 
 
 class ExprKind(Enum):
@@ -330,7 +351,7 @@ class Expr:
 
 
 @beartype
-def to_expr(x: Any) -> Expr:
+def to_expr(x: ExprLike) -> Expr:
     """Convert various types to Expr."""
     if isinstance(x, Expr):
         return x

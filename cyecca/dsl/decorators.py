@@ -32,10 +32,28 @@ DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
+
+# Python 3.11+ has dataclass_transform in typing, earlier versions need typing_extensions
+try:
+    from typing import dataclass_transform
+except ImportError:
+    try:
+        from typing_extensions import dataclass_transform
+    except ImportError:
+        # Fallback: no-op decorator if not available
+        def dataclass_transform(**kwargs):  # type: ignore[misc]
+            def decorator(cls_or_fn):  # type: ignore[no-untyped-def]
+                return cls_or_fn
+
+            return decorator
+
 
 import numpy as np
 from beartype import beartype
+
+# TypeVar for preserving class type through decorators
+_T = TypeVar("_T")
 
 from cyecca.dsl.context import (
     execute_algorithm_method,
@@ -47,10 +65,15 @@ from cyecca.dsl.context import (
 )
 from cyecca.dsl.equations import ArrayEquation, Assignment, Equation, WhenClause
 from cyecca.dsl.instance import ModelInstance
-from cyecca.dsl.types import DType, Shape, SubmodelField, Var, VarKind
+from cyecca.dsl.types import DType, NumericValue, Shape, SubmodelField, Var, VarKind
+from cyecca.dsl.variables import SymbolicVar
 
+# For IDE autocomplete: Real/Integer/Boolean/String return SymbolicVar for type checking
+# but Var at runtime. This allows m.theta to autocomplete as SymbolicVar.
 if TYPE_CHECKING:
-    pass
+    _VarReturn = SymbolicVar
+else:
+    _VarReturn = Var
 
 
 # =============================================================================
@@ -114,7 +137,7 @@ def var(
     protected: bool = False,
     # Connector prefixes (Modelica MLS Ch. 9)
     flow: bool = False,
-) -> Var:
+) -> _VarReturn:
     """
     Declare a variable in a Cyecca model.
 
@@ -231,7 +254,7 @@ def Real(
     protected: bool = False,
     # Connector
     flow: bool = False,
-) -> Var:
+) -> _VarReturn:
     """
     Declare a Real (floating-point) variable.
 
@@ -326,7 +349,7 @@ def Integer(
     constant: bool = False,
     # Visibility
     protected: bool = False,
-) -> Var:
+) -> _VarReturn:
     """
     Declare an Integer variable.
 
@@ -408,7 +431,7 @@ def Boolean(
     constant: bool = False,
     # Visibility
     protected: bool = False,
-) -> Var:
+) -> _VarReturn:
     """
     Declare a Boolean variable.
 
@@ -480,7 +503,7 @@ def String(
     constant: bool = False,
     # Visibility
     protected: bool = False,
-) -> Var:
+) -> _VarReturn:
     """
     Declare a String variable.
 
@@ -536,7 +559,7 @@ def String(
 
 
 @beartype
-def submodel(model_class: Type, **overrides: Any) -> SubmodelField:
+def submodel(model_class: Type, **overrides: NumericValue) -> SubmodelField:
     """
     Declare a submodel (nested model) with optional parameter overrides.
 
@@ -547,7 +570,7 @@ def submodel(model_class: Type, **overrides: Any) -> SubmodelField:
     ----------
     model_class : Type
         The model class to instantiate as a submodel
-    **overrides : Any
+    **overrides : NumericValue
         Parameter value overrides. The parameter names must match
         parameters defined in the submodel class.
 
@@ -575,8 +598,9 @@ def submodel(model_class: Type, **overrides: Any) -> SubmodelField:
 # =============================================================================
 
 
+@dataclass_transform(field_specifiers=(Real, Integer, Boolean, String, var))
 @beartype
-def model(cls: Type[Any]) -> Type[Any]:
+def model(cls: Type[_T]) -> Type[_T]:
     """
     Decorator to convert a class into a Cyecca model.
 
@@ -670,6 +694,8 @@ def model(cls: Type[Any]) -> Type[Any]:
         __name__ = cls.__name__
         __qualname__ = cls.__qualname__
         __module__ = cls.__module__
+        # Copy annotations from original class for IDE autocomplete
+        __annotations__ = getattr(cls, "__annotations__", {})
 
         _equations_methods = equations_methods
         _initial_equations_methods = initial_equations_methods
@@ -704,7 +730,7 @@ def model(cls: Type[Any]) -> Type[Any]:
 
     ModelClass._dsl_metadata = metadata
 
-    return ModelClass
+    return cast(Type[_T], ModelClass)
 
 
 # =============================================================================
@@ -712,8 +738,9 @@ def model(cls: Type[Any]) -> Type[Any]:
 # =============================================================================
 
 
+@dataclass_transform(field_specifiers=(Real, Integer, Boolean, String, var))
 @beartype
-def function(cls: Type[Any]) -> Type[Any]:
+def function(cls: Type[_T]) -> Type[_T]:
     """
     Decorator to convert a class into a Cyecca function.
 
@@ -787,8 +814,9 @@ def function(cls: Type[Any]) -> Type[Any]:
 # =============================================================================
 
 
+@dataclass_transform(field_specifiers=(Real, Integer, Boolean, String, var))
 @beartype
-def block(cls: Type[Any]) -> Type[Any]:
+def block(cls: Type[_T]) -> Type[_T]:
     """
     Decorator to convert a class into a Cyecca block.
 
@@ -832,8 +860,9 @@ def block(cls: Type[Any]) -> Type[Any]:
 # =============================================================================
 
 
+@dataclass_transform(field_specifiers=(Real, Integer, Boolean, String, var))
 @beartype
-def connector(cls: Type[Any]) -> Type[Any]:
+def connector(cls: Type[_T]) -> Type[_T]:
     """
     Decorator to convert a class into a Cyecca connector.
 

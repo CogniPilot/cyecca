@@ -31,12 +31,13 @@ DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
 from beartype import beartype
 
 from cyecca.dsl.equations import IfEquation, IfEquationBranch, Reinit, WhenClause
-from cyecca.dsl.expr import Expr, to_expr
+from cyecca.dsl.expr import Expr, ExprLike, to_expr
+from cyecca.dsl.instance import SubmodelProxy
 from cyecca.dsl.variables import SymbolicVar
 
 if TYPE_CHECKING:
@@ -427,7 +428,7 @@ class WhenContext:
 
 
 @beartype
-def when(condition: Any) -> WhenContext:
+def when(condition: ExprLike) -> WhenContext:
     """
     Create a when-clause for event handling (Modelica MLS 8.5).
 
@@ -453,7 +454,7 @@ def when(condition: Any) -> WhenContext:
 
     Parameters
     ----------
-    condition : Expr or SymbolicVar
+    condition : ExprLike
         Boolean condition that triggers the when-clause
 
     Returns
@@ -474,7 +475,7 @@ def when(condition: Any) -> WhenContext:
 
 
 @beartype
-def reinit(var: SymbolicVar, expr: Any) -> Optional[Reinit]:
+def reinit(var: SymbolicVar, expr: ExprLike) -> Optional[Reinit]:
     """
     Reinitialize a continuous-time state variable at an event.
 
@@ -489,7 +490,7 @@ def reinit(var: SymbolicVar, expr: Any) -> Optional[Reinit]:
     ----------
     var : SymbolicVar
         The state variable to reinitialize
-    expr : Expr or numeric
+    expr : ExprLike
         The new value expression (can use pre() for previous values)
 
     Returns
@@ -529,7 +530,7 @@ def reinit(var: SymbolicVar, expr: Any) -> Optional[Reinit]:
 
 
 @beartype
-def connect(a: Any, b: Any) -> None:
+def connect(a: SubmodelProxy, b: SubmodelProxy) -> None:
     """
     Connect two connectors, generating appropriate connection equations.
 
@@ -598,19 +599,12 @@ def connect(a: Any, b: Any) -> None:
     where positive flow is into the component.
     """
     from cyecca.dsl.equations import Equation
-    from cyecca.dsl.instance import SubmodelProxy
 
     ctx = get_current_equation_context()
     if ctx is None:
         raise RuntimeError("connect() can only be used inside an @equations block")
 
-    # Validate that both are SubmodelProxy (connector instances)
-    if not isinstance(a, SubmodelProxy):
-        raise TypeError(f"connect() first argument must be a connector, got {type(a)}")
-    if not isinstance(b, SubmodelProxy):
-        raise TypeError(f"connect() second argument must be a connector, got {type(b)}")
-
-    # Get the connector metadata
+    # Get the connector metadata (beartype already validates SubmodelProxy type)
     a_instance = a._instance
     b_instance = b._instance
     a_metadata = a_instance._metadata
@@ -828,7 +822,7 @@ def execute_equations_method(
 
 
 @beartype
-def if_eq(condition: Any) -> IfContext:
+def if_eq(condition: ExprLike) -> IfContext:
     """
     Create an if-equation for conditional equations (Modelica MLS 8.3.4).
 
@@ -855,7 +849,7 @@ def if_eq(condition: Any) -> IfContext:
 
     Parameters
     ----------
-    condition : Expr or SymbolicVar
+    condition : ExprLike
         Boolean condition that selects which equations are active
 
     Returns
@@ -877,7 +871,7 @@ def if_eq(condition: Any) -> IfContext:
 
 
 @beartype
-def elseif_eq(condition: Any) -> IfContext:
+def elseif_eq(condition: ExprLike) -> IfContext:
     """
     Create an elseif branch for an if-equation.
 
@@ -894,7 +888,7 @@ def elseif_eq(condition: Any) -> IfContext:
 
     Parameters
     ----------
-    condition : Expr or SymbolicVar
+    condition : ExprLike
         Boolean condition for this elseif branch
 
     Returns

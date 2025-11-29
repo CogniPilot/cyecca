@@ -931,25 +931,17 @@ class TestCasadiBackendErrors:
             name="Test",
             state_names=[],
             state_vars={},
-            derivative_equations={},
+            equations=[],
             input_names=[],
             input_vars={},
             param_names=[],
             param_vars={},
             output_names=[],
             output_vars={},
-            output_equations={},
             algebraic_names=[],
             algebraic_vars={},
-            algebraic_equations=[],
             discrete_names=[],
             discrete_vars={},
-            discrete_defaults={},
-            state_defaults={},
-            input_defaults={},
-            param_defaults={},
-            when_clauses=[],
-            array_derivative_equations={},
         )
 
         compiler = CasadiCompiler(ca.SX, flat)
@@ -972,33 +964,26 @@ class TestCasadiBackendErrors:
             name="Test",
             state_names=[],
             state_vars={},
-            derivative_equations={},
+            equations=[],
             input_names=[],
             input_vars={},
             param_names=[],
             param_vars={},
             output_names=[],
             output_vars={},
-            output_equations={},
             algebraic_names=[],
             algebraic_vars={},
-            algebraic_equations=[],
             discrete_names=[],
             discrete_vars={},
-            discrete_defaults={},
-            state_defaults={},
-            input_defaults={},
-            param_defaults={},
-            when_clauses=[],
-            array_derivative_equations={},
         )
 
         compiler = CasadiCompiler(ca.SX, flat)
         compiler._create_symbols()
 
-        # Try to convert a derivative expression (shouldn't appear in RHS)
+        # Derivative expressions are now valid (for implicit DAE support)
+        # They map to xdot symbols. But if the state doesn't exist, it should error
         deriv_expr = Expr(ExprKind.DERIVATIVE, name="x")
-        with pytest.raises(ValueError, match="DERIVATIVE nodes should not appear"):
+        with pytest.raises(ValueError, match="Unknown derivative variable"):
             compiler.expr_to_casadi(deriv_expr)
 
     def test_pre_operator_not_implemented_in_continuous(self) -> None:
@@ -1014,25 +999,17 @@ class TestCasadiBackendErrors:
             name="Test",
             state_names=["x"],
             state_vars={"x": Var(name="x")},
-            derivative_equations={},
+            equations=[],
             input_names=[],
             input_vars={},
             param_names=[],
             param_vars={},
             output_names=[],
             output_vars={},
-            output_equations={},
             algebraic_names=[],
             algebraic_vars={},
-            algebraic_equations=[],
             discrete_names=[],
             discrete_vars={},
-            discrete_defaults={},
-            state_defaults={},
-            input_defaults={},
-            param_defaults={},
-            when_clauses=[],
-            array_derivative_equations={},
         )
 
         compiler = CasadiCompiler(ca.SX, flat)

@@ -294,12 +294,10 @@ class ModelInstance:
                 base_name = arr_eq.lhs_var.base_name
                 array_state_names.add(base_name)
 
-        # Differential equations (contain der() terms) and algebraic/output equations
-        differential_equations: List[Equation] = []
-        array_differential_equations: Dict[str, Any] = {}
-        algebraic_equations: List[Equation] = []
+        # All equations (stored as-is, backend does residual conversion)
+        all_equations: List[Equation] = []
+        array_equations_map: Dict[str, Any] = {}
         output_equations_map: Dict[str, Expr] = {}
-        is_explicit = True  # Track if all differential eqs are explicit form
 
         # Classify variables
         state_names: List[str] = []
@@ -368,30 +366,21 @@ class ModelInstance:
                 algebraic_names.append(name)
                 algebraic_vars[name] = v
 
-        # Classify scalar equations
+        # Classify scalar equations - store all, extract outputs for convenience
         for eq in equations:
-            lhs_has_der = bool(find_derivatives(eq.lhs))
-            rhs_has_der = bool(find_derivatives(eq.rhs))
-
-            if lhs_has_der or rhs_has_der:
-                # This is a differential equation (contains der() somewhere)
-                differential_equations.append(eq)
-                # Check if it's truly implicit (der on RHS, or LHS is not pure der(x))
-                if rhs_has_der or not eq.is_derivative:
-                    is_explicit = False
-            elif eq.lhs.kind == ExprKind.VARIABLE and eq.lhs.name in output_name_set:
+            # Extract output equations for convenience (output_var == expr)
+            if eq.lhs.kind == ExprKind.VARIABLE and eq.lhs.name in output_name_set:
                 output_equations_map[eq.lhs.name] = eq.rhs
-            else:
-                algebraic_equations.append(eq)
+            # All equations go into the flat list
+            all_equations.append(eq)
 
         # Classify array equations
         for arr_eq in array_equations:
             if arr_eq.is_derivative:
                 base_name = arr_eq.lhs_var.base_name
-                array_differential_equations[base_name] = {
+                array_equations_map[base_name] = {
                     "shape": arr_eq.lhs_var.shape,
                     "rhs": arr_eq.rhs,
-                    "is_explicit": True,  # Array equations are always explicit for now
                 }
 
         # Add submodel variables
@@ -488,11 +477,9 @@ class ModelInstance:
             param_vars=param_vars,
             discrete_vars=discrete_vars,
             algebraic_vars=algebraic_vars,
-            differential_equations=differential_equations,
-            array_differential_equations=array_differential_equations,
+            equations=all_equations,
+            array_equations=array_equations_map,
             output_equations=output_equations_map,
-            algebraic_equations=algebraic_equations,
-            is_explicit=is_explicit,
             state_defaults=state_defaults,
             input_defaults=input_defaults,
             discrete_defaults=discrete_defaults,

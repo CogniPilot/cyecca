@@ -150,6 +150,9 @@ from cyecca.dsl.expr import Expr, ExprKind
 # Flat model representation
 from cyecca.dsl.flat_model import FlatModel
 
+# Causality analysis
+from cyecca.dsl.causality import SolvedEquation, ImplicitBlock, SortedSystem, analyze_causality
+
 # Model instance and alias
 from cyecca.dsl.instance import Model, ModelInstance
 from cyecca.dsl.operators import (
@@ -235,6 +238,11 @@ __all__ = [
     "Expr",
     "ExprKind",
     "Equation",
+    # Causality analysis
+    "analyze_causality",
+    "SortedSystem",
+    "SolvedEquation",
+    "ImplicitBlock",
     # Simulation
     "SimulationResult",
     "Simulator",

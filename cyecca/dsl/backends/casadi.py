@@ -38,11 +38,15 @@ import casadi as ca
 import numpy as np
 from beartype import beartype
 
+from cyecca.dsl.causality import SortedSystem
 from cyecca.dsl.equations import Equation, Reinit, WhenClause
 from cyecca.dsl.expr import Expr, ExprKind
 from cyecca.dsl.flat_model import FlatModel
 from cyecca.dsl.simulation import SimulationResult, Simulator
 from cyecca.dsl.variables import SymbolicVar
+
+# Type for model input - either raw FlatModel or analyzed SortedSystem
+ModelInput = Union[FlatModel, SortedSystem]
 
 
 class SymbolicType(Enum):
@@ -256,9 +260,9 @@ class CasadiCompiler:
         # Time symbol
         self.t_sym = self._sym("t")
 
-        # Check if model uses implicit DAE form (der() appears in equations RHS)
-        # Use is_explicit from flattener (no longer detect here)
-        self.is_implicit_dae = not model.is_explicit
+        # Detect if model uses implicit DAE form
+        # Implicit if any equation has der() on RHS or non-pure der() on LHS
+        self.is_implicit_dae = self._detect_implicit_dae()
 
         # Combined lookup (NOT including outputs - they get substituted)
         self.base_syms = {
@@ -268,6 +272,32 @@ class CasadiCompiler:
             **self.algebraic_syms,
             **self.discrete_syms,
         }
+
+    def _detect_implicit_dae(self) -> bool:
+        """Detect if the model requires implicit DAE form.
+
+        Returns True if any equation:
+        1. Has der() on RHS (e.g., output == der(x) + der(y))
+        2. Has der() on LHS but not in pure form (e.g., m * der(v) == g)
+        """
+        from cyecca.dsl.expr import find_derivatives
+
+        for eq in self.model.equations:
+            # Skip output equations
+            if eq.lhs.kind == ExprKind.VARIABLE and eq.lhs.name in self.model.output_equations:
+                continue
+
+            rhs_derivs = find_derivatives(eq.rhs)
+            if rhs_derivs:
+                # der() on RHS - implicit
+                return True
+
+            lhs_derivs = find_derivatives(eq.lhs)
+            if lhs_derivs and not eq.is_derivative:
+                # der() on LHS but not pure der(x) == rhs form
+                return True
+
+        return False
 
     def _resolve_indexed_variable(self, name: str) -> SymT:
         """
@@ -424,15 +454,15 @@ class CasadiCompiler:
     def _build_state_derivatives(self) -> List[SymT]:
         """Build the state derivative vector for explicit ODE form.
 
-        Only valid when model.is_explicit=True. Each differential equation
-        must be in form der(x) == rhs where var_name is set.
+        Only valid when system is explicit. Each state must have exactly one
+        equation of form der(x) == rhs.
         """
         model = self.model
         state_derivs: List[SymT] = []
 
         # Build lookup from var_name to rhs for explicit equations
         deriv_rhs_map: Dict[str, Expr] = {}
-        for eq in model.differential_equations:
+        for eq in model.equations:
             if eq.is_derivative and eq.var_name:
                 deriv_rhs_map[eq.var_name] = eq.rhs
 
@@ -440,9 +470,9 @@ class CasadiCompiler:
             shape = self.state_shapes.get(name, ())
             size = self._shape_to_size(shape)
 
-            # Check for array differential equation (MX backend)
-            if self.is_mx and name in model.array_differential_equations:
-                arr_eq = model.array_differential_equations[name]
+            # Check for array equation (MX backend)
+            if self.is_mx and name in model.array_equations:
+                arr_eq = model.array_equations[name]
                 rhs = arr_eq["rhs"]
                 # RHS is a SymbolicVar - get its symbol
                 if rhs.base_name in self.base_syms:
@@ -503,12 +533,29 @@ class CasadiCompiler:
         return y_exprs
 
     def _build_algebraic_residuals(self) -> List[SymT]:
-        """Build algebraic equation residuals (0 = lhs - rhs)."""
+        """Build algebraic equation residuals (0 = lhs - rhs).
+
+        Algebraic equations are those that don't contain der() on LHS
+        and are not output equations.
+        """
+        from cyecca.dsl.expr import find_derivatives
+
         residuals: List[SymT] = []
-        for eq in self.model.algebraic_equations:
+        for eq in self.model.equations:
+            # Skip output equations
+            if eq.lhs.kind == ExprKind.VARIABLE and eq.lhs.name in self.model.output_equations:
+                continue
+
+            # Skip differential equations (those with der() on LHS)
+            lhs_derivs = find_derivatives(eq.lhs)
+            if lhs_derivs:
+                continue
+
+            # This is an algebraic equation
             lhs = self.expr_to_casadi(eq.lhs)
             rhs = self.expr_to_casadi(eq.rhs)
             residuals.append(lhs - rhs)
+
         return residuals
 
     def _build_differential_residuals(self) -> List[SymT]:

@@ -539,7 +539,8 @@ class TestArrayDerivativeExpr:
                 der(m.pos)[2] == m.vel[2]
 
         flat = M().flatten()
-        assert "pos[0]" in flat.derivative_equations
+        # Check that we have 3 equations
+        assert len(flat.equations) == 3
 
 
 # =============================================================================
@@ -1215,10 +1216,8 @@ class TestFlatten:
                 der(m.pos) == m.vel
 
         flat = M().flatten()
-        assert len(flat.derivative_equations) == 3
-        assert "pos[0]" in flat.derivative_equations
-        assert "pos[1]" in flat.derivative_equations
-        assert "pos[2]" in flat.derivative_equations
+        # Check that we have 3 equations for the 3D array
+        assert len(flat.equations) == 3
 
     def test_flatten_array_equation_shape_mismatch(self) -> None:
         from cyecca.dsl import der, equations, model, var
@@ -1249,7 +1248,7 @@ class TestFlatten:
 
         flat = M().flatten(expand_arrays=False)
         assert flat.expand_arrays is False
-        assert "pos" in flat.array_derivative_equations
+        assert "pos" in flat.array_equations
 
     def test_flat_model_repr(self) -> None:
         from cyecca.dsl import der, equations, model, var

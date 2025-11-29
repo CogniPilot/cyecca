@@ -39,32 +39,28 @@ class FlatModel:
     Flattened model representation - the output of the DSL.
 
     This is a backend-agnostic representation of the model that contains:
-    - All variables (states, inputs, outputs, params) with metadata
+    - All variables with metadata
     - All equations as expression trees
     - Default values for initialization
 
-    Variable Classification (Modelica-conformant)
-    ---------------------------------------------
-    In Modelica, `input` and `output` are just **prefixes** on variables that
-    indicate causality (how the variable interfaces with the outside world).
-    They are NOT separate equation categories.
+    Variable Classification (Modelica-conformant, MLS Appendix B)
+    --------------------------------------------------------------
+    - p: parameter/constant - no time dependency
+    - x: variables that appear differentiated (states)
+    - y: continuous-time variables that do NOT appear differentiated (algebraic)
+    - z: discrete-time Real variables
+    - m: discrete-valued variables (Boolean, Integer)
 
-    - parameter=True → parameter (constant during simulation)
-    - discrete=True → discrete (piecewise constant, changes at events)
-    - input=True → input (value provided externally)
-    - output=True → output (value computed internally, exposed externally)
-    - der(var) in equations → state
-    - otherwise → algebraic
+    Additionally:
+    - input=True → value provided externally
+    - output=True → value computed internally, exposed externally
 
-    DAE Form
-    --------
-    Differential equations are stored in implicit residual form: 0 = f(ẋ, x, z, u, p, t)
-
-    - `differential_equations`: List of equations containing der() terms
-    - `is_explicit`: True if all differential eqs are in form der(x) == rhs (no der on RHS)
-
-    If is_explicit=True, backends can use explicit integrators (RK4, CVODES).
-    If is_explicit=False, backends must use implicit DAE solvers (IDAS).
+    Equations
+    ---------
+    All equations are stored as-is. The backend/solver is responsible for:
+    - Building the DAE system: 0 = f(der(x), x, y, u, p, t)
+    - Causality analysis (determining what to solve for)
+    - Converting to explicit form if possible
 
     Backends (CasADi, JAX, etc.) compile this into executable functions.
     """
@@ -72,12 +68,12 @@ class FlatModel:
     name: str
 
     # Variable lists (ordered)
-    state_names: List[str]
+    state_names: List[str]  # x: appear differentiated
     input_names: List[str]
     output_names: List[str]
     param_names: List[str]
     discrete_names: List[str]
-    algebraic_names: List[str]
+    algebraic_names: List[str]  # y: continuous, not differentiated
 
     # Variable metadata (using unified Var type)
     state_vars: Dict[str, Var]
@@ -87,18 +83,13 @@ class FlatModel:
     discrete_vars: Dict[str, Var]
     algebraic_vars: Dict[str, Var]
 
-    # Differential equations (contain der() terms)
-    # Stored in residual form: 0 = lhs - rhs
-    # For explicit eq "der(x) == rhs": lhs=der(x), rhs=rhs
-    # For implicit eq "m*der(v) == g": lhs=m*der(v), rhs=g
-    differential_equations: List[Equation]
+    # All equations (stored as-is, not classified)
+    # The backend converts these to residual form: 0 = lhs - rhs
+    equations: List[Equation]
 
-    # Output and algebraic equations
-    output_equations: Dict[str, Expr]  # output_name -> rhs (extracted from equations())
-    algebraic_equations: List[Equation]  # 0 = f(x, z) equations
-
-    # DAE form indicator
-    is_explicit: bool = True  # True if all diff eqs are der(x)==rhs form (no der on RHS)
+    # Output equations extracted for convenience
+    # (equations of form: output_var == expr)
+    output_equations: Dict[str, Expr] = field(default_factory=dict)
 
     # Default values
     state_defaults: Dict[str, Any] = field(default_factory=dict)
@@ -114,10 +105,9 @@ class FlatModel:
     # Event-driven equations with conditions and reinit statements
     when_clauses: List[WhenClause] = field(default_factory=list)
 
-    # Array differential equations (when expand_arrays=False)
+    # Array equations (when expand_arrays=False)
     # For CasADi MX backend: keeps array structure for efficient matrix operations
-    # Key is base variable name (e.g., 'pos'), value is {'shape': (3,), 'rhs': SymbolicVar, 'is_explicit': bool}
-    array_differential_equations: Dict[str, Any] = field(default_factory=dict)
+    array_equations: Dict[str, Any] = field(default_factory=dict)
 
     # Algorithm section
     # Ordered list of assignments from algorithm() method
@@ -140,8 +130,8 @@ class FlatModel:
             parts.append(f"outputs={self.output_names}")
         if self.param_names:
             parts.append(f"params={self.param_names}")
+        if self.algebraic_names:
+            parts.append(f"algebraic={self.algebraic_names}")
         if self.when_clauses:
             parts.append(f"when_clauses={len(self.when_clauses)}")
-        if not self.is_explicit:
-            parts.append("implicit_dae=True")
         return f"FlatModel({', '.join(parts)})"

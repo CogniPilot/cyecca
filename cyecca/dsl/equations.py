@@ -106,10 +106,10 @@ class Reinit:
     This is essential for hybrid systems like bouncing balls, where the
     velocity needs to be reset (with reversal) when the ball hits the ground.
 
-    Example
-    -------
-    >>> with when(m.h < 0):
-    ...     reinit(m.v, -m.e * pre(m.v))
+    Example::
+
+        with when(m.h < 0):
+            reinit(m.v, -m.e * pre(m.v))
 
     Modelica Spec: Section 8.5 - When-Equations, reinit()
     """

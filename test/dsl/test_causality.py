@@ -188,12 +188,12 @@ class TestAnalyzeCausality:
     """Test the full analyze_causality function."""
 
     def test_simple_ode(self) -> None:
-        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl import der, equations, model, Real, var
         from cyecca.dsl.causality import analyze_causality
 
         @model
         class SimpleODE:
-            x = var(start=0.0)
+            x = Real(start=0.0)
 
             @equations
             def _(m):
@@ -209,13 +209,13 @@ class TestAnalyzeCausality:
         assert sorted_sys.solved[0].var_name == "x"
 
     def test_coupled_ode(self) -> None:
-        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl import der, equations, model, Real, var
         from cyecca.dsl.causality import analyze_causality
 
         @model
         class CoupledODE:
-            x = var(start=1.0)
-            y = var(start=0.0)
+            x = Real(start=1.0)
+            y = Real(start=0.0)
 
             @equations
             def _(m):
@@ -230,13 +230,13 @@ class TestAnalyzeCausality:
         assert len(sorted_sys.implicit_blocks) == 0
 
     def test_with_algebraic(self) -> None:
-        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl import der, equations, model, Real, var
         from cyecca.dsl.causality import analyze_causality
 
         @model
         class WithAlgebraic:
-            x = var(start=0.0)
-            y = var()  # No der(y) means algebraic
+            x = Real(start=0.0)
+            y = Real()  # No der(y) means algebraic
 
             @equations
             def _(m):
@@ -251,15 +251,15 @@ class TestAnalyzeCausality:
         assert len(sorted_sys.solved) == 2
 
     def test_harmonic_oscillator(self) -> None:
-        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl import der, equations, model, Real, var
         from cyecca.dsl.causality import analyze_causality
 
         @model
         class HarmonicOscillator:
-            x = var(start=1.0)
-            v = var(start=0.0)
-            k = var(1.0, parameter=True)
-            m_param = var(1.0, parameter=True)
+            x = Real(start=1.0)
+            v = Real(start=0.0)
+            k = Real(1.0, parameter=True)
+            m_param = Real(1.0, parameter=True)
 
             @equations
             def _(m):
@@ -296,13 +296,13 @@ class TestRLCCircuit:
 
     def test_electrical_pin_connector(self) -> None:
         """Test the electrical Pin connector definition."""
-        from cyecca.dsl import connector, var
+        from cyecca.dsl import connector, Real, var
 
         @connector
         class Pin:
             """Electrical pin with voltage (potential) and current (flow)."""
 
-            v = var()  # Voltage
+            v = Real()  # Voltage
             i = var(flow=True)  # Current (positive into pin)
 
         pin = Pin()
@@ -311,18 +311,18 @@ class TestRLCCircuit:
 
     def test_resistor_model(self) -> None:
         """Test the Resistor component model."""
-        from cyecca.dsl import connect, connector, equations, model, submodel, var
+        from cyecca.dsl import connect, connector, equations, model, submodel, Real, var
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
         class Resistor:
             """Resistor: v = R * i (Ohm's law)."""
 
-            R = var(1.0, parameter=True)  # Resistance (Ohm)
+            R = Real(1.0, parameter=True)  # Resistance (Ohm)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -340,21 +340,21 @@ class TestRLCCircuit:
 
     def test_capacitor_model(self) -> None:
         """Test the Capacitor component model."""
-        from cyecca.dsl import connector, der, equations, model, submodel, var
+        from cyecca.dsl import connector, der, equations, model, submodel, Real, var
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
         class Capacitor:
             """Capacitor: C * der(v) = i."""
 
-            C = var(1.0, parameter=True)  # Capacitance (F)
+            C = Real(1.0, parameter=True)  # Capacitance (F)
             p = submodel(Pin)
             n = submodel(Pin)
-            v = var(start=0.0)  # Voltage across capacitor
+            v = Real(start=0.0)  # Voltage across capacitor
 
             @equations
             def _(m):
@@ -371,21 +371,21 @@ class TestRLCCircuit:
 
     def test_inductor_model(self) -> None:
         """Test the Inductor component model."""
-        from cyecca.dsl import connector, der, equations, model, submodel, var
+        from cyecca.dsl import connector, der, equations, model, submodel, Real, var
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
         class Inductor:
             """Inductor: L * der(i) = v."""
 
-            L = var(1.0, parameter=True)  # Inductance (H)
+            L = Real(1.0, parameter=True)  # Inductance (H)
             p = submodel(Pin)
             n = submodel(Pin)
-            i = var(start=0.0)  # Current through inductor
+            i = Real(start=0.0)  # Current through inductor
 
             @equations
             def _(m):
@@ -401,18 +401,18 @@ class TestRLCCircuit:
 
     def test_voltage_source_dc(self) -> None:
         """Test the DC voltage source model."""
-        from cyecca.dsl import connector, equations, model, submodel, var
+        from cyecca.dsl import connector, equations, model, submodel, Real, var
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
         class VoltageSourceDC:
             """DC voltage source: v_p - v_n = V."""
 
-            V = var(1.0, parameter=True)  # Voltage (V)
+            V = Real(1.0, parameter=True)  # Voltage (V)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -429,11 +429,11 @@ class TestRLCCircuit:
 
     def test_ground_model(self) -> None:
         """Test the Ground reference model."""
-        from cyecca.dsl import connector, equations, model, submodel, var
+        from cyecca.dsl import connector, equations, model, submodel, Real, var
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
@@ -458,17 +458,17 @@ class TestRLCCircuit:
 
         This is a first-order system with one state (capacitor voltage).
         """
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, var
+        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
         from cyecca.dsl.causality import analyze_causality
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
         class Resistor:
-            R = var(1000.0, parameter=True)
+            R = Real(1000.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -482,7 +482,7 @@ class TestRLCCircuit:
             C = var(1e-6, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
-            v = var(start=0.0)
+            v = Real(start=0.0)
 
             @equations
             def _(m):
@@ -492,7 +492,7 @@ class TestRLCCircuit:
 
         @model
         class VoltageSourceDC:
-            V = var(5.0, parameter=True)
+            V = Real(5.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -539,16 +539,16 @@ class TestRLCCircuit:
 
     def test_rlc_circuit_definition(self) -> None:
         """Test the full RLC circuit definition from the Modelica example."""
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, var
+        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
         class Resistor:
-            R = var(10.0, parameter=True)
+            R = Real(10.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -559,10 +559,10 @@ class TestRLCCircuit:
 
         @model
         class Capacitor:
-            C = var(0.01, parameter=True)
+            C = Real(0.01, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
-            v = var(start=0.0)
+            v = Real(start=0.0)
 
             @equations
             def _(m):
@@ -572,10 +572,10 @@ class TestRLCCircuit:
 
         @model
         class Inductor:
-            L = var(0.5, parameter=True)
+            L = Real(0.5, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
-            i = var(start=0.0)
+            i = Real(start=0.0)
 
             @equations
             def _(m):
@@ -585,7 +585,7 @@ class TestRLCCircuit:
 
         @model
         class VoltageSourceDC:
-            V = var(5.0, parameter=True)
+            V = Real(5.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -637,17 +637,17 @@ class TestRLCCircuit:
 
     def test_rlc_circuit_causality(self) -> None:
         """Test causality analysis of the RLC circuit."""
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, var
+        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
         from cyecca.dsl.causality import analyze_causality
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
         class Resistor:
-            R = var(10.0, parameter=True)
+            R = Real(10.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -658,10 +658,10 @@ class TestRLCCircuit:
 
         @model
         class Capacitor:
-            C = var(0.01, parameter=True)
+            C = Real(0.01, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
-            v = var(start=0.0)
+            v = Real(start=0.0)
 
             @equations
             def _(m):
@@ -671,10 +671,10 @@ class TestRLCCircuit:
 
         @model
         class Inductor:
-            L = var(0.5, parameter=True)
+            L = Real(0.5, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
-            i = var(start=0.0)
+            i = Real(start=0.0)
 
             @equations
             def _(m):
@@ -684,7 +684,7 @@ class TestRLCCircuit:
 
         @model
         class VoltageSourceDC:
-            V = var(5.0, parameter=True)
+            V = Real(5.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -734,17 +734,17 @@ class TestRLCCircuit:
 
     def test_rlc_circuit_simulation(self) -> None:
         """Test that the RLC circuit can be compiled and simulated."""
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, var
+        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
         from cyecca.dsl.backends import CasadiBackend
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
         class Resistor:
-            R = var(10.0, parameter=True)
+            R = Real(10.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -755,10 +755,10 @@ class TestRLCCircuit:
 
         @model
         class Capacitor:
-            C = var(0.01, parameter=True)
+            C = Real(0.01, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
-            v = var(start=0.0)
+            v = Real(start=0.0)
 
             @equations
             def _(m):
@@ -768,10 +768,10 @@ class TestRLCCircuit:
 
         @model
         class Inductor:
-            L = var(0.5, parameter=True)
+            L = Real(0.5, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
-            i = var(start=0.0)
+            i = Real(start=0.0)
 
             @equations
             def _(m):
@@ -781,7 +781,7 @@ class TestRLCCircuit:
 
         @model
         class VoltageSourceDC:
-            V = var(5.0, parameter=True)
+            V = Real(5.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -845,18 +845,18 @@ class TestRLCCircuit:
         With R=10, L=0.5, C=0.01: 2*sqrt(0.5/0.01) = 2*sqrt(50) ≈ 14.14
         So R=10 < 14.14, meaning we have underdamped oscillation.
         """
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, var
+        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
         from cyecca.dsl.backends import CasadiBackend
         from cyecca.dsl.backends.casadi import Integrator
 
         @connector
         class Pin:
-            v = var()
+            v = Real()
             i = var(flow=True)
 
         @model
         class Resistor:
-            R = var(10.0, parameter=True)
+            R = Real(10.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 
@@ -867,10 +867,10 @@ class TestRLCCircuit:
 
         @model
         class Capacitor:
-            C = var(0.01, parameter=True)
+            C = Real(0.01, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
-            v = var(start=0.0)
+            v = Real(start=0.0)
 
             @equations
             def _(m):
@@ -880,10 +880,10 @@ class TestRLCCircuit:
 
         @model
         class Inductor:
-            L = var(0.5, parameter=True)
+            L = Real(0.5, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
-            i = var(start=0.0)
+            i = Real(start=0.0)
 
             @equations
             def _(m):
@@ -893,7 +893,7 @@ class TestRLCCircuit:
 
         @model
         class VoltageSourceDC:
-            V = var(5.0, parameter=True)
+            V = Real(5.0, parameter=True)
             p = submodel(Pin)
             n = submodel(Pin)
 

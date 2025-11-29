@@ -155,12 +155,12 @@ class TestMathOperatorsSymbolic:
     """Test math operators with symbolic inputs (return Expr)."""
 
     def test_sin_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, model, sin, var
+        from cyecca.dsl import ExprKind, der, equations, model, sin, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -170,12 +170,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.SIN
 
     def test_cos_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, cos, der, equations, model, var
+        from cyecca.dsl import ExprKind, cos, der, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -185,12 +185,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.COS
 
     def test_tan_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, model, tan, var
+        from cyecca.dsl import ExprKind, der, equations, model, tan, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -200,12 +200,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.TAN
 
     def test_asin_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, asin, der, equations, model, var
+        from cyecca.dsl import ExprKind, asin, der, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -215,12 +215,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.ASIN
 
     def test_acos_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, acos, der, equations, model, var
+        from cyecca.dsl import ExprKind, acos, der, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -230,12 +230,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.ACOS
 
     def test_atan_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, atan, der, equations, model, var
+        from cyecca.dsl import ExprKind, atan, der, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -245,13 +245,13 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.ATAN
 
     def test_atan2_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, atan2, der, equations, model, var
+        from cyecca.dsl import ExprKind, atan2, der, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var()
-            angle = var(output=True)
+            x = Real()
+            y = Real()
+            angle = Real(output=True)
 
             @equations
             def _(m):
@@ -262,12 +262,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["angle"].kind == ExprKind.ATAN2
 
     def test_sqrt_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, model, sqrt, var
+        from cyecca.dsl import ExprKind, der, equations, model, sqrt, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -277,12 +277,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.SQRT
 
     def test_exp_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, exp, model, var
+        from cyecca.dsl import ExprKind, der, equations, exp, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -292,12 +292,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.EXP
 
     def test_log_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, log, model, var
+        from cyecca.dsl import ExprKind, der, equations, log, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -307,12 +307,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.LOG
 
     def test_log10_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, log10, model, var
+        from cyecca.dsl import ExprKind, der, equations, log10, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -324,12 +324,12 @@ class TestMathOperatorsSymbolic:
     def test_abs_symbolic(self) -> None:
         from cyecca.dsl import ExprKind
         from cyecca.dsl import abs as dsl_abs
-        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl import der, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -339,12 +339,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.ABS
 
     def test_sign_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, model, sign, var
+        from cyecca.dsl import ExprKind, der, equations, model, sign, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -354,12 +354,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.SIGN
 
     def test_floor_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, floor, model, var
+        from cyecca.dsl import ExprKind, der, equations, floor, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -369,12 +369,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.FLOOR
 
     def test_ceil_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, ceil, der, equations, model, var
+        from cyecca.dsl import ExprKind, ceil, der, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -384,12 +384,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.CEIL
 
     def test_sinh_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, model, sinh, var
+        from cyecca.dsl import ExprKind, der, equations, model, sinh, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -399,12 +399,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.SINH
 
     def test_cosh_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, cosh, der, equations, model, var
+        from cyecca.dsl import ExprKind, cosh, der, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -414,12 +414,12 @@ class TestMathOperatorsSymbolic:
         assert M().flatten().output_equations["y"].kind == ExprKind.COSH
 
     def test_tanh_symbolic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, model, tanh, var
+        from cyecca.dsl import ExprKind, der, equations, model, tanh, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -431,13 +431,13 @@ class TestMathOperatorsSymbolic:
     def test_min_symbolic(self) -> None:
         from cyecca.dsl import ExprKind, der, equations
         from cyecca.dsl import min as dsl_min
-        from cyecca.dsl import model, var
+        from cyecca.dsl import model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var()
-            z = var(output=True)
+            x = Real()
+            y = Real()
+            z = Real(output=True)
 
             @equations
             def _(m):
@@ -450,13 +450,13 @@ class TestMathOperatorsSymbolic:
     def test_max_symbolic(self) -> None:
         from cyecca.dsl import ExprKind, der, equations
         from cyecca.dsl import max as dsl_max
-        from cyecca.dsl import model, var
+        from cyecca.dsl import model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var()
-            z = var(output=True)
+            x = Real()
+            y = Real()
+            z = Real(output=True)
 
             @equations
             def _(m):
@@ -471,13 +471,13 @@ class TestBooleanOperators:
     """Test boolean operators (and_, or_, not_)."""
 
     def test_and_operator(self) -> None:
-        from cyecca.dsl import ExprKind, and_, der, equations, model, var
+        from cyecca.dsl import ExprKind, and_, der, equations, model, Real, var
 
         @model
         class M:
-            a = var()
-            b = var()
-            both = var(output=True)
+            a = Real()
+            b = Real()
+            both = Real(output=True)
 
             @equations
             def _(m):
@@ -488,13 +488,13 @@ class TestBooleanOperators:
         assert M().flatten().output_equations["both"].kind == ExprKind.AND
 
     def test_or_operator(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, model, or_, var
+        from cyecca.dsl import ExprKind, der, equations, model, or_, Real, var
 
         @model
         class M:
-            a = var()
-            b = var()
-            either = var(output=True)
+            a = Real()
+            b = Real()
+            either = Real(output=True)
 
             @equations
             def _(m):
@@ -505,12 +505,12 @@ class TestBooleanOperators:
         assert M().flatten().output_equations["either"].kind == ExprKind.OR
 
     def test_not_operator(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, model, not_, var
+        from cyecca.dsl import ExprKind, der, equations, model, not_, Real, var
 
         @model
         class M:
-            a = var()
-            result = var(output=True)
+            a = Real()
+            result = Real(output=True)
 
             @equations
             def _(m):
@@ -524,12 +524,12 @@ class TestConditionalOperators:
     """Test conditional operators (if_then_else)."""
 
     def test_if_then_else_basic(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, if_then_else, model, var
+        from cyecca.dsl import ExprKind, der, equations, if_then_else, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -539,12 +539,12 @@ class TestConditionalOperators:
         assert M().flatten().output_equations["y"].kind == ExprKind.IF_THEN_ELSE
 
     def test_if_then_else_nested(self) -> None:
-        from cyecca.dsl import ExprKind, der, equations, if_then_else, model, var
+        from cyecca.dsl import ExprKind, der, equations, if_then_else, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -577,13 +577,13 @@ class TestMixedFloatSymbolic:
 
     def test_atan2_float_symbolic(self) -> None:
         """Test atan2 where y is float and x is symbolic."""
-        from cyecca.dsl import ExprKind, der, equations, model, var
+        from cyecca.dsl import ExprKind, der, equations, model, Real, var
         from cyecca.dsl.operators import atan2
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -595,13 +595,13 @@ class TestMixedFloatSymbolic:
 
     def test_atan2_symbolic_float(self) -> None:
         """Test atan2 where y is symbolic and x is float."""
-        from cyecca.dsl import ExprKind, der, equations, model, var
+        from cyecca.dsl import ExprKind, der, equations, model, Real, var
         from cyecca.dsl.operators import atan2
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -615,12 +615,12 @@ class TestMixedFloatSymbolic:
         """Test min where first arg is float and second is symbolic."""
         from cyecca.dsl import ExprKind, der, equations
         from cyecca.dsl import min as dsl_min
-        from cyecca.dsl import model, var
+        from cyecca.dsl import model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -634,12 +634,12 @@ class TestMixedFloatSymbolic:
         """Test min where first arg is symbolic and second is float."""
         from cyecca.dsl import ExprKind, der, equations
         from cyecca.dsl import min as dsl_min
-        from cyecca.dsl import model, var
+        from cyecca.dsl import model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -653,12 +653,12 @@ class TestMixedFloatSymbolic:
         """Test max where first arg is float and second is symbolic."""
         from cyecca.dsl import ExprKind, der, equations
         from cyecca.dsl import max as dsl_max
-        from cyecca.dsl import model, var
+        from cyecca.dsl import model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -672,12 +672,12 @@ class TestMixedFloatSymbolic:
         """Test max where first arg is symbolic and second is float."""
         from cyecca.dsl import ExprKind, der, equations
         from cyecca.dsl import max as dsl_max
-        from cyecca.dsl import model, var
+        from cyecca.dsl import model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var(output=True)
+            x = Real()
+            y = Real(output=True)
 
             @equations
             def _(m):

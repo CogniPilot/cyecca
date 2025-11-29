@@ -70,23 +70,23 @@ DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
 Example
 -------
 >>> import matplotlib.pyplot as plt
->>> from cyecca.dsl import model, var, sin, cos, der, equations
+>>> from cyecca.dsl import model, Real, sin, cos, der, equations
 >>> from cyecca.dsl.backends import CasadiBackend
 >>>
 >>> @model
 ... class Pendulum:
 ...     '''Simple pendulum model.'''
 ...     # Parameters (constant during simulation)
-...     g = var(9.81, parameter=True)
-...     l = var(1.0, parameter=True)
+...     g = Real(9.81, parameter=True, unit="m/s^2", desc="Gravity")
+...     l = Real(1.0, parameter=True, unit="m", desc="Length")
 ...     
 ...     # States (automatically detected via der() usage)
-...     theta = var(start=0.5)
-...     omega = var()
+...     theta = Real(start=0.5, unit="rad", desc="Angle")
+...     omega = Real(unit="rad/s", desc="Angular velocity")
 ...     
 ...     # Outputs (explicitly flagged)
-...     x = var(output=True)
-...     y = var(output=True)
+...     x = Real(output=True, unit="m", desc="Horizontal position")
+...     y = Real(output=True, unit="m", desc="Vertical position")
 ...
 ...     @equations
 ...     def _(m):  # Use 'm' for model namespace (cleaner than 'self')
@@ -107,14 +107,23 @@ Example
 >>> _ = plt.legend()  # doctest: +SKIP
 >>> plt.show()  # doctest: +SKIP
 
+Variable Types (Modelica-style)
+-------------------------------
+Use type constructors for Modelica-like syntax:
+
+- Real(start=1.0, parameter=True)  → floating point variable
+- Integer(5, parameter=True)       → integer variable
+- Boolean(True, discrete=True)     → boolean variable
+- String("name", parameter=True)   → string variable (limited support)
+
 Variable Classification
 -----------------------
 Variables are classified automatically based on flags and equation analysis:
 
-1. var(parameter=True) → parameter (constant during simulation)
-2. var(constant=True) → constant (compile-time constant)
-3. var(input=True) → input (externally controlled)
-4. var(output=True) → output (computed, exposed)
+1. Real(parameter=True) → parameter (constant during simulation)
+2. Real(constant=True) → constant (compile-time constant)
+3. Real(input=True) → input (externally controlled)
+4. Real(output=True) → output (computed, exposed)
 5. If der(var) appears in equations → state
 6. Otherwise → algebraic variable
 
@@ -142,7 +151,20 @@ from cyecca.dsl.causality import ImplicitBlock, SolvedEquation, SortedSystem, an
 from cyecca.dsl.context import algorithm, connect, else_eq, elseif_eq, equations, if_eq, initial_equations, reinit, when
 
 # Decorators and var() factory
-from cyecca.dsl.decorators import FunctionMetadata, ModelMetadata, block, connector, function, model, submodel, var
+from cyecca.dsl.decorators import (
+    Boolean,
+    FunctionMetadata,
+    Integer,
+    ModelMetadata,
+    Real,
+    String,
+    block,
+    connector,
+    function,
+    model,
+    submodel,
+    var,
+)
 
 # Equations and statements
 from cyecca.dsl.equations import Assignment, Equation, IfEquation, IfEquationBranch, Reinit, WhenClause
@@ -215,6 +237,10 @@ __all__ = [
     "algorithm",
     # Variable declaration
     "var",
+    "Real",
+    "Integer",
+    "Boolean",
+    "String",
     "Var",
     "VarKind",
     "DType",

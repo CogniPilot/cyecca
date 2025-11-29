@@ -24,13 +24,13 @@ class TestIfEquationBasics:
 
     def test_if_eq_creates_if_equation(self) -> None:
         """Test that if_eq() context manager creates IfEquation."""
-        from cyecca.dsl import IfEquation, else_eq, equations, if_eq, model, var
+        from cyecca.dsl import IfEquation, else_eq, equations, if_eq, model, Real, var
 
         @model
         class M:
-            use_linear = var(1.0, parameter=True)  # 1.0 = True
-            x = var(start=1.0)
-            y = var()
+            use_linear = Real(1.0, parameter=True)  # 1.0 = True
+            x = Real(start=1.0)
+            y = Real()
 
             @equations
             def _(m):
@@ -49,13 +49,13 @@ class TestIfEquationBasics:
 
     def test_if_eq_with_elseif(self) -> None:
         """Test if_eq with elseif branches."""
-        from cyecca.dsl import else_eq, elseif_eq, equations, if_eq, model, var
+        from cyecca.dsl import else_eq, elseif_eq, equations, if_eq, model, Real, var
 
         @model
         class M:
-            mode = var(1.0, parameter=True)
-            x = var(start=1.0)
-            y = var()
+            mode = Real(1.0, parameter=True)
+            x = Real(start=1.0)
+            y = Real()
 
             @equations
             def _(m):
@@ -75,13 +75,13 @@ class TestIfEquationBasics:
 
     def test_if_eq_single_branch(self) -> None:
         """Test if_eq with only a then branch (no else)."""
-        from cyecca.dsl import equations, if_eq, model, var
+        from cyecca.dsl import equations, if_eq, model, Real, var
 
         @model
         class M:
-            flag = var(1.0, parameter=True)
-            x = var(start=1.0)
-            y = var()
+            flag = Real(1.0, parameter=True)
+            x = Real(start=1.0)
+            y = Real()
 
             @equations
             def _(m):
@@ -102,13 +102,13 @@ class TestIfEquationExpansion:
 
     def test_if_else_expands_to_if_then_else(self) -> None:
         """Test that if/else expands to if_then_else expression."""
-        from cyecca.dsl import ExprKind, else_eq, equations, if_eq, model, var
+        from cyecca.dsl import ExprKind, else_eq, equations, if_eq, model, Real, var
 
         @model
         class M:
-            cond = var(1.0, parameter=True)
-            x = var(start=1.0)
-            y = var()
+            cond = Real(1.0, parameter=True)
+            x = Real(start=1.0)
+            y = Real()
 
             @equations
             def _(m):
@@ -130,13 +130,13 @@ class TestIfEquationExpansion:
 
     def test_multiple_elseif_creates_nested_conditionals(self) -> None:
         """Test that multiple elseif creates nested if_then_else."""
-        from cyecca.dsl import ExprKind, else_eq, elseif_eq, equations, if_eq, model, var
+        from cyecca.dsl import ExprKind, else_eq, elseif_eq, equations, if_eq, model, Real, var
 
         @model
         class M:
-            mode = var(1.0, parameter=True)
-            x = var(start=1.0)
-            y = var()
+            mode = Real(1.0, parameter=True)
+            x = Real(start=1.0)
+            y = Real()
 
             @equations
             def _(m):
@@ -167,14 +167,14 @@ class TestIfEquationSimulation:
 
     def test_if_eq_simulation_selects_correct_branch(self) -> None:
         """Test that simulation uses correct branch based on condition."""
-        from cyecca.dsl import der, else_eq, equations, if_eq, model, var
+        from cyecca.dsl import der, else_eq, equations, if_eq, model, Real, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class LinearOrQuadratic:
-            use_linear = var(1.0, parameter=True)  # 1.0 = True
-            x = var(start=0.0)
-            y = var(output=True)
+            use_linear = Real(1.0, parameter=True)  # 1.0 = True
+            x = Real(start=0.0)
+            y = Real(output=True)
 
             @equations
             def _(m):
@@ -204,13 +204,13 @@ class TestIfEquationSimulation:
 
     def test_if_eq_with_state_variable_condition(self) -> None:
         """Test if-equation with state-dependent condition."""
-        from cyecca.dsl import der, else_eq, equations, if_eq, model, var
+        from cyecca.dsl import der, else_eq, equations, if_eq, model, Real, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class SaturatedGrowth:
-            x = var(start=0.1)
-            rate = var(output=True)
+            x = Real(start=0.1)
+            rate = Real(output=True)
 
             @equations
             def _(m):
@@ -241,12 +241,12 @@ class TestIfEquationValidation:
 
     def test_elseif_requires_preceding_if(self) -> None:
         """Test that elseif_eq without preceding if_eq raises error."""
-        from cyecca.dsl import elseif_eq, equations, model, var
+        from cyecca.dsl import elseif_eq, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var()
+            x = Real()
+            y = Real()
 
             @equations
             def _(m):
@@ -260,12 +260,12 @@ class TestIfEquationValidation:
 
     def test_else_requires_preceding_if(self) -> None:
         """Test that else_eq without preceding if_eq raises error."""
-        from cyecca.dsl import else_eq, equations, model, var
+        from cyecca.dsl import else_eq, equations, model, Real, var
 
         @model
         class M:
-            x = var()
-            y = var()
+            x = Real()
+            y = Real()
 
             @equations
             def _(m):

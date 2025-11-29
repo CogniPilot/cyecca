@@ -197,6 +197,344 @@ def var(
     )
 
 
+# =============================================================================
+# Modelica-style type constructors: Real, Integer, Boolean, String
+# =============================================================================
+# These provide a more Modelica-like syntax for variable declarations:
+#   x = Real(start=1.0, min=0)
+#   n = Integer(start=5, parameter=True)
+#   flag = Boolean(start=True)
+#   name = String(start="default")
+#
+# They are equivalent to using var() with the appropriate dtype.
+# =============================================================================
+
+
+@beartype
+def Real(
+    default: Optional[Union[float, int, List[float], np.ndarray]] = None,
+    shape: Shape = (),
+    unit: Optional[str] = None,
+    desc: str = "",
+    start: Optional[Union[float, int, List[float], np.ndarray]] = None,
+    fixed: bool = False,
+    min: Optional[Union[float, int]] = None,
+    max: Optional[Union[float, int]] = None,
+    nominal: Optional[Union[float, int]] = None,
+    # Variability flags
+    parameter: bool = False,
+    discrete: bool = False,
+    input: bool = False,
+    output: bool = False,
+    constant: bool = False,
+    # Visibility
+    protected: bool = False,
+    # Connector
+    flow: bool = False,
+) -> Var:
+    """
+    Declare a Real (floating-point) variable.
+
+    This is the Modelica-style constructor for Real variables.
+    Equivalent to: var(dtype=DType.REAL, ...)
+
+    Parameters
+    ----------
+    default : float or array, optional
+        Default value (used if start not specified)
+    shape : tuple of int, optional
+        Array shape: () for scalar, (n,) for vector, (m,n) for matrix
+    unit : str, optional
+        Physical unit (e.g., "m", "rad/s", "kg")
+    desc : str, optional
+        Description of the variable
+    start : float or array, optional
+        Initial value (Modelica-style)
+    fixed : bool, optional
+        If True, start value is used as fixed initial condition
+    min : float, optional
+        Minimum bound
+    max : float, optional
+        Maximum bound
+    nominal : float, optional
+        Nominal value for scaling
+    parameter : bool, optional
+        If True, constant during simulation
+    discrete : bool, optional
+        If True, piecewise constant (changes only at events)
+    input : bool, optional
+        If True, externally provided
+    output : bool, optional
+        If True, computed and exposed externally
+    constant : bool, optional
+        If True, compile-time constant
+    protected : bool, optional
+        If True, internal (not part of public interface)
+    flow : bool, optional
+        If True, uses sum-to-zero connection semantics
+
+    Example
+    -------
+    >>> @model
+    ... class Pendulum:
+    ...     # Parameters
+    ...     g = Real(9.81, parameter=True, unit="m/s^2", desc="Gravity")
+    ...     l = Real(1.0, parameter=True, unit="m", desc="Length")
+    ...
+    ...     # States
+    ...     theta = Real(start=0.5, unit="rad", desc="Angle")
+    ...     omega = Real(start=0.0, unit="rad/s", desc="Angular velocity")
+    ...
+    ...     # Vector state
+    ...     pos = Real(shape=(3,), unit="m", desc="Position")
+    """
+    return var(
+        default=default,
+        dtype=DType.REAL,
+        shape=shape,
+        unit=unit,
+        desc=desc,
+        start=start,
+        fixed=fixed,
+        min=min,
+        max=max,
+        nominal=nominal,
+        parameter=parameter,
+        discrete=discrete,
+        input=input,
+        output=output,
+        constant=constant,
+        protected=protected,
+        flow=flow,
+    )
+
+
+@beartype
+def Integer(
+    default: Optional[Union[int, List[int], np.ndarray]] = None,
+    shape: Shape = (),
+    desc: str = "",
+    start: Optional[Union[int, List[int], np.ndarray]] = None,
+    fixed: bool = False,
+    min: Optional[int] = None,
+    max: Optional[int] = None,
+    # Variability flags
+    parameter: bool = False,
+    discrete: bool = False,
+    input: bool = False,
+    output: bool = False,
+    constant: bool = False,
+    # Visibility
+    protected: bool = False,
+) -> Var:
+    """
+    Declare an Integer variable.
+
+    This is the Modelica-style constructor for Integer variables.
+    Equivalent to: var(dtype=DType.INTEGER, ...)
+
+    Note: Integer variables cannot have unit or nominal attributes
+    (these only apply to Real variables).
+
+    Parameters
+    ----------
+    default : int or array, optional
+        Default value (used if start not specified)
+    shape : tuple of int, optional
+        Array shape: () for scalar, (n,) for vector
+    desc : str, optional
+        Description of the variable
+    start : int or array, optional
+        Initial value
+    fixed : bool, optional
+        If True, start value is fixed
+    min : int, optional
+        Minimum bound
+    max : int, optional
+        Maximum bound
+    parameter : bool, optional
+        If True, constant during simulation
+    discrete : bool, optional
+        If True, piecewise constant
+    input : bool, optional
+        If True, externally provided
+    output : bool, optional
+        If True, computed and exposed
+    constant : bool, optional
+        If True, compile-time constant
+    protected : bool, optional
+        If True, internal
+
+    Example
+    -------
+    >>> @model
+    ... class Counter:
+    ...     n = Integer(parameter=True, start=10, desc="Max count")
+    ...     count = Integer(start=0, discrete=True, desc="Current count")
+    """
+    return var(
+        default=default,
+        dtype=DType.INTEGER,
+        shape=shape,
+        unit=None,
+        desc=desc,
+        start=start,
+        fixed=fixed,
+        min=min,
+        max=max,
+        nominal=None,
+        parameter=parameter,
+        discrete=discrete,
+        input=input,
+        output=output,
+        constant=constant,
+        protected=protected,
+        flow=False,
+    )
+
+
+@beartype
+def Boolean(
+    default: Optional[Union[bool, List[bool], np.ndarray]] = None,
+    shape: Shape = (),
+    desc: str = "",
+    start: Optional[Union[bool, List[bool], np.ndarray]] = None,
+    fixed: bool = False,
+    # Variability flags
+    parameter: bool = False,
+    discrete: bool = False,
+    input: bool = False,
+    output: bool = False,
+    constant: bool = False,
+    # Visibility
+    protected: bool = False,
+) -> Var:
+    """
+    Declare a Boolean variable.
+
+    This is the Modelica-style constructor for Boolean variables.
+    Equivalent to: var(dtype=DType.BOOLEAN, ...)
+
+    Note: Boolean variables cannot have min, max, unit, or nominal attributes.
+
+    Parameters
+    ----------
+    default : bool or array, optional
+        Default value (used if start not specified)
+    shape : tuple of int, optional
+        Array shape: () for scalar, (n,) for vector
+    desc : str, optional
+        Description of the variable
+    start : bool or array, optional
+        Initial value
+    fixed : bool, optional
+        If True, start value is fixed
+    parameter : bool, optional
+        If True, constant during simulation
+    discrete : bool, optional
+        If True, piecewise constant (changes at events)
+    input : bool, optional
+        If True, externally provided
+    output : bool, optional
+        If True, computed and exposed
+    constant : bool, optional
+        If True, compile-time constant
+    protected : bool, optional
+        If True, internal
+
+    Example
+    -------
+    >>> @model
+    ... class Switch:
+    ...     enabled = Boolean(parameter=True, start=True, desc="Enable flag")
+    ...     triggered = Boolean(start=False, discrete=True, desc="Event flag")
+    """
+    return var(
+        default=default,
+        dtype=DType.BOOLEAN,
+        shape=shape,
+        unit=None,
+        desc=desc,
+        start=start,
+        fixed=fixed,
+        min=None,
+        max=None,
+        nominal=None,
+        parameter=parameter,
+        discrete=discrete,
+        input=input,
+        output=output,
+        constant=constant,
+        protected=protected,
+        flow=False,
+    )
+
+
+@beartype
+def String(
+    default: Optional[str] = None,
+    desc: str = "",
+    start: Optional[str] = None,
+    # Variability flags
+    parameter: bool = False,
+    constant: bool = False,
+    # Visibility
+    protected: bool = False,
+) -> Var:
+    """
+    Declare a String variable.
+
+    This is the Modelica-style constructor for String variables.
+    Strings in Modelica are typically used for parameters like file paths
+    or labels, not for dynamic computation.
+
+    Note: String variables are always discrete and cannot be arrays.
+    They cannot have min, max, unit, nominal, or fixed attributes.
+
+    Parameters
+    ----------
+    default : str, optional
+        Default value
+    desc : str, optional
+        Description of the variable
+    start : str, optional
+        Initial value
+    parameter : bool, optional
+        If True, constant during simulation
+    constant : bool, optional
+        If True, compile-time constant
+    protected : bool, optional
+        If True, internal
+
+    Example
+    -------
+    >>> @model
+    ... class DataLoader:
+    ...     filename = String(parameter=True, start="data.csv", desc="Input file")
+    """
+    # Note: We use DType.REAL as a placeholder since STRING isn't fully supported yet
+    # The value is stored in default/start as a string
+    return Var(
+        default=default,
+        dtype=DType.REAL,  # Placeholder - STRING type would need backend support
+        shape=(),
+        unit=None,
+        desc=desc,
+        start=start,
+        fixed=False,
+        min=None,
+        max=None,
+        nominal=None,
+        parameter=parameter,
+        discrete=True,  # Strings are inherently discrete
+        input=False,
+        output=False,
+        constant=constant,
+        protected=protected,
+        flow=False,
+    )
+
+
 @beartype
 def submodel(model_class: Type, **overrides: Any) -> SubmodelField:
     """

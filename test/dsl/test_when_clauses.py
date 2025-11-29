@@ -20,13 +20,13 @@ class TestWhenClauseBasics:
 
     def test_when_context_creates_when_clause(self) -> None:
         """Test that when() context manager creates WhenClause."""
-        from cyecca.dsl import WhenClause, der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import WhenClause, der, equations, model, pre, reinit, Real, var, when
 
         @model
         class M:
-            h = var(start=1.0)
-            v = var(start=0.0)
-            e = var(0.8, parameter=True)
+            h = Real(start=1.0)
+            v = Real(start=0.0)
+            e = Real(0.8, parameter=True)
 
             @equations
             def _(m):
@@ -56,11 +56,11 @@ class TestWhenClauseBasics:
 
     def test_reinit_requires_scalar_var(self) -> None:
         """Test that reinit() currently requires scalar variables."""
-        from cyecca.dsl import model, reinit, var
+        from cyecca.dsl import model, reinit, Real, var
 
         @model
         class M:
-            pos = var(shape=(3,))
+            pos = Real(shape=(3,))
 
         instance = M()
         with pytest.raises(TypeError, match="scalar variables"):
@@ -68,12 +68,12 @@ class TestWhenClauseBasics:
 
     def test_flat_model_contains_when_clauses(self) -> None:
         """Test that FlatModel correctly collects when_clauses."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
 
         @model
         class Counter:
-            trigger = var(start=0.0)
-            count = var(start=0.0)
+            trigger = Real(start=0.0)
+            count = Real(start=0.0)
 
             @equations
             def _(m):
@@ -93,15 +93,15 @@ class TestBouncingBall:
 
     def test_bouncing_ball_model_definition(self) -> None:
         """Test that bouncing ball model can be defined."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
 
         @model
         class BouncingBall:
             """Bouncing ball with restitution coefficient."""
 
-            h = var(start=1.0, unit="m")
-            v = var(start=0.0, unit="m/s")
-            e = var(0.8, parameter=True)  # Restitution coefficient
+            h = Real(start=1.0, unit="m")
+            v = Real(start=0.0, unit="m/s")
+            e = Real(0.8, parameter=True)  # Restitution coefficient
 
             @equations
             def _(m):
@@ -122,14 +122,14 @@ class TestBouncingBall:
 
     def test_bouncing_ball_compiles(self) -> None:
         """Test that bouncing ball model compiles with CasADi backend."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class BouncingBall:
-            h = var(start=1.0)
-            v = var(start=0.0)
-            e = var(0.8, parameter=True)
+            h = Real(start=1.0)
+            v = Real(start=0.0)
+            e = Real(0.8, parameter=True)
 
             @equations
             def _(m):
@@ -146,14 +146,14 @@ class TestBouncingBall:
 
     def test_bouncing_ball_simulation(self) -> None:
         """Test bouncing ball simulation with event detection."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class BouncingBall:
-            h = var(start=1.0)
-            v = var(start=0.0)
-            e = var(0.8, parameter=True)
+            h = Real(start=1.0)
+            v = Real(start=0.0)
+            e = Real(0.8, parameter=True)
 
             @equations
             def _(m):
@@ -185,14 +185,14 @@ class TestBouncingBall:
 
     def test_bouncing_ball_energy_loss(self) -> None:
         """Test that bouncing ball loses energy at each bounce."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class BouncingBall:
-            h = var(start=1.0)
-            v = var(start=0.0)
-            e = var(0.5, parameter=True)  # 50% energy loss per bounce
+            h = Real(start=1.0)
+            v = Real(start=0.0)
+            e = Real(0.5, parameter=True)  # 50% energy loss per bounce
 
             @equations
             def _(m):
@@ -225,14 +225,14 @@ class TestMultipleWhenClauses:
 
     def test_multiple_when_clauses(self) -> None:
         """Test model with multiple independent when-clauses."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class TwoEvents:
-            x = var(start=0.0)
-            y = var(start=0.0)
-            counter = var(start=0.0)
+            x = Real(start=0.0)
+            y = Real(start=0.0)
+            counter = Real(start=0.0)
 
             @equations
             def _(m):
@@ -261,11 +261,11 @@ class TestWhenClauseExpressions:
 
     def test_when_with_lt_condition(self) -> None:
         """Test when-clause with less-than condition."""
-        from cyecca.dsl import ExprKind, der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import ExprKind, der, equations, model, pre, reinit, Real, var, when
 
         @model
         class M:
-            x = var(start=1.0)
+            x = Real(start=1.0)
 
             @equations
             def _(m):
@@ -280,11 +280,11 @@ class TestWhenClauseExpressions:
 
     def test_when_with_gt_condition(self) -> None:
         """Test when-clause with greater-than condition."""
-        from cyecca.dsl import ExprKind, der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import ExprKind, der, equations, model, pre, reinit, Real, var, when
 
         @model
         class M:
-            x = var(start=0.0)
+            x = Real(start=0.0)
 
             @equations
             def _(m):
@@ -299,11 +299,11 @@ class TestWhenClauseExpressions:
 
     def test_when_with_le_condition(self) -> None:
         """Test when-clause with less-than-or-equal condition."""
-        from cyecca.dsl import ExprKind, der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import ExprKind, der, equations, model, pre, reinit, Real, var, when
 
         @model
         class M:
-            x = var(start=1.0)
+            x = Real(start=1.0)
 
             @equations
             def _(m):
@@ -322,15 +322,15 @@ class TestPreOperator:
 
     def test_pre_in_reinit_expression(self) -> None:
         """Test that pre() works in reinit expressions."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class Accumulator:
             """Accumulates value every time x crosses threshold."""
 
-            x = var(start=0.0)
-            total = var(start=0.0)
+            x = Real(start=0.0)
+            total = Real(start=0.0)
 
             @equations
             def _(m):
@@ -355,13 +355,13 @@ class TestSubmodelWhenClauses:
 
     def test_submodel_when_clauses_are_collected(self) -> None:
         """Test that when-clauses in submodels are collected with prefix."""
-        from cyecca.dsl import der, equations, model, pre, reinit, submodel, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, submodel, Real, var, when
 
         @model
         class Ball:
-            h = var(start=1.0)
-            v = var(start=0.0)
-            e = var(0.8, parameter=True)
+            h = Real(start=1.0)
+            v = Real(start=0.0)
+            e = Real(0.8, parameter=True)
 
             @equations
             def _(m):
@@ -390,14 +390,14 @@ class TestBouncingBallPhysics:
 
         For h0=1.0, g=9.81: t = sqrt(2*h0/g) ≈ 0.4515 s
         """
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class BouncingBall:
-            h = var(start=1.0)
-            v = var(start=0.0)
-            e = var(0.8, parameter=True)
+            h = Real(start=1.0)
+            v = Real(start=0.0)
+            e = Real(0.8, parameter=True)
 
             @equations
             def _(m):
@@ -425,15 +425,15 @@ class TestBouncingBallPhysics:
 
     def test_bouncing_ball_velocity_reversal(self) -> None:
         """Test that velocity reverses with correct coefficient at bounce."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         e_value = 0.7  # Restitution coefficient
 
         @model
         class BouncingBall:
-            h = var(start=1.0)
-            v = var(start=0.0)
+            h = Real(start=1.0)
+            v = Real(start=0.0)
             e = var(e_value, parameter=True)
 
             @equations
@@ -465,14 +465,14 @@ class TestBouncingBallPhysics:
 
     def test_bouncing_ball_multiple_bounces(self) -> None:
         """Test that ball bounces multiple times with decreasing height."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class BouncingBall:
-            h = var(start=2.0)  # Start higher for more bounces
-            v = var(start=0.0)
-            e = var(0.8, parameter=True)
+            h = Real(start=2.0)  # Start higher for more bounces
+            v = Real(start=0.0)
+            e = Real(0.8, parameter=True)
 
             @equations
             def _(m):
@@ -504,15 +504,15 @@ class TestBouncingBallPhysics:
 
     def test_bouncing_ball_energy_conservation_ratio(self) -> None:
         """Test that height ratio between bounces equals e^2."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         e_value = 0.9  # High restitution for clearer bounces
 
         @model
         class BouncingBall:
-            h = var(start=1.0)
-            v = var(start=0.0)
+            h = Real(start=1.0)
+            v = Real(start=0.0)
             e = var(e_value, parameter=True)
 
             @equations
@@ -545,14 +545,14 @@ class TestBouncingBallPhysics:
 
     def test_bouncing_ball_with_initial_velocity(self) -> None:
         """Test bouncing ball thrown upward."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class BouncingBall:
-            h = var(start=0.5)  # Start at 0.5m
-            v = var(start=5.0)  # Throw upward at 5 m/s
-            e = var(0.8, parameter=True)
+            h = Real(start=0.5)  # Start at 0.5m
+            v = Real(start=5.0)  # Throw upward at 5 m/s
+            e = Real(0.8, parameter=True)
 
             @equations
             def _(m):
@@ -576,14 +576,14 @@ class TestBouncingBallPhysics:
 
     def test_bouncing_ball_perfect_elastic(self) -> None:
         """Test bouncing ball with e=1.0 (perfect elastic collision)."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class BouncingBall:
-            h = var(start=1.0)
-            v = var(start=0.0)
-            e = var(1.0, parameter=True)  # Perfect elastic
+            h = Real(start=1.0)
+            v = Real(start=0.0)
+            e = Real(1.0, parameter=True)  # Perfect elastic
 
             @equations
             def _(m):
@@ -611,14 +611,14 @@ class TestBouncingBallPhysics:
 
     def test_bouncing_ball_zero_restitution(self) -> None:
         """Test bouncing ball with e=0 (completely inelastic)."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class BouncingBall:
-            h = var(start=1.0)
-            v = var(start=0.0)
-            e = var(0.0, parameter=True)  # Completely inelastic
+            h = Real(start=1.0)
+            v = Real(start=0.0)
+            e = Real(0.0, parameter=True)  # Completely inelastic
 
             @equations
             def _(m):
@@ -657,17 +657,17 @@ class TestDiscreteVariables:
 
     def test_discrete_variable_counter(self) -> None:
         """Test a counter that increments on each event."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class EventCounter:
             # Continuous variable that triggers events
-            x = var(start=0.0)
+            x = Real(start=0.0)
             # Discrete counter - increments on each event
-            count = var(0, discrete=True)
+            count = Real(0, discrete=True)
             # Threshold for events (crosses every 1.0 units of x)
-            threshold = var(1.0, parameter=True)
+            threshold = Real(1.0, parameter=True)
 
             @equations
             def _(m):
@@ -705,13 +705,13 @@ class TestDiscreteVariables:
 
     def test_discrete_variable_in_result(self) -> None:
         """Test that discrete variable trajectory is available in result."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
-            t_trigger = var(start=0.0)
-            mode = var(0, discrete=True)
+            t_trigger = Real(start=0.0)
+            mode = Real(0, discrete=True)
 
             @equations
             def _(m):
@@ -734,13 +734,13 @@ class TestDiscreteVariables:
 
     def test_discrete_without_events_stays_constant(self) -> None:
         """Test discrete variable without events stays at initial value."""
-        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl import der, equations, model, Real, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
-            x = var(start=0.0)
-            flag = var(42, discrete=True)  # Initial value 42
+            x = Real(start=0.0)
+            flag = Real(42, discrete=True)  # Initial value 42
 
             @equations
             def _(m):
@@ -756,14 +756,14 @@ class TestDiscreteVariables:
 
     def test_discrete_multiple_reinits_same_event(self) -> None:
         """Test multiple discrete variables updated in same event."""
-        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, Real, var, when
         from cyecca.dsl.backends import CasadiBackend
 
         @model
         class MultiDiscrete:
-            x = var(start=0.0)
-            a = var(0, discrete=True)
-            b = var(10, discrete=True)
+            x = Real(start=0.0)
+            a = Real(0, discrete=True)
+            b = Real(10, discrete=True)
 
             @equations
             def _(m):
@@ -813,11 +813,11 @@ class TestInitialFunction:
 
     def test_initial_in_when_clause(self) -> None:
         """Test using initial() as when-clause condition."""
-        from cyecca.dsl import WhenClause, der, equations, initial, model, reinit, var, when
+        from cyecca.dsl import WhenClause, der, equations, initial, model, reinit, Real, var, when
 
         @model
         class M:
-            x = var(start=0.0)
+            x = Real(start=0.0)
 
             @equations
             def _(m):
@@ -833,12 +833,12 @@ class TestInitialFunction:
 
     def test_initial_triggers_at_start(self) -> None:
         """Test that initial() when-clause triggers at t=0."""
-        from cyecca.dsl import der, equations, initial, model, reinit, var, when
+        from cyecca.dsl import der, equations, initial, model, reinit, Real, var, when
         from cyecca.dsl.backends.casadi import CasadiBackend
 
         @model
         class Integrator:
-            x = var(start=0.0)
+            x = Real(start=0.0)
 
             @equations
             def _(m):
@@ -861,13 +861,13 @@ class TestInitialFunction:
 
     def test_initial_with_expression(self) -> None:
         """Test initial() with reinit expression involving variables."""
-        from cyecca.dsl import der, equations, initial, model, reinit, var, when
+        from cyecca.dsl import der, equations, initial, model, reinit, Real, var, when
         from cyecca.dsl.backends.casadi import CasadiBackend
 
         @model
         class M:
-            x = var(start=1.0)
-            k = var(2.0, parameter=True)
+            x = Real(start=1.0)
+            k = Real(2.0, parameter=True)
 
             @equations
             def _(m):
@@ -888,13 +888,13 @@ class TestInitialFunction:
 
     def test_initial_only_fires_once(self) -> None:
         """Test that initial() only fires at t=0, not at later times."""
-        from cyecca.dsl import der, equations, initial, model, reinit, var, when
+        from cyecca.dsl import der, equations, initial, model, reinit, Real, var, when
         from cyecca.dsl.backends.casadi import CasadiBackend
 
         @model
         class M:
-            x = var(start=0.0)
-            count = var(0, discrete=True)
+            x = Real(start=0.0)
+            count = Real(0, discrete=True)
 
             @equations
             def _(m):
@@ -915,12 +915,12 @@ class TestInitialFunction:
 
     def test_terminal_not_implemented(self) -> None:
         """Test that terminal() raises NotImplementedError in CasADi backend."""
-        from cyecca.dsl import der, equations, model, reinit, terminal, var, when
+        from cyecca.dsl import der, equations, model, reinit, terminal, Real, var, when
         from cyecca.dsl.backends.casadi import CasadiBackend
 
         @model
         class M:
-            x = var(start=0.0)
+            x = Real(start=0.0)
 
             @equations
             def _(m):
@@ -960,11 +960,11 @@ class TestSampleFunction:
 
     def test_sample_in_when_clause(self) -> None:
         """Test using sample() as when-clause condition."""
-        from cyecca.dsl import WhenClause, der, equations, model, reinit, sample, var, when
+        from cyecca.dsl import WhenClause, der, equations, model, reinit, sample, Real, var, when
 
         @model
         class M:
-            x = var(start=0.0)
+            x = Real(start=0.0)
             u = var(discrete=True)
 
             @equations
@@ -981,13 +981,13 @@ class TestSampleFunction:
 
     def test_sample_triggers_periodically(self) -> None:
         """Test that sample() when-clause triggers at regular intervals."""
-        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, Real, var, when
         from cyecca.dsl.backends.casadi import CasadiBackend
 
         @model
         class Counter:
-            t_sim = var(start=0.0)  # Tracks time
-            count = var(0, discrete=True)
+            t_sim = Real(start=0.0)  # Tracks time
+            count = Real(0, discrete=True)
 
             @equations
             def _(m):
@@ -1008,13 +1008,13 @@ class TestSampleFunction:
 
     def test_sample_with_nonzero_start(self) -> None:
         """Test sample() with start > 0."""
-        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, Real, var, when
         from cyecca.dsl.backends.casadi import CasadiBackend
 
         @model
         class DelayedCounter:
-            t_sim = var(start=0.0)
-            count = var(0, discrete=True)
+            t_sim = Real(start=0.0)
+            count = Real(0, discrete=True)
 
             @equations
             def _(m):
@@ -1039,7 +1039,7 @@ class TestSampleFunction:
 
     def test_sampled_data_controller(self) -> None:
         """Test a simple sampled-data P controller."""
-        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, Real, var, when
         from cyecca.dsl.backends.casadi import CasadiBackend
 
         @model
@@ -1047,16 +1047,16 @@ class TestSampleFunction:
             """First-order plant with sampled P controller."""
 
             # Plant state
-            x = var(start=0.0)
+            x = Real(start=0.0)
 
             # Controller output (discrete - updated at sample times)
-            u = var(0.0, discrete=True)
+            u = Real(0.0, discrete=True)
 
             # Parameters
-            tau = var(1.0, parameter=True)  # Plant time constant
-            Kp = var(2.0, parameter=True)  # Proportional gain
-            ref = var(1.0, parameter=True)  # Reference
-            Ts = var(0.1, parameter=True)  # Sample time
+            tau = Real(1.0, parameter=True)  # Plant time constant
+            Kp = Real(2.0, parameter=True)  # Proportional gain
+            ref = Real(1.0, parameter=True)  # Reference
+            Ts = Real(0.1, parameter=True)  # Sample time
 
             @equations
             def _(m):
@@ -1085,7 +1085,7 @@ class TestSampleFunction:
 
     def test_sample_accumulator(self) -> None:
         """Test accumulating samples over time."""
-        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, Real, var, when
         from cyecca.dsl.backends.casadi import CasadiBackend
 
         @model
@@ -1093,10 +1093,10 @@ class TestSampleFunction:
             """Accumulate input signal at sample times."""
 
             # Continuous input (ramp)
-            ramp = var(start=0.0)
+            ramp = Real(start=0.0)
 
             # Accumulated sum (discrete)
-            total = var(0.0, discrete=True)
+            total = Real(0.0, discrete=True)
 
             @equations
             def _(m):
@@ -1121,14 +1121,14 @@ class TestSampleFunction:
 
     def test_multiple_sample_rates(self) -> None:
         """Test multiple when-clauses with different sample rates."""
-        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, Real, var, when
         from cyecca.dsl.backends.casadi import CasadiBackend
 
         @model
         class MultiRate:
-            t_sim = var(start=0.0)
-            fast_count = var(0, discrete=True)
-            slow_count = var(0, discrete=True)
+            t_sim = Real(start=0.0)
+            fast_count = Real(0, discrete=True)
+            slow_count = Real(0, discrete=True)
 
             @equations
             def _(m):

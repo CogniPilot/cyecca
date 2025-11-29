@@ -65,8 +65,8 @@ from cyecca.dsl.context import (
 )
 from cyecca.dsl.equations import ArrayEquation, Assignment, Equation, WhenClause
 from cyecca.dsl.instance import ModelInstance
-from cyecca.dsl.types import DType, NumericValue, Shape, SubmodelField, Var, VarKind
 from cyecca.dsl.variables import SymbolicVar
+from cyecca.ir.types import DType, NumericValue, Shape, SubmodelField, Var, VarKind
 
 # For IDE autocomplete: Real/Integer/Boolean/String return SymbolicVar for type checking
 # but Var at runtime. This allows m.theta to autocomplete as SymbolicVar.

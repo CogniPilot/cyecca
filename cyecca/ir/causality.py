@@ -68,11 +68,13 @@ Steps:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
-from cyecca.dsl.equations import Equation
-from cyecca.dsl.expr import Expr, ExprKind, find_derivatives
-from cyecca.dsl.flat_model import FlatModel
+from cyecca.ir.expr import Expr, ExprKind, find_derivatives
+
+if TYPE_CHECKING:
+    from cyecca.dsl.equations import Equation
+    from cyecca.ir.flat_model import FlatModel
 
 
 @dataclass

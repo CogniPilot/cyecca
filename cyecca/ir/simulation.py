@@ -56,7 +56,7 @@ class SimulationResult:
     -------
     >>> import matplotlib.pyplot as plt  # doctest: +SKIP
     >>> from cyecca.dsl import model, var, der, sin  # doctest: +SKIP
-    >>> from cyecca.dsl.backends import CasadiBackend  # doctest: +SKIP
+    >>> from cyecca.backends import CasadiBackend  # doctest: +SKIP
     >>>
     >>> @model  # doctest: +SKIP
     ... class Pendulum:

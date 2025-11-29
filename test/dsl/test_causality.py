@@ -12,24 +12,24 @@ class TestFindVariables:
     """Test find_variables function."""
 
     def test_find_variable(self) -> None:
-        from cyecca.dsl.causality import find_variables
         from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.ir.causality import find_variables
 
         expr = Expr(ExprKind.VARIABLE, name="x")
         vars = find_variables(expr)
         assert vars == {"x"}
 
     def test_find_derivative(self) -> None:
-        from cyecca.dsl.causality import find_variables
         from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.ir.causality import find_variables
 
         expr = Expr(ExprKind.DERIVATIVE, name="x")
         vars = find_variables(expr)
         assert vars == {"der_x"}
 
     def test_find_nested(self) -> None:
-        from cyecca.dsl.causality import find_variables
         from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.ir.causality import find_variables
 
         # x + y * z
         x = Expr(ExprKind.VARIABLE, name="x")
@@ -46,8 +46,8 @@ class TestIsLinearIn:
     """Test is_linear_in function."""
 
     def test_just_variable(self) -> None:
-        from cyecca.dsl.causality import is_linear_in
         from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.ir.causality import is_linear_in
 
         x = Expr(ExprKind.VARIABLE, name="x")
         is_lin, coef, const = is_linear_in(x, "x")
@@ -58,8 +58,8 @@ class TestIsLinearIn:
         assert coef.value == 1.0
 
     def test_constant_times_variable(self) -> None:
-        from cyecca.dsl.causality import is_linear_in
         from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.ir.causality import is_linear_in
 
         # 2 * x
         two = Expr(ExprKind.CONSTANT, value=2.0)
@@ -73,8 +73,8 @@ class TestIsLinearIn:
         assert coef.value == 2.0
 
     def test_variable_not_in_expr(self) -> None:
-        from cyecca.dsl.causality import is_linear_in
         from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.ir.causality import is_linear_in
 
         y = Expr(ExprKind.VARIABLE, name="y")
         is_lin, coef, const = is_linear_in(y, "x")
@@ -88,9 +88,9 @@ class TestSolveLinear:
     """Test solve_linear function."""
 
     def test_solve_explicit_derivative(self) -> None:
-        from cyecca.dsl.causality import solve_linear
         from cyecca.dsl.equations import Equation
         from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.ir.causality import solve_linear
 
         # der(x) == y
         lhs = Expr(ExprKind.DERIVATIVE, name="x")
@@ -104,9 +104,9 @@ class TestSolveLinear:
         assert solved.is_derivative is True
 
     def test_solve_algebraic(self) -> None:
-        from cyecca.dsl.causality import solve_linear
         from cyecca.dsl.equations import Equation
         from cyecca.dsl.expr import Expr, ExprKind
+        from cyecca.ir.causality import solve_linear
 
         # y == x + 1
         lhs = Expr(ExprKind.VARIABLE, name="y")
@@ -126,7 +126,7 @@ class TestTarjanSCC:
     """Test Tarjan's algorithm for strongly connected components."""
 
     def test_no_cycles(self) -> None:
-        from cyecca.dsl.causality import _tarjan_scc
+        from cyecca.ir.causality import _tarjan_scc
 
         # Linear chain: 0 -> 1 -> 2
         nodes = [0, 1, 2]
@@ -141,7 +141,7 @@ class TestTarjanSCC:
             assert len(scc) == 1
 
     def test_single_cycle(self) -> None:
-        from cyecca.dsl.causality import _tarjan_scc
+        from cyecca.ir.causality import _tarjan_scc
 
         # Cycle: 0 -> 1 -> 2 -> 0
         nodes = [0, 1, 2]
@@ -154,7 +154,7 @@ class TestTarjanSCC:
         assert set(sccs[0]) == {0, 1, 2}
 
     def test_two_sccs(self) -> None:
-        from cyecca.dsl.causality import _tarjan_scc
+        from cyecca.ir.causality import _tarjan_scc
 
         # Two separate cycles: 0 <-> 1, 2 <-> 3
         nodes = [0, 1, 2, 3]
@@ -168,7 +168,7 @@ class TestTarjanSCC:
         assert {2, 3} in scc_sets
 
     def test_chain_with_cycle(self) -> None:
-        from cyecca.dsl.causality import _tarjan_scc
+        from cyecca.ir.causality import _tarjan_scc
 
         # 0 -> (1 <-> 2) -> 3
         nodes = [0, 1, 2, 3]
@@ -189,7 +189,7 @@ class TestAnalyzeCausality:
 
     def test_simple_ode(self) -> None:
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.causality import analyze_causality
+        from cyecca.ir.causality import analyze_causality
 
         @model
         class SimpleODE:
@@ -210,7 +210,7 @@ class TestAnalyzeCausality:
 
     def test_coupled_ode(self) -> None:
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.causality import analyze_causality
+        from cyecca.ir.causality import analyze_causality
 
         @model
         class CoupledODE:
@@ -231,7 +231,7 @@ class TestAnalyzeCausality:
 
     def test_with_algebraic(self) -> None:
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.causality import analyze_causality
+        from cyecca.ir.causality import analyze_causality
 
         @model
         class WithAlgebraic:
@@ -252,7 +252,7 @@ class TestAnalyzeCausality:
 
     def test_harmonic_oscillator(self) -> None:
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.causality import analyze_causality
+        from cyecca.ir.causality import analyze_causality
 
         @model
         class HarmonicOscillator:
@@ -459,7 +459,7 @@ class TestRLCCircuit:
         This is a first-order system with one state (capacitor voltage).
         """
         from cyecca.dsl import Real, connect, connector, der, equations, model, submodel, var
-        from cyecca.dsl.causality import analyze_causality
+        from cyecca.ir.causality import analyze_causality
 
         @connector
         class Pin:
@@ -638,7 +638,7 @@ class TestRLCCircuit:
     def test_rlc_circuit_causality(self) -> None:
         """Test causality analysis of the RLC circuit."""
         from cyecca.dsl import Real, connect, connector, der, equations, model, submodel, var
-        from cyecca.dsl.causality import analyze_causality
+        from cyecca.ir.causality import analyze_causality
 
         @connector
         class Pin:
@@ -734,8 +734,8 @@ class TestRLCCircuit:
 
     def test_rlc_circuit_simulation(self) -> None:
         """Test that the RLC circuit can be compiled and simulated."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, connect, connector, der, equations, model, submodel, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @connector
         class Pin:
@@ -818,7 +818,7 @@ class TestRLCCircuit:
         flat = circuit.flatten()
 
         # Compile and simulate with IDAS (handles DAE systems)
-        from cyecca.dsl.backends.casadi import Integrator
+        from cyecca.backends.casadi import Integrator
 
         compiled = CasadiBackend.compile(flat)
 
@@ -845,9 +845,9 @@ class TestRLCCircuit:
         With R=10, L=0.5, C=0.01: 2*sqrt(0.5/0.01) = 2*sqrt(50) ≈ 14.14
         So R=10 < 14.14, meaning we have underdamped oscillation.
         """
+        from cyecca.backends import CasadiBackend
+        from cyecca.backends.casadi import Integrator
         from cyecca.dsl import Real, connect, connector, der, equations, model, submodel, var
-        from cyecca.dsl.backends import CasadiBackend
-        from cyecca.dsl.backends.casadi import Integrator
 
         @connector
         class Pin:

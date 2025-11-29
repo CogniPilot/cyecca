@@ -1,5 +1,5 @@
 """
-Compute backends for the Cyecca DSL.
+Compute backends for compiling and simulating models.
 
 Backends compile FlatModel representations into executable functions
 for simulation, optimization, and analysis.
@@ -19,9 +19,9 @@ Integrators:
 - IDAS: SUNDIALS variable-step BDF for DAEs
 """
 
-from cyecca.dsl.backends.casadi import CasadiBackend, CompiledModel, Integrator, SymbolicType
-from cyecca.dsl.backends.sympy_backend import CompiledSymPyModel, SymPyBackend
-from cyecca.dsl.simulation import SimulationResult, Simulator
+from cyecca.backends.casadi import CasadiBackend, CompiledModel, Integrator, SymbolicType
+from cyecca.backends.sympy_backend import CompiledSymPyModel, SymPyBackend
+from cyecca.ir.simulation import SimulationResult, Simulator
 
 __all__ = [
     "CasadiBackend",

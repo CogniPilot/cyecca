@@ -32,7 +32,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 from cyecca.dsl.expr import Expr, ExprKind, format_indices, to_expr
-from cyecca.dsl.types import Indices, Shape, Var
+from cyecca.ir.types import Indices, Shape, Var
 
 if TYPE_CHECKING:
     from cyecca.dsl.equations import ArrayEquation, Assignment, Equation

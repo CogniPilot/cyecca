@@ -405,17 +405,20 @@ def initial() -> Expr:
 
     Example
     -------
-    >>> from cyecca.dsl import model, var, der, equations, when, reinit, initial
-    >>> @model
-    ... class Integrator:
-    ...     x = var(start=0.0)
-    ...     u = var(input=True)
-    ...
-    ...     @equations
-    ...     def _(m):
-    ...         der(m.x) == m.u
-    ...         when(initial()):
-    ...             reinit(m.x, 1.0)  # Reset to 1.0 at start
+    .. code-block:: python
+
+        from cyecca.dsl import equations, initial, model, reinit, var, when
+
+        @model
+        class Integrator:
+            x = var(start=0.0)
+            u = var(input=True)
+
+            @equations
+            def _(m):
+                der(m.x) == m.u
+                when(initial()):
+                    reinit(m.x, 1.0)
     """
     return Expr(ExprKind.INITIAL)
 

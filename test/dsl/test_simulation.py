@@ -14,14 +14,14 @@ class TestSimulatorAbstract:
         """Verify Simulator is an abstract base class."""
         from abc import ABC
 
-        from cyecca.dsl.simulation import Simulator
+        from cyecca.ir.simulation import Simulator
 
         # Check it's an ABC
         assert issubclass(Simulator, ABC)
 
     def test_cannot_instantiate_simulator(self) -> None:
         """Verify Simulator cannot be instantiated directly."""
-        from cyecca.dsl.simulation import Simulator
+        from cyecca.ir.simulation import Simulator
 
         with pytest.raises(TypeError):
             Simulator()  # type: ignore

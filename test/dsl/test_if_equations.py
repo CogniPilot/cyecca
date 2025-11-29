@@ -167,8 +167,8 @@ class TestIfEquationSimulation:
 
     def test_if_eq_simulation_selects_correct_branch(self) -> None:
         """Test that simulation uses correct branch based on condition."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, else_eq, equations, if_eq, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class LinearOrQuadratic:
@@ -204,8 +204,8 @@ class TestIfEquationSimulation:
 
     def test_if_eq_with_state_variable_condition(self) -> None:
         """Test if-equation with state-dependent condition."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, else_eq, equations, if_eq, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class SaturatedGrowth:

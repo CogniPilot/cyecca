@@ -16,8 +16,8 @@ class TestCasadiBackendCompile:
     """Test CasadiBackend.compile()."""
 
     def test_compile_basic_model(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -32,8 +32,8 @@ class TestCasadiBackendCompile:
         assert compiled.state_names == ["x"]
 
     def test_compile_with_inputs(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -48,8 +48,8 @@ class TestCasadiBackendCompile:
         assert "u" in compiled.input_names
 
     def test_compile_with_outputs(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -65,8 +65,8 @@ class TestCasadiBackendCompile:
         assert "y" in compiled.output_names
 
     def test_compile_with_params(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -86,8 +86,8 @@ class TestCasadiBackendMathOperators:
     """Test CasadiBackend compilation of math operators."""
 
     def test_trig_functions(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, acos, asin, atan, cos, der, equations, model, sin, tan, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -114,8 +114,8 @@ class TestCasadiBackendMathOperators:
         assert all(k in result.outputs for k in ["y_sin", "y_cos", "y_tan", "y_asin", "y_acos", "y_atan"])
 
     def test_atan2(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, atan2, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -134,10 +134,10 @@ class TestCasadiBackendMathOperators:
         assert "y" in result.outputs
 
     def test_exp_log_sqrt_abs(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real
         from cyecca.dsl import abs as dsl_abs
         from cyecca.dsl import der, equations, exp, log, model, sqrt, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -160,8 +160,8 @@ class TestCasadiBackendMathOperators:
         assert all(k in result.outputs for k in ["y_exp", "y_log", "y_sqrt", "y_abs"])
 
     def test_log10(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, log10, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -180,8 +180,8 @@ class TestCasadiBackendMathOperators:
         assert result.outputs["y"][0] == pytest.approx(2.0, abs=1e-10)
 
     def test_sign_floor_ceil(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, ceil, der, equations, floor, model, sign, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -208,8 +208,8 @@ class TestCasadiBackendMathOperators:
         assert result.outputs["y_ceil"][0] == pytest.approx(-2.0)
 
     def test_hyperbolic_functions(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, cosh, der, equations, model, sinh, tanh, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -234,11 +234,11 @@ class TestCasadiBackendMathOperators:
         assert result.outputs["y_tanh"][0] == pytest.approx(math.tanh(1.0))
 
     def test_min_max(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations
         from cyecca.dsl import max as dsl_max
         from cyecca.dsl import min as dsl_min
         from cyecca.dsl import model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -264,8 +264,8 @@ class TestCasadiBackendConditionals:
     """Test CasadiBackend compilation of conditionals."""
 
     def test_if_then_else(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, if_then_else, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -282,8 +282,8 @@ class TestCasadiBackendConditionals:
         assert "y" in result.outputs
 
     def test_comparison_operators(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, if_then_else, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -306,8 +306,8 @@ class TestCasadiBackendConditionals:
         assert all(k in result.outputs for k in ["y_lt", "y_le", "y_gt", "y_ge"])
 
     def test_boolean_operators(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, and_, der, equations, if_then_else, model, not_, or_, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -337,8 +337,8 @@ class TestCompiledModel:
     """Test CompiledModel properties and methods."""
 
     def test_properties(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -361,8 +361,8 @@ class TestCompiledModel:
         assert compiled.param_defaults == {"k": 1.0}
 
     def test_repr(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -387,8 +387,8 @@ class TestSimulate:
     """Test CompiledModel.simulate()."""
 
     def test_basic_simulation(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -405,8 +405,8 @@ class TestSimulate:
         assert result["x"][-1] == pytest.approx(1.0, abs=0.1)
 
     def test_simulate_with_x0(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -423,8 +423,8 @@ class TestSimulate:
         assert result["x"][-1] == pytest.approx(6.0, abs=0.1)
 
     def test_simulate_with_constant_input(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -441,8 +441,8 @@ class TestSimulate:
         assert result["x"][-1] == pytest.approx(2.0, abs=0.1)
 
     def test_simulate_with_u_func(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -465,8 +465,8 @@ class TestSimulate:
         assert abs(result["x"][-1]) < 0.1
 
     def test_simulate_with_params(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -492,8 +492,8 @@ class TestSimulationResult:
     """Test SimulationResult properties and methods."""
 
     def test_t_property(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -509,8 +509,8 @@ class TestSimulationResult:
         assert result.t[-1] == pytest.approx(1.0, abs=0.01)
 
     def test_states_property(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -530,8 +530,8 @@ class TestSimulationResult:
         assert isinstance(states["x"], np.ndarray)
 
     def test_outputs_property(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -550,8 +550,8 @@ class TestSimulationResult:
         assert isinstance(outputs["y"], np.ndarray)
 
     def test_inputs_property(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -568,8 +568,8 @@ class TestSimulationResult:
         assert "u" in inputs
 
     def test_data_property(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -586,8 +586,8 @@ class TestSimulationResult:
         assert "x" in data
 
     def test_getitem_t(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -603,8 +603,8 @@ class TestSimulationResult:
         assert t[0] == 0.0
 
     def test_getitem_keyerror(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -620,8 +620,8 @@ class TestSimulationResult:
             _ = result["nonexistent"]
 
     def test_call_with_string(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -637,8 +637,8 @@ class TestSimulationResult:
         assert len(x_data) > 0
 
     def test_call_with_symbolic_var(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -655,8 +655,8 @@ class TestSimulationResult:
         assert len(x_data) > 0
 
     def test_call_keyerror(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -672,8 +672,8 @@ class TestSimulationResult:
             result("nonexistent")
 
     def test_call_typeerror(self) -> None:
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -698,8 +698,8 @@ class TestCasadiMXBackend:
     """Test CasADi MX backend (alternative symbolic type)."""
 
     def test_mx_backend_basic(self) -> None:
+        from cyecca.backends import CasadiBackend, SymbolicType
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
         class M:
@@ -715,8 +715,8 @@ class TestCasadiMXBackend:
         assert "x" in result.states
 
     def test_mx_backend_with_input(self) -> None:
+        from cyecca.backends import CasadiBackend, SymbolicType
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
         class M:
@@ -733,8 +733,8 @@ class TestCasadiMXBackend:
         assert "x" in result.states
 
     def test_mx_backend_with_param(self) -> None:
+        from cyecca.backends import CasadiBackend, SymbolicType
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
         class M:
@@ -761,9 +761,9 @@ class TestCVODESIntegrator:
 
     def test_cvodes_basic(self) -> None:
         """Test CVODES integrator on a simple ODE."""
+        from cyecca.backends import CasadiBackend
+        from cyecca.backends.casadi import Integrator
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
-        from cyecca.dsl.backends.casadi import Integrator
 
         @model
         class M:
@@ -781,9 +781,9 @@ class TestCVODESIntegrator:
 
     def test_cvodes_with_input(self) -> None:
         """Test CVODES with input signal."""
+        from cyecca.backends import CasadiBackend
+        from cyecca.backends.casadi import Integrator
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
-        from cyecca.dsl.backends.casadi import Integrator
 
         @model
         class M:
@@ -801,9 +801,9 @@ class TestCVODESIntegrator:
 
     def test_cvodes_with_params(self) -> None:
         """Test CVODES with parameters."""
+        from cyecca.backends import CasadiBackend
+        from cyecca.backends.casadi import Integrator
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
-        from cyecca.dsl.backends.casadi import Integrator
 
         @model
         class M:
@@ -821,9 +821,9 @@ class TestCVODESIntegrator:
 
     def test_cvodes_harmonic_oscillator(self) -> None:
         """Test CVODES on a 2nd order system (harmonic oscillator)."""
+        from cyecca.backends import CasadiBackend
+        from cyecca.backends.casadi import Integrator
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
-        from cyecca.dsl.backends.casadi import Integrator
 
         @model
         class Oscillator:
@@ -853,9 +853,9 @@ class TestIDASIntegrator:
 
     def test_idas_basic_ode(self) -> None:
         """Test IDAS on a pure ODE (no algebraic variables)."""
+        from cyecca.backends import CasadiBackend
+        from cyecca.backends.casadi import Integrator
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
-        from cyecca.dsl.backends.casadi import Integrator
 
         @model
         class M:
@@ -872,9 +872,9 @@ class TestIDASIntegrator:
 
     def test_idas_with_input(self) -> None:
         """Test IDAS with input."""
+        from cyecca.backends import CasadiBackend
+        from cyecca.backends.casadi import Integrator
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
-        from cyecca.dsl.backends.casadi import Integrator
 
         @model
         class M:
@@ -901,9 +901,9 @@ class TestCasadiBackendErrors:
 
     def test_cvodes_rejects_dae(self) -> None:
         """Test that CVODES raises error for DAE systems."""
+        from cyecca.backends import CasadiBackend
+        from cyecca.backends.casadi import Integrator
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
-        from cyecca.dsl.backends.casadi import Integrator
 
         @model
         class DAEModel:
@@ -923,9 +923,9 @@ class TestCasadiBackendErrors:
         """Test error when referencing unknown variable."""
         import casadi as ca
 
-        from cyecca.dsl.backends.casadi import CasadiCompiler
+        from cyecca.backends.casadi import CasadiCompiler
         from cyecca.dsl.expr import Expr, ExprKind
-        from cyecca.dsl.flat_model import FlatModel
+        from cyecca.ir.flat_model import FlatModel
 
         # Create a minimal flat model
         flat = FlatModel(
@@ -957,9 +957,9 @@ class TestCasadiBackendErrors:
         """Test error when DERIVATIVE node appears in RHS."""
         import casadi as ca
 
-        from cyecca.dsl.backends.casadi import CasadiCompiler
+        from cyecca.backends.casadi import CasadiCompiler
         from cyecca.dsl.expr import Expr, ExprKind
-        from cyecca.dsl.flat_model import FlatModel
+        from cyecca.ir.flat_model import FlatModel
 
         flat = FlatModel(
             name="Test",
@@ -991,10 +991,10 @@ class TestCasadiBackendErrors:
         """Test that pre() raises NotImplementedError in continuous equations."""
         import casadi as ca
 
-        from cyecca.dsl.backends.casadi import CasadiCompiler
+        from cyecca.backends.casadi import CasadiCompiler
         from cyecca.dsl.expr import Expr, ExprKind
-        from cyecca.dsl.flat_model import FlatModel
-        from cyecca.dsl.types import Var
+        from cyecca.ir.flat_model import FlatModel
+        from cyecca.ir.types import Var
 
         flat = FlatModel(
             name="Test",
@@ -1032,8 +1032,8 @@ class TestOutputWithoutEquation:
 
     def test_output_without_equation_warning(self) -> None:
         """Test that output without equation produces warning."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1061,8 +1061,8 @@ class TestTimeVariable:
 
     def test_time_in_equation(self) -> None:
         """Test using time variable in equations."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1080,8 +1080,8 @@ class TestTimeVariable:
 
     def test_time_in_output(self) -> None:
         """Test using time in output expression."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1110,8 +1110,8 @@ class TestEqualityOperators:
 
     def test_eq_operator(self) -> None:
         """Test eq() function in if_then_else."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, eq, equations, if_then_else, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1131,8 +1131,8 @@ class TestEqualityOperators:
 
     def test_ne_operator(self) -> None:
         """Test ne() function in if_then_else."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, if_then_else, model, ne, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1161,8 +1161,8 @@ class TestAlgebraicVariables:
 
     def test_has_algebraic_property(self) -> None:
         """Test has_algebraic property."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class ODEModel:
@@ -1177,8 +1177,8 @@ class TestAlgebraicVariables:
 
     def test_has_events_property(self) -> None:
         """Test has_events property for model without when-clauses."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1202,8 +1202,8 @@ class TestMXBackendAdvanced:
 
     def test_mx_with_output(self) -> None:
         """Test MX backend with output computation."""
+        from cyecca.backends import CasadiBackend, SymbolicType
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
         class M:
@@ -1225,8 +1225,8 @@ class TestMXBackendAdvanced:
 
     def test_mx_with_math_ops(self) -> None:
         """Test MX backend with math operations."""
+        from cyecca.backends import CasadiBackend, SymbolicType
         from cyecca.dsl import Real, cos, der, equations, model, sin, var
-        from cyecca.dsl.backends import CasadiBackend, SymbolicType
 
         @model
         class M:
@@ -1258,8 +1258,8 @@ class TestCompiledModelRepr:
 
     def test_repr_full(self) -> None:
         """Test repr with all components."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class FullModel:
@@ -1284,8 +1284,8 @@ class TestCompiledModelRepr:
 
     def test_repr_with_events(self) -> None:
         """Test repr with when-clauses."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, pre, reinit, var, when
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class EventModel:
@@ -1313,8 +1313,8 @@ class TestArrayVariables:
 
     def test_array_parameter_with_array_state(self) -> None:
         """Test array parameter used in derivative of array state."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1335,8 +1335,8 @@ class TestArrayVariables:
 
     def test_array_state_element_access(self) -> None:
         """Test accessing individual elements of array variables."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1358,8 +1358,8 @@ class TestArrayVariables:
 
     def test_array_parameter_override(self) -> None:
         """Test overriding array parameter values in simulate."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1381,8 +1381,8 @@ class TestArrayVariables:
 
     def test_array_state_initial_condition(self) -> None:
         """Test overriding array state initial conditions."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1403,8 +1403,8 @@ class TestArrayVariables:
 
     def test_scalar_state_with_array_parameter_element(self) -> None:
         """Test scalar state driven by element of array parameter."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1425,8 +1425,8 @@ class TestArrayVariables:
 
     def test_array_literal_in_initial_equations(self) -> None:
         """Test using list literal in initial equations for array variables."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, initial_equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:
@@ -1450,8 +1450,8 @@ class TestArrayVariables:
 
     def test_matrix_literal_in_initial_equations(self) -> None:
         """Test using nested list literal (matrix) in initial equations."""
+        from cyecca.backends import CasadiBackend
         from cyecca.dsl import Real, der, equations, initial_equations, model, var
-        from cyecca.dsl.backends import CasadiBackend
 
         @model
         class M:

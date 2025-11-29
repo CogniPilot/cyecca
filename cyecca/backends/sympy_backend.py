@@ -61,11 +61,14 @@ from sympy import log
 from sympy import log as ln
 from sympy import sign, sin, sinh, sqrt, tan, tanh
 
-from cyecca.dsl.causality import SortedSystem, analyze_causality
+# DSL imports (equation types still in DSL for now)
 from cyecca.dsl.equations import Equation
-from cyecca.dsl.expr import Expr, ExprKind
-from cyecca.dsl.flat_model import FlatModel
 from cyecca.dsl.variables import SymbolicVar
+from cyecca.ir.causality import SortedSystem, analyze_causality
+
+# IR imports
+from cyecca.ir.expr import Expr, ExprKind
+from cyecca.ir.flat_model import FlatModel
 
 # Type for model input
 ModelInput = Union[FlatModel, SortedSystem]
@@ -635,30 +638,28 @@ class SymPyBackend:
 
     Examples
     --------
-    >>> from cyecca.dsl import model, var, der, equations
-    >>> from cyecca.dsl.backends import SymPyBackend
-    >>>
-    >>> @model
-    >>> class Oscillator:
-    >>>     x = var(start=1.0)
-    >>>     v = var(start=0.0)
-    >>>     k = var(1.0, parameter=True)
-    >>>
-    >>>     @equations
-    >>>     def _(m):
-    >>>         der(m.x) == m.v
-    >>>         der(m.v) == -m.k * m.x
-    >>>
-    >>> osc = Oscillator()
-    >>> flat = osc.flatten()
-    >>> compiled = SymPyBackend.compile(flat)
-    >>>
-    >>> # Get Jacobian
-    >>> J = compiled.jacobian()
-    >>> print(J)
-    >>>
-    >>> # Get LaTeX
-    >>> print(compiled.to_latex())
+    .. code-block:: python
+
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.backends import SymPyBackend
+
+        @model
+        class Oscillator:
+            x = var(start=1.0)
+            v = var(start=0.0)
+            k = var(1.0, parameter=True)
+
+            @equations
+            def _(m):
+                der(m.x) == m.v
+                der(m.v) == -m.k * m.x
+
+        osc = Oscillator()
+        flat = osc.flatten()
+        compiled = SymPyBackend.compile(flat)
+        jacobian = compiled.jacobian()
+        print(jacobian)
+        print(compiled.to_latex())
     """
 
     @staticmethod

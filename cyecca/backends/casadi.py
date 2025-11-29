@@ -38,12 +38,15 @@ import casadi as ca
 import numpy as np
 from beartype import beartype
 
-from cyecca.dsl.causality import SortedSystem
+# DSL imports (equation types still in DSL for now)
 from cyecca.dsl.equations import Equation, Reinit, WhenClause
-from cyecca.dsl.expr import Expr, ExprKind
-from cyecca.dsl.flat_model import FlatModel
-from cyecca.dsl.simulation import SimulationResult, Simulator
 from cyecca.dsl.variables import SymbolicVar
+from cyecca.ir.causality import SortedSystem
+
+# IR imports
+from cyecca.ir.expr import Expr, ExprKind, find_derivatives
+from cyecca.ir.flat_model import FlatModel
+from cyecca.ir.simulation import SimulationResult, Simulator
 
 # Type for model input - either raw FlatModel or analyzed SortedSystem
 ModelInput = Union[FlatModel, SortedSystem]
@@ -271,7 +274,7 @@ class CasadiCompiler:
         self.t_sym = self._sym("t")
 
         # Run BLT causality analysis to solve equations
-        from cyecca.dsl.causality import analyze_causality
+        from cyecca.ir.causality import analyze_causality
 
         self.sorted_system = analyze_causality(self.model)
 
@@ -294,7 +297,7 @@ class CasadiCompiler:
         1. Has der() on RHS (e.g., output == der(x) + der(y))
         2. Has der() on LHS but not in pure form (e.g., m * der(v) == g)
         """
-        from cyecca.dsl.expr import find_derivatives
+        # find_derivatives is imported at module level from cyecca.ir.expr
 
         for eq in self.model.equations:
             # Skip output equations
@@ -722,8 +725,7 @@ class CasadiCompiler:
 
         The expr_to_casadi() method converts der(x) nodes to xdot_syms[x].
         """
-        from cyecca.dsl.expr import find_derivatives
-
+        # find_derivatives is imported at module level from cyecca.ir.expr
         model = self.model
         residuals: List[SymT] = []
 
@@ -804,18 +806,17 @@ class CasadiCompiler:
             x_new_list = [self.pre_syms[n] for n in model.state_names]
             d_new_list = [self.pre_syms[n] for n in model.discrete_names]
 
-            for item in wc.body:
-                if isinstance(item, Reinit):
-                    var_name = item.var_name
-                    # Use expr_to_casadi_reinit which maps vars to pre-event values
-                    new_val = self.expr_to_casadi_reinit(item.expr)
+            for reinit in wc.reinits:
+                var_name = reinit.var_name
+                # Use expr_to_casadi_reinit which maps vars to pre-event values
+                new_val = self.expr_to_casadi_reinit(reinit.expr)
 
-                    if var_name in model.state_names:
-                        idx = model.state_names.index(var_name)
-                        x_new_list[idx] = new_val
-                    elif var_name in model.discrete_names:
-                        idx = model.discrete_names.index(var_name)
-                        d_new_list[idx] = new_val
+                if var_name in model.state_names:
+                    idx = model.state_names.index(var_name)
+                    x_new_list[idx] = new_val
+                elif var_name in model.discrete_names:
+                    idx = model.discrete_names.index(var_name)
+                    d_new_list[idx] = new_val
 
             x_new = ca.vertcat(*x_new_list) if x_new_list else self._sym("x_new", 0)
             # For d_new, if there are no discrete vars, use d_pre (same empty symbol)

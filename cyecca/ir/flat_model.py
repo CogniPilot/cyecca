@@ -1,24 +1,14 @@
 """
 FlatModel - Backend-agnostic representation of a flattened model.
 
-This is the output of the DSL that backends compile into executable functions.
+This is the output that backends compile into executable functions.
 
 ================================================================================
 PROTOTYPE MODE - API IS IN FLUX
 ================================================================================
 
-This DSL is in active prototype development. The API may change significantly
+This is in active prototype development. The API may change significantly
 between versions. Do NOT maintain backward compatibility - iterate rapidly.
-
-================================================================================
-DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
-================================================================================
-
-1. MODELICA CONFORMANCE: This DSL conforms to Modelica Language Spec v3.7-dev.
-2. TYPE SAFETY: All functions MUST use beartype for runtime type checking.
-3. SELF-CONTAINED: NO external compute libraries (CasADi, JAX) in core DSL.
-4. IMMUTABILITY: Prefer immutable data structures where possible.
-5. EXPLICIT > IMPLICIT: All behavior should be explicit and documented.
 
 ================================================================================
 """
@@ -26,20 +16,29 @@ DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Dict, List, Tuple
 
-from cyecca.dsl.equations import Assignment, Equation, IfEquation, WhenClause
-from cyecca.dsl.expr import Expr
-from cyecca.dsl.types import Var
+from cyecca.ir.equation import IRAssignment, IREquation, IRInitialEquation, IRWhenClause
+from cyecca.ir.expr import Expr
+from cyecca.ir.types import Var
+from cyecca.ir.variable import NumericValue
+
+
+@dataclass
+class ArrayEquationInfo:
+    """Metadata for an unexpanded array equation."""
+
+    shape: Tuple[int, ...]
+    rhs: Expr
 
 
 @dataclass
 class FlatModel:
     """
-    Flattened model representation - the output of the DSL.
+    Flattened model representation - the output of IRModel.flatten().
 
     This is a backend-agnostic representation of the model that contains:
-    - All variables with metadata
+    - All variables with metadata (flattened from hierarchy)
     - All equations as expression trees
     - Default values for initialization
 
@@ -68,54 +67,50 @@ class FlatModel:
     name: str
 
     # Variable lists (ordered)
-    state_names: List[str]  # x: appear differentiated
-    input_names: List[str]
-    output_names: List[str]
-    param_names: List[str]
-    discrete_names: List[str]
-    algebraic_names: List[str]  # y: continuous, not differentiated
+    state_names: List[str] = field(default_factory=list)  # x: appear differentiated
+    input_names: List[str] = field(default_factory=list)
+    output_names: List[str] = field(default_factory=list)
+    param_names: List[str] = field(default_factory=list)
+    discrete_names: List[str] = field(default_factory=list)
+    algebraic_names: List[str] = field(default_factory=list)  # y: continuous, not differentiated
 
     # Variable metadata (using unified Var type)
-    state_vars: Dict[str, Var]
-    input_vars: Dict[str, Var]
-    output_vars: Dict[str, Var]
-    param_vars: Dict[str, Var]
-    discrete_vars: Dict[str, Var]
-    algebraic_vars: Dict[str, Var]
+    state_vars: Dict[str, Var] = field(default_factory=dict)
+    input_vars: Dict[str, Var] = field(default_factory=dict)
+    output_vars: Dict[str, Var] = field(default_factory=dict)
+    param_vars: Dict[str, Var] = field(default_factory=dict)
+    discrete_vars: Dict[str, Var] = field(default_factory=dict)
+    algebraic_vars: Dict[str, Var] = field(default_factory=dict)
 
     # All equations (stored as-is, not classified)
     # The backend converts these to residual form: 0 = lhs - rhs
-    equations: List[Equation]
+    equations: List[IREquation] = field(default_factory=list)
 
     # Output equations extracted for convenience
     # (equations of form: output_var == expr)
     output_equations: Dict[str, Expr] = field(default_factory=dict)
 
     # Default values
-    state_defaults: Dict[str, Any] = field(default_factory=dict)
-    input_defaults: Dict[str, Any] = field(default_factory=dict)
-    discrete_defaults: Dict[str, Any] = field(default_factory=dict)
-    param_defaults: Dict[str, Any] = field(default_factory=dict)
+    state_defaults: Dict[str, NumericValue] = field(default_factory=dict)
+    input_defaults: Dict[str, NumericValue] = field(default_factory=dict)
+    discrete_defaults: Dict[str, NumericValue] = field(default_factory=dict)
+    param_defaults: Dict[str, NumericValue] = field(default_factory=dict)
 
     # Initial equations (Modelica: initial equation section)
     # These are solved once at t=0 to determine initial values
-    initial_equations: List[Equation] = field(default_factory=list)
+    initial_equations: List[IRInitialEquation] = field(default_factory=list)
 
     # When-clauses (Modelica: when equations, MLS 8.5)
     # Event-driven equations with conditions and reinit statements
-    when_clauses: List[WhenClause] = field(default_factory=list)
-
-    # If-equations (Modelica: if equations, MLS 8.3.4)
-    # Conditional equations that select which equations are active
-    if_equations: List[IfEquation] = field(default_factory=list)
+    when_clauses: List[IRWhenClause] = field(default_factory=list)
 
     # Array equations (when expand_arrays=False)
     # For CasADi MX backend: keeps array structure for efficient matrix operations
-    array_equations: Dict[str, Any] = field(default_factory=dict)
+    array_equations: Dict[str, ArrayEquationInfo] = field(default_factory=dict)
 
     # Algorithm section
     # Ordered list of assignments from algorithm() method
-    algorithm_assignments: List[Assignment] = field(default_factory=list)
+    algorithm_assignments: List[IRAssignment] = field(default_factory=list)
     # Local variables declared in algorithm section
     algorithm_locals: List[str] = field(default_factory=list)
 
@@ -138,6 +133,4 @@ class FlatModel:
             parts.append(f"algebraic={self.algebraic_names}")
         if self.when_clauses:
             parts.append(f"when_clauses={len(self.when_clauses)}")
-        if self.if_equations:
-            parts.append(f"if_equations={len(self.if_equations)}")
         return f"FlatModel({', '.join(parts)})"

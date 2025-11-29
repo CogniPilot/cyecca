@@ -71,7 +71,7 @@ Example
 -------
 >>> import matplotlib.pyplot as plt
 >>> from cyecca.dsl import model, Real, sin, cos, der, equations
->>> from cyecca.dsl.backends import CasadiBackend
+>>> from cyecca.backends import CasadiBackend
 >>>
 >>> @model
 ... class Pendulum:
@@ -144,9 +144,6 @@ The DSL is structured in two layers:
 # Algorithm support
 from cyecca.dsl.algorithm import AlgorithmVar, assign, local
 
-# Causality analysis
-from cyecca.dsl.causality import ImplicitBlock, SolvedEquation, SortedSystem, analyze_causality
-
 # Context and when-clause support
 from cyecca.dsl.context import algorithm, connect, else_eq, elseif_eq, equations, if_eq, initial_equations, reinit, when
 
@@ -168,12 +165,7 @@ from cyecca.dsl.decorators import (
 
 # Equations and statements
 from cyecca.dsl.equations import Assignment, Equation, IfEquation, IfEquationBranch, Reinit, WhenClause
-
-# Expression tree
-from cyecca.dsl.expr import Expr, ExprKind, ExprLike
-
-# Flat model representation
-from cyecca.dsl.flat_model import FlatModel
+from cyecca.dsl.expr import ExprLike
 
 # Model instance and alias
 from cyecca.dsl.instance import Model, ModelInstance
@@ -220,11 +212,31 @@ from cyecca.dsl.operators_core import (
     sample,
     terminal,
 )
-from cyecca.dsl.simulation import SimulationResult, Simulator
-from cyecca.dsl.types import DType, Indices, NumericValue, Shape, Var, VarKind
 
 # Variables
 from cyecca.dsl.variables import ArrayDerivativeExpr, DerivativeExpr, SymbolicVar, TimeVar
+
+# Intermediate Representation
+from cyecca.ir import (
+    DataType,
+    IRAssignment,
+    IRConnector,
+    IREquation,
+    IRInitialEquation,
+    IRModel,
+    IRReinit,
+    IRVariable,
+    IRWhenClause,
+    VariableKind,
+)
+from cyecca.ir.causality import ImplicitBlock, SolvedEquation, SortedSystem, analyze_causality
+
+# Expression tree (re-exported from IR)
+from cyecca.ir.expr import Expr, ExprKind
+from cyecca.ir.flat_model import FlatModel
+
+# IR types (re-exported for convenience)
+from cyecca.ir.types import DType, Indices, NumericValue, Shape, Var, VarKind
 
 __all__ = [
     # Decorators
@@ -299,9 +311,6 @@ __all__ = [
     "SortedSystem",
     "SolvedEquation",
     "ImplicitBlock",
-    # Simulation
-    "SimulationResult",
-    "Simulator",
     # Math functions
     "sin",
     "cos",
@@ -327,4 +336,15 @@ __all__ = [
     "mod",
     "min",
     "max",
+    # Intermediate Representation (direct API)
+    "IRModel",
+    "IRVariable",
+    "IREquation",
+    "IRWhenClause",
+    "IRReinit",
+    "IRInitialEquation",
+    "IRAssignment",
+    "IRConnector",
+    "VariableKind",
+    "DataType",
 ]

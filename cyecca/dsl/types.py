@@ -89,7 +89,7 @@ Example:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Type, Union
 
@@ -332,10 +332,29 @@ class Var:
 
 @dataclass
 class SubmodelField:
-    """A submodel (nested model instance)."""
+    """A submodel (nested model instance) with optional parameter overrides.
+
+    Parameters
+    ----------
+    model_class : Type
+        The model class to instantiate as a submodel
+    name : str, optional
+        Name of the submodel (set by @model decorator)
+    overrides : Dict[str, Any], optional
+        Parameter value overrides for this submodel instance.
+        Keys are parameter names, values are the override values.
+
+    Example
+    -------
+    >>> R = submodel(Resistor, R=100.0)  # Override resistance parameter
+    """
 
     model_class: Type[Any]
     name: Optional[str] = None  # Set by @model decorator
+    overrides: Dict[str, Any] = field(default_factory=dict)  # Parameter overrides
 
     def __repr__(self) -> str:
+        if self.overrides:
+            overrides_str = ", ".join(f"{k}={v}" for k, v in self.overrides.items())
+            return f"submodel({self.model_class.__name__}, {overrides_str})"
         return f"submodel({self.model_class.__name__})"

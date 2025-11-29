@@ -135,23 +135,23 @@ The DSL is structured in two layers:
 # Algorithm support
 from cyecca.dsl.algorithm import AlgorithmVar, assign, local
 
+# Causality analysis
+from cyecca.dsl.causality import ImplicitBlock, SolvedEquation, SortedSystem, analyze_causality
+
 # Context and when-clause support
-from cyecca.dsl.context import algorithm, connect, equations, initial_equations, reinit, when
+from cyecca.dsl.context import algorithm, connect, else_eq, elseif_eq, equations, if_eq, initial_equations, reinit, when
 
 # Decorators and var() factory
 from cyecca.dsl.decorators import FunctionMetadata, ModelMetadata, block, connector, function, model, submodel, var
 
 # Equations and statements
-from cyecca.dsl.equations import Assignment, Equation, Reinit, WhenClause
+from cyecca.dsl.equations import Assignment, Equation, IfEquation, IfEquationBranch, Reinit, WhenClause
 
 # Expression tree
 from cyecca.dsl.expr import Expr, ExprKind
 
 # Flat model representation
 from cyecca.dsl.flat_model import FlatModel
-
-# Causality analysis
-from cyecca.dsl.causality import SolvedEquation, ImplicitBlock, SortedSystem, analyze_causality
 
 # Model instance and alias
 from cyecca.dsl.instance import Model, ModelInstance
@@ -183,7 +183,21 @@ from cyecca.dsl.operators import (
 )
 
 # Core operators
-from cyecca.dsl.operators_core import and_, change, der, edge, eq, if_then_else, ne, not_, or_, pre
+from cyecca.dsl.operators_core import (
+    and_,
+    change,
+    der,
+    edge,
+    eq,
+    if_then_else,
+    initial,
+    ne,
+    not_,
+    or_,
+    pre,
+    sample,
+    terminal,
+)
 from cyecca.dsl.simulation import SimulationResult, Simulator
 from cyecca.dsl.types import DType, Indices, Shape, Var, VarKind
 
@@ -213,6 +227,10 @@ __all__ = [
     "pre",
     "edge",
     "change",
+    # Special operators
+    "initial",
+    "terminal",
+    "sample",
     # Connectors
     "connect",
     # When-clauses (hybrid systems)
@@ -220,6 +238,12 @@ __all__ = [
     "reinit",
     "WhenClause",
     "Reinit",
+    # If-equations (conditional equations)
+    "if_eq",
+    "elseif_eq",
+    "else_eq",
+    "IfEquation",
+    "IfEquationBranch",
     # Boolean operators
     "and_",
     "or_",

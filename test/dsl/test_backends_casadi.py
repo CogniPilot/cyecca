@@ -1302,5 +1302,180 @@ class TestCompiledModelRepr:
         assert "events=" in repr_str
 
 
+# =============================================================================
+# Array Variable Tests
+# =============================================================================
+
+
+class TestArrayVariables:
+    """Test array state, parameter, and input handling."""
+
+    def test_array_parameter_with_array_state(self) -> None:
+        """Test array parameter used in derivative of array state."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            x = var([1.0, 2.0, 3.0], shape=(3, 1), parameter=True)
+            y = var([0.0, 0.0, 0.0], shape=(3, 1))
+
+            @equations
+            def _(m):
+                der(m.y) == m.x
+
+        flat = M().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(tf=1.0, dt=0.1)
+
+        # y should integrate x over 1 second, giving [1, 2, 3]
+        assert result["y"].shape == (11, 3)
+        assert result["y"][-1] == pytest.approx([1.0, 2.0, 3.0], rel=0.01)
+
+    def test_array_state_element_access(self) -> None:
+        """Test accessing individual elements of array variables."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            p = var([1.0, 2.0], shape=(2, 1), parameter=True)
+            x = var([0.0, 0.0], shape=(2, 1))
+
+            @equations
+            def _(m):
+                # Access individual elements
+                der(m.x[0]) == m.p[1]  # dx[0]/dt = p[1] = 2.0
+                der(m.x[1]) == m.p[0]  # dx[1]/dt = p[0] = 1.0
+
+        flat = M().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(tf=1.0, dt=0.1)
+
+        # After 1 second: x[0] = 2.0, x[1] = 1.0
+        assert result["x"][-1] == pytest.approx([2.0, 1.0], rel=0.01)
+
+    def test_array_parameter_override(self) -> None:
+        """Test overriding array parameter values in simulate."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            k = var([1.0, 1.0], shape=(2, 1), parameter=True)
+            x = var([0.0, 0.0], shape=(2, 1))
+
+            @equations
+            def _(m):
+                der(m.x) == m.k
+
+        flat = M().flatten()
+        compiled = CasadiBackend.compile(flat)
+
+        # Use custom parameter values
+        result = compiled.simulate(tf=1.0, dt=0.1, params={"k": [3.0, 4.0]})
+
+        # After 1 second with k=[3, 4]: x = [3, 4]
+        assert result["x"][-1] == pytest.approx([3.0, 4.0], rel=0.01)
+
+    def test_array_state_initial_condition(self) -> None:
+        """Test overriding array state initial conditions."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            x = var([0.0, 0.0], shape=(2, 1))
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+
+        flat = M().flatten()
+        compiled = CasadiBackend.compile(flat)
+
+        # Start from [10, 20]
+        result = compiled.simulate(tf=1.0, dt=0.1, x0={"x": [10.0, 20.0]})
+
+        # After 1 second: x = [11, 21]
+        assert result["x"][-1] == pytest.approx([11.0, 21.0], rel=0.01)
+
+    def test_scalar_state_with_array_parameter_element(self) -> None:
+        """Test scalar state driven by element of array parameter."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            k = var([1.0, 2.0, 3.0], shape=(3, 1), parameter=True)
+            x = var(start=0.0)
+
+            @equations
+            def _(m):
+                # Scalar state driven by second element of array param
+                der(m.x) == m.k[1]  # = 2.0
+
+        flat = M().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(tf=1.0, dt=0.1)
+
+        # After 1 second: x = 2.0
+        assert result["x"][-1] == pytest.approx(2.0, rel=0.01)
+
+    def test_array_literal_in_initial_equations(self) -> None:
+        """Test using list literal in initial equations for array variables."""
+        from cyecca.dsl import der, equations, initial_equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            y = var(shape=(3, 1))
+
+            @initial_equations
+            def init_eqs(m):
+                m.y == [3.0, 4.0, 5.0]
+
+            @equations
+            def eqs(m):
+                der(m.y) == [1.0, 1.0, 1.0]
+
+        flat = M().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(tf=1.0, dt=0.1)
+
+        # y starts at [3, 4, 5] and increases by 1 each second
+        assert result["y"][0] == pytest.approx([3.0, 4.0, 5.0], rel=0.01)
+        assert result["y"][-1] == pytest.approx([4.0, 5.0, 6.0], rel=0.01)
+
+    def test_matrix_literal_in_initial_equations(self) -> None:
+        """Test using nested list literal (matrix) in initial equations."""
+        from cyecca.dsl import der, equations, initial_equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            # 3x2 matrix
+            A = var(shape=(3, 2))
+
+            @initial_equations
+            def init_eqs(m):
+                # Matrix literal: 3 rows, 2 columns
+                m.A == [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
+
+            @equations
+            def eqs(m):
+                # No change
+                der(m.A) == [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]
+
+        flat = M().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(tf=1.0, dt=0.1)
+
+        # A starts at [[1,2], [3,4], [5,6]] flattened row-major: [1, 2, 3, 4, 5, 6]
+        # Values should stay constant since der(A) = 0
+        assert result["A"][0] == pytest.approx([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], rel=0.01)
+        assert result["A"][-1] == pytest.approx([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], rel=0.01)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

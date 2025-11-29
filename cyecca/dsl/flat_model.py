@@ -28,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
-from cyecca.dsl.equations import Assignment, Equation, WhenClause
+from cyecca.dsl.equations import Assignment, Equation, IfEquation, WhenClause
 from cyecca.dsl.expr import Expr
 from cyecca.dsl.types import Var
 
@@ -105,6 +105,10 @@ class FlatModel:
     # Event-driven equations with conditions and reinit statements
     when_clauses: List[WhenClause] = field(default_factory=list)
 
+    # If-equations (Modelica: if equations, MLS 8.3.4)
+    # Conditional equations that select which equations are active
+    if_equations: List[IfEquation] = field(default_factory=list)
+
     # Array equations (when expand_arrays=False)
     # For CasADi MX backend: keeps array structure for efficient matrix operations
     array_equations: Dict[str, Any] = field(default_factory=dict)
@@ -134,4 +138,6 @@ class FlatModel:
             parts.append(f"algebraic={self.algebraic_names}")
         if self.when_clauses:
             parts.append(f"when_clauses={len(self.when_clauses)}")
+        if self.if_equations:
+            parts.append(f"if_equations={len(self.if_equations)}")
         return f"FlatModel({', '.join(parts)})"

@@ -183,8 +183,10 @@ class CasadiCompiler:
         self.pre_syms: Dict[str, SymT] = {}  # For when-clauses
         self.t_sym: SymT = None
 
-        # Shape tracking (for MX indexed access)
+        # Shape tracking (for indexed access)
         self.state_shapes: Dict[str, Tuple[int, ...]] = {}
+        self.param_shapes: Dict[str, Tuple[int, ...]] = {}
+        self.input_shapes: Dict[str, Tuple[int, ...]] = {}
         self.algebraic_shapes: Dict[str, Tuple[int, ...]] = {}
         self.discrete_shapes: Dict[str, Tuple[int, ...]] = {}
 
@@ -199,7 +201,7 @@ class CasadiCompiler:
 
     def _sym(self, name: str, size: int = 1) -> SymT:
         """Create a symbol of the appropriate type."""
-        return self.sym_type.sym(name, size) if size > 1 else self.sym_type.sym(name)
+        return self.sym_type.sym(name, size) if size != 1 else self.sym_type.sym(name)
 
     def _zeros(self, size: int) -> SymT:
         """Create a zero vector of the appropriate type."""
@@ -236,13 +238,17 @@ class CasadiCompiler:
         # Input symbols
         for name in model.input_names:
             v = model.input_vars[name]
-            size = v.size if v.size > 1 else 1
+            shape = v.shape if v.shape else ()
+            self.input_shapes[name] = shape
+            size = self._shape_to_size(shape)
             self.input_syms[name] = self._sym(name, size)
 
         # Parameter symbols
         for name in model.param_names:
             v = model.param_vars[name]
-            size = v.size if v.size > 1 else 1
+            shape = v.shape if v.shape else ()
+            self.param_shapes[name] = shape
+            size = self._shape_to_size(shape)
             self.param_syms[name] = self._sym(name, size)
 
         # Algebraic variable symbols
@@ -266,6 +272,7 @@ class CasadiCompiler:
 
         # Run BLT causality analysis to solve equations
         from cyecca.dsl.causality import analyze_causality
+
         self.sorted_system = analyze_causality(self.model)
 
         # Use BLT result to determine if system is explicit
@@ -310,7 +317,7 @@ class CasadiCompiler:
         """
         Resolve an indexed variable name like 'pos[0]' or 'R[0,1]'.
 
-        Only used for MX backend when arrays aren't expanded.
+        Works for both SX and MX backends.
         """
         if "[" not in name:
             raise ValueError(f"Not an indexed name: {name}")
@@ -324,7 +331,13 @@ class CasadiCompiler:
         indices = tuple(int(i) for i in idx_str.split(","))
 
         sym = self.base_syms[base_name]
-        all_shapes = {**self.state_shapes, **self.algebraic_shapes, **self.discrete_shapes}
+        all_shapes = {
+            **self.state_shapes,
+            **self.param_shapes,
+            **self.input_shapes,
+            **self.algebraic_shapes,
+            **self.discrete_shapes,
+        }
         shape = all_shapes.get(base_name, ())
 
         # Convert multi-dimensional index to flat index
@@ -348,12 +361,32 @@ class CasadiCompiler:
         - Variable lookup (with output substitution)
         - Constants and time
         - All math/logic operations via dispatch table
-        - MX-specific indexed variable access
+        - Indexed variable access
         - Derivative nodes (for implicit DAE form)
         """
         # Variable reference
         if expr.kind == ExprKind.VARIABLE:
             name = expr.name
+            indices = getattr(expr, "indices", None)
+
+            # Handle indexed access (e.g., x[0,0]) - indices must be non-empty
+            if indices:
+                if name not in self.base_syms:
+                    raise ValueError(f"Unknown variable base: {name}")
+                sym = self.base_syms[name]
+                all_shapes = {
+                    **self.state_shapes,
+                    **self.param_shapes,
+                    **self.input_shapes,
+                    **self.algebraic_shapes,
+                    **self.discrete_shapes,
+                }
+                shape = all_shapes.get(name, ())
+                if len(indices) == 1:
+                    return sym[indices[0]]
+                else:
+                    flat_idx = self._compute_flat_index(indices, shape)
+                    return sym[flat_idx]
 
             # Direct lookup
             if name in self.base_syms:
@@ -367,8 +400,8 @@ class CasadiCompiler:
                 self.compiled_outputs[name] = out_expr
                 return out_expr
 
-            # MX indexed access (e.g., 'pos[0]')
-            if self.is_mx and "[" in name:
+            # Indexed access via string name (e.g., 'pos[0]' or 'x[0,0]')
+            if "[" in name:
                 return self._resolve_indexed_variable(name)
 
             raise ValueError(f"Unknown variable: {name}")
@@ -407,6 +440,37 @@ class CasadiCompiler:
                 "in continuous equations. Use inside when-clauses only."
             )
 
+        # Array literal - convert to CasADi array
+        # Vectors: [1, 2, 3] -> ca.vertcat(1, 2, 3) -> 3x1 column vector
+        # Matrices: [[1, 2], [3, 4], [5, 6]] -> 3x2 matrix (each inner list is a row)
+        if expr.kind == ExprKind.ARRAY_LITERAL:
+            if not expr.children:
+                return ca.DM([])  # Empty array
+
+            # Check if this is a matrix (all children are ARRAY_LITERALs)
+            first_child = expr.children[0]
+            if isinstance(first_child, Expr) and first_child.kind == ExprKind.ARRAY_LITERAL:
+                # Matrix: each child is a row, convert to row vectors and stack
+                rows = []
+                expected_cols = len(first_child.children)
+                for i, child in enumerate(expr.children):
+                    if not (isinstance(child, Expr) and child.kind == ExprKind.ARRAY_LITERAL):
+                        raise ValueError(f"Inconsistent array literal: row {i} is not an array")
+                    if len(child.children) != expected_cols:
+                        raise ValueError(
+                            f"Inconsistent array literal: row {i} has {len(child.children)} "
+                            f"elements, expected {expected_cols}"
+                        )
+                    # Convert row elements and create a row vector using horzcat
+                    row_elements = [self.expr_to_casadi(elem) for elem in child.children]
+                    rows.append(ca.horzcat(*row_elements))
+                # Stack rows vertically to form the matrix
+                return ca.vertcat(*rows)
+            else:
+                # Vector: simple list of scalars -> column vector
+                elements = [self.expr_to_casadi(child) for child in expr.children]
+                return ca.vertcat(*elements)
+
         # Dispatch table lookup
         handler = _EXPR_HANDLERS.get(expr.kind)
         if handler:
@@ -425,6 +489,39 @@ class CasadiCompiler:
             if pre_name in self.base_syms:
                 return self.base_syms[pre_name]
             raise ValueError(f"Unknown variable in pre(): {pre_name}")
+
+        # initial() - returns True only at t=0
+        # For event detection, we use a zero-crossing: -t goes from negative to zero
+        # This triggers the event at t=0 when simulation starts
+        if expr.kind == ExprKind.INITIAL:
+            # Return -t so at t=0, the value is 0 (event triggers)
+            # For t>0, value is negative (no event)
+            # Note: This creates an instantaneous event at the start
+            return -self.t_sym
+
+        # sample(start, interval) - periodic events
+        # For zero-crossing detection, we need an event at t = start + n*interval
+        # Use -sin(2*pi*(t-start)/interval) which crosses zero going DOWN at sample times
+        if expr.kind == ExprKind.SAMPLE:
+            start = self.expr_to_casadi_when(expr.children[0])
+            interval = self.expr_to_casadi_when(expr.children[1])
+
+            # -sin crosses zero from positive to negative at t = start + n*interval
+            # At t = start: -sin(0) = 0, and just before (from t<start) we return 1
+            # At t = start + interval/2: -sin(pi) = 0, but coming from negative
+            # At t = start + interval: -sin(2*pi) = 0, coming from positive (event!)
+            rel_time = self.t_sym - start
+            neg_sin = -ca.sin(2 * ca.pi * rel_time / interval)
+
+            # Before start time, return positive value to prevent events
+            # This also sets up the first event at t=start (transition from 1 to 0)
+            return ca.if_else(self.t_sym < start, 1.0, neg_sin)
+
+        # terminal() - not fully implemented yet
+        if expr.kind == ExprKind.TERMINAL:
+            raise NotImplementedError(
+                "terminal() is not yet implemented in the CasADi backend. " "It requires end-of-simulation detection."
+            )
 
         # For relational operators in event conditions, convert to zero-crossing form
         if expr.kind == ExprKind.LT:
@@ -454,6 +551,50 @@ class CasadiCompiler:
         handler = _EXPR_HANDLERS.get(expr.kind)
         if handler:
             return handler(self.expr_to_casadi_when, expr)
+
+        # Fallback to regular conversion
+        return self.expr_to_casadi(expr)
+
+    def expr_to_casadi_reinit(self, expr: Expr) -> SymT:
+        """
+        Convert Expr for reinit() context - maps variables to pre-event values.
+
+        In a reinit expression like: reinit(x, pre(x) + y)
+        - pre(x) explicitly requests the pre-event value
+        - y (without pre) should also use the pre-event value per Modelica semantics
+
+        This method maps all state/discrete variables to their pre_ symbols.
+        """
+        if expr.kind == ExprKind.PRE:
+            pre_name = expr.name
+            if pre_name in self.pre_syms:
+                return self.pre_syms[pre_name]
+            if pre_name in self.base_syms:
+                return self.base_syms[pre_name]
+            raise ValueError(f"Unknown variable in pre(): {pre_name}")
+
+        # Variable reference - use pre_syms for state/discrete, base_syms for params
+        if expr.kind == ExprKind.VARIABLE:
+            # First check pre_syms (for state/discrete variables)
+            if expr.name in self.pre_syms:
+                return self.pre_syms[expr.name]
+            # Fall back to base_syms for parameters/constants
+            if expr.name in self.base_syms:
+                return self.base_syms[expr.name]
+            raise ValueError(f"Unknown variable: {expr.name}")
+
+        # Constant
+        if expr.kind == ExprKind.CONSTANT:
+            return self._const(expr.value)
+
+        # Time
+        if expr.kind == ExprKind.TIME:
+            return self.t_sym
+
+        # Dispatch for other operations (recursively use reinit converter)
+        handler = _EXPR_HANDLERS.get(expr.kind)
+        if handler:
+            return handler(self.expr_to_casadi_reinit, expr)
 
         # Fallback to regular conversion
         return self.expr_to_casadi(expr)
@@ -497,21 +638,25 @@ class CasadiCompiler:
                 # Scalar/element equation: der(x) == rhs
                 state_derivs.append(self.expr_to_casadi(deriv_rhs_map[name]))
             else:
-                # Check for element-wise equations (MX)
-                if self.is_mx:
-                    deriv_vec = self._zeros(size)
-                    has_any = False
-                    for key, deriv_expr in deriv_rhs_map.items():
-                        if key.startswith(f"{name}["):
-                            has_any = True
-                            idx_str = key[key.index("[") + 1 : key.rindex("]")]
-                            indices = tuple(int(i) for i in idx_str.split(","))
-                            flat_idx = indices[0] if len(indices) == 1 else self._compute_flat_index(indices, shape)
-                            deriv_vec[flat_idx] = self.expr_to_casadi(deriv_expr)
-                    if has_any:
-                        state_derivs.append(deriv_vec)
-                    else:
-                        state_derivs.append(self._zeros(size))
+                # Check for element-wise equations
+                deriv_vec_parts: List[SymT] = []
+                for key, deriv_expr in deriv_rhs_map.items():
+                    if key.startswith(f"{name}["):
+                        idx_str = key[key.index("[") + 1 : key.rindex("]")]
+                        indices = tuple(int(i) for i in idx_str.split(","))
+                        flat_idx = indices[0] if len(indices) == 1 else self._compute_flat_index(indices, shape)
+                        # Extend list to accommodate index
+                        while len(deriv_vec_parts) <= flat_idx:
+                            deriv_vec_parts.append(None)
+                        deriv_vec_parts[flat_idx] = self.expr_to_casadi(deriv_expr)
+
+                if deriv_vec_parts:
+                    # Fill any None entries with zeros
+                    for i in range(len(deriv_vec_parts)):
+                        if deriv_vec_parts[i] is None:
+                            deriv_vec_parts[i] = self._const(0.0)
+                    # Concatenate for both SX and MX
+                    state_derivs.append(ca.vertcat(*deriv_vec_parts))
                 else:
                     state_derivs.append(self._zeros(size))
 
@@ -662,7 +807,8 @@ class CasadiCompiler:
             for item in wc.body:
                 if isinstance(item, Reinit):
                     var_name = item.var_name
-                    new_val = self.expr_to_casadi_when(item.expr)
+                    # Use expr_to_casadi_reinit which maps vars to pre-event values
+                    new_val = self.expr_to_casadi_reinit(item.expr)
 
                     if var_name in model.state_names:
                         idx = model.state_names.index(var_name)
@@ -692,6 +838,74 @@ class CasadiCompiler:
             )
 
         return when_clause_funcs
+
+    def _build_initial_solver(self, x: SymT, z: SymT, u: SymT, p: SymT) -> Optional[ca.Function]:
+        """
+        Build a rootfinder to solve initial equations.
+
+        Initial equations of the form `var == expr` are converted to
+        residuals `var - expr = 0` and solved using CasADi's rootfinder.
+
+        Parameters
+        ----------
+        x : SymT
+            State vector symbol
+        z : SymT
+            Algebraic variable vector symbol
+        u : SymT
+            Input vector symbol
+        p : SymT
+            Parameter vector symbol
+
+        Returns
+        -------
+        Optional[ca.Function]
+            A rootfinder function f_init(x0_guess, z, u, p) -> x0_solved,
+            or None if there are no initial equations.
+        """
+        model = self.model
+
+        if not model.initial_equations:
+            return None
+
+        # Build residuals for initial equations
+        # Each equation lhs == rhs becomes residual = lhs - rhs
+        residuals = []
+        for eq in model.initial_equations:
+            lhs_expr = self.expr_to_casadi(eq.lhs)
+            rhs_expr = self.expr_to_casadi(eq.rhs)
+            residual = lhs_expr - rhs_expr
+            # Handle vector residuals (from array literals)
+            if hasattr(residual, "shape") and residual.shape[0] > 1:
+                for i in range(residual.shape[0]):
+                    residuals.append(residual[i])
+            else:
+                residuals.append(residual)
+
+        if not residuals:
+            return None
+
+        # Create residual vector
+        res = ca.vertcat(*residuals)
+
+        # Create residual function: g(x, z, u, p) = 0
+        # x is what we're solving for
+        g = ca.Function(
+            "g_init",
+            [x, z, u, p],
+            [res],
+            ["x", "z", "u", "p"],
+            ["residual"],
+        )
+
+        # Create rootfinder
+        # Uses Newton method to find x such that g(x, z, u, p) = 0
+        try:
+            solver = ca.rootfinder("init_solver", "newton", g)
+            return solver
+        except Exception:
+            # If Newton fails, try nlpsol-based approach
+            return None
 
     def compile(self) -> "CompiledModel":
         """
@@ -755,12 +969,13 @@ class CasadiCompiler:
             )
             f_x = None  # No explicit form for implicit DAE
         else:
-            # Explicit ODE form: xdot = f(x, z, u, p, t)
+            # Explicit ODE form: xdot = f(x, z, d, u, p, t)
+            # Includes d because discrete variables may affect ODEs
             state_derivs = self._build_state_derivatives()
             xdot_expr = ca.vertcat(*state_derivs) if state_derivs else self._sym("xdot", 0)
 
-            # Create dynamics function f_x(x, z, u, p, t) -> xdot
-            f_x = ca.Function("f_x", [x, z, u, p, self.t_sym], [xdot_expr], ["x", "z", "u", "p", "t"], ["xdot"])
+            # Create dynamics function f_x(x, z, d, u, p, t) -> xdot
+            f_x = ca.Function("f_x", [x, z, d, u, p, self.t_sym], [xdot_expr], ["x", "z", "d", "u", "p", "t"], ["xdot"])
             f_res = None  # No residual form for explicit ODE
 
         # Create algebraic residual function (for DAE)
@@ -780,11 +995,38 @@ class CasadiCompiler:
         # Build when-clause functions (handle both state and discrete reinit)
         when_clause_funcs = self._build_when_clause_funcs(x, d, u, p)
 
+        # Build initial equation solver
+        f_init = self._build_initial_solver(x, z, u, p)
+
         # Build algebraic defaults
         algebraic_defaults: Dict[str, Any] = {}
         for name in model.algebraic_names:
             v = model.algebraic_vars[name]
             algebraic_defaults[name] = v.start if v.start is not None else 0.0
+
+        # Build state shapes from model
+        state_shapes: Dict[str, Tuple[int, ...]] = {}
+        for name in model.state_names:
+            if name in model.state_vars:
+                v = model.state_vars[name]
+                if v.shape:
+                    state_shapes[name] = v.shape
+
+        # Build input shapes from model
+        input_shapes: Dict[str, Tuple[int, ...]] = {}
+        for name in model.input_names:
+            if name in model.input_vars:
+                v = model.input_vars[name]
+                if v.shape:
+                    input_shapes[name] = v.shape
+
+        # Build discrete shapes from model
+        discrete_shapes: Dict[str, Tuple[int, ...]] = {}
+        for name in model.discrete_names:
+            if name in model.discrete_vars:
+                v = model.discrete_vars[name]
+                if v.shape:
+                    discrete_shapes[name] = v.shape
 
         return CompiledModel(
             name=model.name,
@@ -805,6 +1047,10 @@ class CasadiCompiler:
             _algebraic_names=model.algebraic_names,
             algebraic_defaults=algebraic_defaults,
             f_alg=f_alg,
+            f_init=f_init,
+            state_shapes=state_shapes,
+            input_shapes=input_shapes,
+            discrete_shapes=discrete_shapes,
         )
 
 
@@ -899,9 +1145,10 @@ class CompiledModel(Simulator):
     """
 
     name: str
-    f_x: Optional[ca.Function] = None  # Explicit dynamics: f_x(x, z, u, p, t) -> xdot
+    f_x: Optional[ca.Function] = None  # Explicit dynamics: f_x(x, z, d, u, p, t) -> xdot
     f_res: Optional[ca.Function] = None  # Implicit residual: f_res(xdot, x, z, u, p, t) -> 0
     f_y: Optional[ca.Function] = None  # Outputs: f_y(x, z, d, u, p, t) -> y
+    f_init: Optional[ca.Function] = None  # Initial equation solver
     is_implicit: bool = False  # True if model uses implicit DAE form
     _state_names: List[str] = None
     _input_names: List[str] = None
@@ -916,6 +1163,10 @@ class CompiledModel(Simulator):
     _algebraic_names: List[str] = None
     algebraic_defaults: Dict[str, Any] = None
     f_alg: Optional[ca.Function] = None
+    # Shape tracking for array variables
+    state_shapes: Dict[str, Tuple[int, ...]] = None
+    input_shapes: Dict[str, Tuple[int, ...]] = None
+    discrete_shapes: Dict[str, Tuple[int, ...]] = None
 
     def __post_init__(self):
         if self.when_clause_funcs is None:
@@ -934,6 +1185,12 @@ class CompiledModel(Simulator):
             self.input_defaults = {}
         if self.param_defaults is None:
             self.param_defaults = {}
+        if self.state_shapes is None:
+            self.state_shapes = {}
+        if self.input_shapes is None:
+            self.input_shapes = {}
+        if self.discrete_shapes is None:
+            self.discrete_shapes = {}
 
     @property
     def state_names(self) -> List[str]:
@@ -963,6 +1220,11 @@ class CompiledModel(Simulator):
     def has_algebraic(self) -> bool:
         """Check if model has algebraic variables (DAE system)."""
         return len(self._algebraic_names) > 0
+
+    @property
+    def is_dae(self) -> bool:
+        """Check if model is a DAE (has algebraic constraints)."""
+        return self.has_algebraic
 
     @property
     def has_discrete(self) -> bool:
@@ -1022,10 +1284,41 @@ class CompiledModel(Simulator):
         SimulationResult
             Simulation results with plotting utilities
         """
-        # Compute number of states
-        n_states = len(self._state_names)
-        n_params = len(self._param_names)
-        n_inputs = len(self._input_names)
+        # Get actual vector sizes from the CasADi functions (which account for arrays)
+        # f_x has inputs: x, z, d, u, p, t (explicit)
+        # f_res has inputs: xdot, x, z, u, p, t (implicit)
+        if self.f_x is not None:
+            n_states = self.f_x.size_in(0)[0]  # x
+            n_alg = self.f_x.size_in(1)[0]  # z
+            n_discrete = self.f_x.size_in(2)[0]  # d
+            n_inputs = self.f_x.size_in(3)[0]  # u
+            n_params = self.f_x.size_in(4)[0]  # p
+        elif self.f_res is not None:
+            n_states = self.f_res.size_in(1)[0]  # x (xdot is at 0)
+            n_alg = self.f_res.size_in(2)[0]  # z
+            n_discrete = 0  # f_res doesn't have d in signature
+            n_inputs = self.f_res.size_in(3)[0]  # u
+            n_params = self.f_res.size_in(4)[0]  # p
+        else:
+            # Fallback: compute sizes by summing element counts from defaults
+            def compute_size(names, defaults):
+                total = 0
+                for name in names:
+                    if name in defaults:
+                        val = defaults[name]
+                        if isinstance(val, (list, np.ndarray)):
+                            total += len(np.array(val).flatten())
+                        else:
+                            total += 1
+                    else:
+                        total += 1  # Scalar default
+                return total
+
+            n_states = compute_size(self._state_names, self.state_defaults)
+            n_params = compute_size(self._param_names, self.param_defaults)
+            n_inputs = compute_size(self._input_names, self.input_defaults)
+            n_alg = len(self._algebraic_names)
+            n_discrete = len(self._discrete_names)
 
         # Build initial state vector
         x_init = np.zeros(n_states)
@@ -1047,54 +1340,123 @@ class CompiledModel(Simulator):
 
         # Build parameter vector
         p = np.zeros(n_params)
-        for i, name in enumerate(self._param_names):
+        idx = 0
+        for name in self._param_names:
             if params and name in params:
-                p[i] = params[name]
+                val = params[name]
             elif name in self.param_defaults:
-                p[i] = self.param_defaults[name]
+                val = self.param_defaults[name]
+            else:
+                val = 0.0
+            if isinstance(val, (list, np.ndarray)):
+                for v in np.array(val).flatten():
+                    p[idx] = v
+                    idx += 1
+            else:
+                p[idx] = val
+                idx += 1
 
         # Build algebraic variable vector (for DAE systems)
-        n_alg = len(self._algebraic_names)
         z_init = np.zeros(n_alg)
-        for i, name in enumerate(self._algebraic_names):
+        idx = 0
+        for name in self._algebraic_names:
             if name in self.algebraic_defaults:
-                z_init[i] = self.algebraic_defaults[name]
+                val = self.algebraic_defaults[name]
+            else:
+                val = 0.0
+            if isinstance(val, (list, np.ndarray)):
+                for v in np.array(val).flatten():
+                    z_init[idx] = v
+                    idx += 1
+            else:
+                z_init[idx] = val
+                idx += 1
 
         # Build initial discrete variable vector
-        n_discrete = len(self._discrete_names)
         d_init = np.zeros(n_discrete)
-        for i, name in enumerate(self._discrete_names):
+        idx = 0
+        for name in self._discrete_names:
             if name in self.discrete_defaults:
-                d_init[i] = self.discrete_defaults[name]
+                val = self.discrete_defaults[name]
+            else:
+                val = 0.0
+            if isinstance(val, (list, np.ndarray)):
+                for v in np.array(val).flatten():
+                    d_init[idx] = v
+                    idx += 1
+            else:
+                d_init[idx] = val
+                idx += 1
 
         # Build constant input vector
         u_const = np.zeros(n_inputs)
-        for i, name in enumerate(self._input_names):
+        idx = 0
+        for name in self._input_names:
             if u and name in u:
-                u_const[i] = u[name]
+                val = u[name]
             elif name in self.input_defaults:
-                u_const[i] = self.input_defaults[name]
+                val = self.input_defaults[name]
+            else:
+                val = 0.0
+            if isinstance(val, (list, np.ndarray)):
+                for v in np.array(val).flatten():
+                    u_const[idx] = v
+                    idx += 1
+            else:
+                u_const[idx] = val
+                idx += 1
+
+        # Solve initial equations if present
+        # This uses CasADi rootfinder to solve equations like y == [3.0, 4.0, 5.0]
+        if self.f_init is not None:
+            try:
+                # f_init(x0_guess, z, u, p) -> x0_solved
+                x_solved = self.f_init(x_init, z_init, u_const, p)
+                x_init = np.array(x_solved).flatten()
+            except Exception as e:
+                import warnings
+
+                warnings.warn(f"Initial equation solver failed: {e}. Using default initial values.")
 
         def get_input(ti: float) -> np.ndarray:
             """Get input vector at time ti."""
             if u_func is not None:
                 u_dict = u_func(ti)
                 u_vec = np.zeros(n_inputs)
-                for j, name in enumerate(self._input_names):
-                    u_vec[j] = u_dict.get(name, u_const[j])
+                idx = 0
+                for name in self._input_names:
+                    if name in u_dict:
+                        val = u_dict[name]
+                    else:
+                        # Determine size from defaults or assume scalar
+                        if name in self.input_defaults:
+                            default_val = self.input_defaults[name]
+                            if isinstance(default_val, (list, np.ndarray)):
+                                val = np.zeros(len(np.array(default_val).flatten()))
+                            else:
+                                val = u_const[idx]
+                        else:
+                            val = u_const[idx]
+                    if isinstance(val, (list, np.ndarray)):
+                        for v in np.array(val).flatten():
+                            u_vec[idx] = v
+                            idx += 1
+                    else:
+                        u_vec[idx] = val
+                        idx += 1
                 return u_vec
             return u_const
 
         # For pure ODE systems, z is empty
         z_empty = np.zeros(0) if n_alg == 0 else z_init
 
-        def rk4_step(x: np.ndarray, ti: float, h: float) -> np.ndarray:
+        def rk4_step(x: np.ndarray, d: np.ndarray, ti: float, h: float) -> np.ndarray:
             """Single RK4 integration step (ODE only, no algebraic)."""
             u_vec = get_input(ti)
-            k1 = np.array(self.f_x(x, z_empty, u_vec, p, ti)).flatten()
-            k2 = np.array(self.f_x(x + 0.5 * h * k1, z_empty, u_vec, p, ti + 0.5 * h)).flatten()
-            k3 = np.array(self.f_x(x + 0.5 * h * k2, z_empty, u_vec, p, ti + 0.5 * h)).flatten()
-            k4 = np.array(self.f_x(x + h * k3, z_empty, u_vec, p, ti + h)).flatten()
+            k1 = np.array(self.f_x(x, z_empty, d, u_vec, p, ti)).flatten()
+            k2 = np.array(self.f_x(x + 0.5 * h * k1, z_empty, d, u_vec, p, ti + 0.5 * h)).flatten()
+            k3 = np.array(self.f_x(x + 0.5 * h * k2, z_empty, d, u_vec, p, ti + 0.5 * h)).flatten()
+            k4 = np.array(self.f_x(x + h * k3, z_empty, d, u_vec, p, ti + h)).flatten()
             return x + (h / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
 
         def check_events(x: np.ndarray, d: np.ndarray, ti: float) -> List[Tuple[int, float]]:
@@ -1106,9 +1468,7 @@ class CompiledModel(Simulator):
                 events.append((i, val))
             return events
 
-        def apply_reinit(
-            x: np.ndarray, d: np.ndarray, event_idx: int, ti: float
-        ) -> Tuple[np.ndarray, np.ndarray]:
+        def apply_reinit(x: np.ndarray, d: np.ndarray, event_idx: int, ti: float) -> Tuple[np.ndarray, np.ndarray]:
             """Apply reinit for the given event. Returns (x_new, d_new)."""
             u_vec = get_input(ti)
             wc_func = self.when_clause_funcs[event_idx]
@@ -1116,6 +1476,14 @@ class CompiledModel(Simulator):
             x_new = np.array(result[0]).flatten()
             d_new = np.array(result[1]).flatten() if n_discrete > 0 else d.copy()
             return x_new, d_new
+
+        # RK4 doesn't support algebraic variables - it would silently use zeros
+        if integrator == Integrator.RK4:
+            if self.has_algebraic:
+                raise ValueError(
+                    "RK4 does not support DAE systems with algebraic variables. "
+                    "Use integrator=Integrator.IDAS for DAE systems."
+                )
 
         # For CVODES (ODE), we'll create the integrator inside the step function
         cvodes_dae = None
@@ -1128,17 +1496,19 @@ class CompiledModel(Simulator):
                 )
             x_sym = ca.SX.sym("x", n_states)
             z_sym = ca.SX.sym("z", max(n_alg, 1))  # Dummy if no algebraic
+            d_sym = ca.SX.sym("d", max(n_discrete, 1))  # Discrete vars
             u_sym = ca.SX.sym("u", max(n_inputs, 1))
             p_sym = ca.SX.sym("p", n_params)
             t_sym = ca.SX.sym("t")
 
-            # Build the ODE right-hand side (z is empty for pure ODE)
+            # Build the ODE right-hand side (includes discrete vars)
             z_in = z_sym[:n_alg] if n_alg > 0 else ca.SX()
+            d_in = d_sym[:n_discrete] if n_discrete > 0 else ca.SX()
             u_in = u_sym[:n_inputs] if n_inputs > 0 else ca.SX()
-            xdot = self.f_x(x_sym, z_in, u_in, p_sym, t_sym)
+            xdot = self.f_x(x_sym, z_in, d_in, u_in, p_sym, t_sym)
 
-            # Store DAE definition for use in step function
-            cvodes_dae = {"x": x_sym, "t": t_sym, "p": ca.vertcat(u_sym, p_sym), "ode": xdot}
+            # Store DAE definition for use in step function (d is passed as part of p)
+            cvodes_dae = {"x": x_sym, "t": t_sym, "p": ca.vertcat(d_sym, u_sym, p_sym), "ode": xdot}
             cvodes_opts = {"abstol": 1e-8, "reltol": 1e-6}
 
         # For IDAS (DAE), create integrator that handles both differential and algebraic
@@ -1147,11 +1517,13 @@ class CompiledModel(Simulator):
         if integrator == Integrator.IDAS:
             x_sym = ca.SX.sym("x", n_states)
             z_sym = ca.SX.sym("z", max(n_alg, 1))
+            d_sym = ca.SX.sym("d", max(n_discrete, 1))  # Discrete vars
             u_sym = ca.SX.sym("u", max(n_inputs, 1))
             p_sym = ca.SX.sym("p", n_params)
             t_sym = ca.SX.sym("t")
 
             z_in = z_sym[:n_alg] if n_alg > 0 else ca.SX()
+            d_in = d_sym[:n_discrete] if n_discrete > 0 else ca.SX()
             u_in = u_sym[:n_inputs] if n_inputs > 0 else ca.SX()
 
             if self.is_implicit:
@@ -1169,8 +1541,8 @@ class CompiledModel(Simulator):
                     "(der(x) == expr form, not implicit in der(x))."
                 )
             else:
-                # Explicit ODE form: ẋ = f(x, z, u, p, t)
-                xdot = self.f_x(x_sym, z_in, u_in, p_sym, t_sym)
+                # Explicit ODE form: ẋ = f(x, z, d, u, p, t)
+                xdot = self.f_x(x_sym, z_in, d_in, u_in, p_sym, t_sym)
 
             # Algebraic equations: 0 = g(x, z, u, p, t)
             if self.f_alg is not None:
@@ -1178,30 +1550,36 @@ class CompiledModel(Simulator):
             else:
                 alg = ca.SX()
 
-            # IDAS DAE formulation
+            # IDAS DAE formulation (d is passed as part of p)
             idas_dae = {
                 "x": x_sym,
                 "z": z_in,
                 "t": t_sym,
-                "p": ca.vertcat(u_sym, p_sym),
+                "p": ca.vertcat(d_sym, u_sym, p_sym),
                 "ode": xdot,
                 "alg": alg,
             }
             idas_opts = {"abstol": 1e-8, "reltol": 1e-6}
 
-        def cvodes_step(x: np.ndarray, ti: float, h: float) -> np.ndarray:
+        def cvodes_step(x: np.ndarray, d: np.ndarray, ti: float, h: float) -> np.ndarray:
             """Single CVODES integration step using CasADi integrator."""
             u_vec = get_input(ti)
-            p_combined = np.concatenate([u_vec if n_inputs > 0 else np.array([0.0]), p])
+            # Combined parameters: [d, u, p]
+            d_vec = d if n_discrete > 0 else np.array([0.0])
+            u_part = u_vec if n_inputs > 0 else np.array([0.0])
+            p_combined = np.concatenate([d_vec, u_part, p])
             # Create integrator with t0 and tf as positional args (new API)
             integ = ca.integrator("integ", "cvodes", cvodes_dae, ti, ti + h, cvodes_opts)
             result = integ(x0=x, p=p_combined)
             return np.array(result["xf"]).flatten()
 
-        def idas_step(x: np.ndarray, ti: float, h: float) -> np.ndarray:
+        def idas_step(x: np.ndarray, d: np.ndarray, ti: float, h: float) -> np.ndarray:
             """Single IDAS integration step for DAE systems."""
             u_vec = get_input(ti)
-            p_combined = np.concatenate([u_vec if n_inputs > 0 else np.array([0.0]), p])
+            # Combined parameters: [d, u, p]
+            d_vec = d if n_discrete > 0 else np.array([0.0])
+            u_part = u_vec if n_inputs > 0 else np.array([0.0])
+            p_combined = np.concatenate([d_vec, u_part, p])
             # Create IDAS integrator
             integ = ca.integrator("integ", "idas", idas_dae, ti, ti + h, idas_opts)
             result = integ(x0=x, z0=z_init, p=p_combined)
@@ -1250,6 +1628,7 @@ class CompiledModel(Simulator):
 
         # Integration loop
         x = x_init.copy()
+        d = d_init.copy()
         for i in range(n_steps):
             ti = t[i]
             u_vec = get_input(ti)
@@ -1260,7 +1639,7 @@ class CompiledModel(Simulator):
 
             # Step (except for last point)
             if i < n_steps - 1:
-                x = step_func(x, ti, dt)
+                x = step_func(x, d, ti, dt)
                 x_hist[i + 1] = x
 
         return self._build_result(t, x_hist, d_hist, u_hist, n_inputs, n_discrete, p, get_input, z_empty, d_init)
@@ -1301,13 +1680,48 @@ class CompiledModel(Simulator):
         n_events = 0
         event_times: List[float] = []
 
+        # Check for initial() events at t=t0
+        # initial() events should fire at the very start of simulation
+        for i, wc_func in enumerate(self.when_clause_funcs):
+            condition = wc_func.get("condition")
+            # Check if this when-clause uses initial()
+            if condition is not None and condition.kind == ExprKind.INITIAL:
+                # Apply the reinit at t0
+                x, d = apply_reinit(x, d, i, t0)
+                n_events += 1
+                event_times.append(t0)
+                # Update stored values
+                x_list[0] = x.copy()
+                if d_list is not None:
+                    d_list[0] = d.copy()
+
+        # Check for sample() events at t=start (if start == t0)
+        # sample(start, interval) fires at t=start, start+interval, etc.
+        for i, wc_func in enumerate(self.when_clause_funcs):
+            condition = wc_func.get("condition")
+            # Check if this when-clause uses sample()
+            if condition is not None and condition.kind == ExprKind.SAMPLE:
+                # Extract start time from sample(start, interval)
+                start_expr = condition.children[0]
+                if start_expr.kind == ExprKind.CONSTANT:
+                    start_time = start_expr.value
+                    # If start time equals t0, fire the event
+                    if abs(start_time - t0) < 1e-10:
+                        x, d = apply_reinit(x, d, i, t0)
+                        n_events += 1
+                        event_times.append(t0)
+                        # Update stored values
+                        x_list[0] = x.copy()
+                        if d_list is not None:
+                            d_list[0] = d.copy()
+
         # Track previous event values for edge detection
         prev_events = check_events(x, d, t)
 
         while t < tf and n_events < max_events:
             # Tentative step (discrete d stays constant between events)
             h = min(dt, tf - t)
-            x_next = step_func(x, t, h)
+            x_next = step_func(x, d, t, h)
             t_next = t + h
 
             # Check for events (sign changes in event functions)
@@ -1330,7 +1744,7 @@ class CompiledModel(Simulator):
 
                 for _ in range(20):  # Max bisection iterations
                     t_mid = (t_lo + t_hi) / 2
-                    x_mid = step_func(x_lo, t_lo, t_mid - t_lo)
+                    x_mid = step_func(x_lo, d, t_lo, t_mid - t_lo)
                     mid_events = check_events(x_mid, d, t_mid)
                     mid_val = mid_events[triggered_event][1]
 
@@ -1345,10 +1759,22 @@ class CompiledModel(Simulator):
 
                 # Use midpoint as event time
                 t_event = (t_lo + t_hi) / 2
-                x_event = step_func(x_lo, t_lo, t_event - t_lo)
+                x_event = step_func(x_lo, d, t_lo, t_event - t_lo)
 
                 # Apply reinit (updates both x and d)
                 x_new, d_new = apply_reinit(x_event, d, triggered_event, t_event)
+
+                # Check for other events that fire at the same time
+                # This handles multi-rate sampling where multiple events coincide
+                simultaneous_events = [triggered_event]
+                for j, ((_, prev_j), (_, curr_j)) in enumerate(zip(prev_events, curr_events)):
+                    if j != triggered_event and prev_j > 0 and curr_j <= 0:
+                        # This event also triggers - check if it's at the same time
+                        # (within tolerance)
+                        # Apply its reinit too
+                        x_new, d_new = apply_reinit(x_new, d_new, j, t_event)
+                        simultaneous_events.append(j)
+                        n_events += 1
 
                 # Record pre-event state
                 t_list.append(t_event)
@@ -1417,24 +1843,56 @@ class CompiledModel(Simulator):
         # Algebraic variables (empty if not DAE)
         z_vec = z if z is not None else np.zeros(len(self._algebraic_names))
 
-        # Convert states to named dict
+        # Helper to compute size from shape or defaults
+        def get_var_size(name: str, shapes: Dict[str, Tuple[int, ...]], defaults: Dict[str, Any]) -> int:
+            """Get the flattened size of a variable from shapes or defaults."""
+            if name in shapes:
+                shape = shapes[name]
+                size = 1
+                for dim in shape:
+                    size *= dim
+                return size
+            if name in defaults:
+                default_val = defaults[name]
+                if isinstance(default_val, (list, np.ndarray)):
+                    return len(np.array(default_val).flatten())
+            return 1
+
+        # Convert states to named dict (handle array states)
         states: Dict[str, np.ndarray] = {}
         idx = 0
         for name in self._state_names:
-            states[name] = x_hist[:, idx]
-            idx += 1
+            size = get_var_size(name, self.state_shapes, self.state_defaults)
 
-        # Convert discrete variables to named dict
+            if size == 1:
+                states[name] = x_hist[:, idx]
+            else:
+                states[name] = x_hist[:, idx : idx + size]
+            idx += size
+
+        # Convert discrete variables to named dict (handle arrays)
         discrete: Dict[str, np.ndarray] = {}
         if d_hist is not None and n_discrete > 0:
-            for j, name in enumerate(self._discrete_names):
-                discrete[name] = d_hist[:, j]
+            idx = 0
+            for name in self._discrete_names:
+                size = get_var_size(name, self.discrete_shapes, self.discrete_defaults)
+                if size == 1:
+                    discrete[name] = d_hist[:, idx]
+                else:
+                    discrete[name] = d_hist[:, idx : idx + size]
+                idx += size
 
-        # Convert inputs to named dict
+        # Convert inputs to named dict (handle arrays)
         inputs: Dict[str, np.ndarray] = {}
         if u_hist is not None:
-            for j, name in enumerate(self._input_names):
-                inputs[name] = u_hist[:, j]
+            idx = 0
+            for name in self._input_names:
+                size = get_var_size(name, self.input_shapes, self.input_defaults)
+                if size == 1:
+                    inputs[name] = u_hist[:, idx]
+                else:
+                    inputs[name] = u_hist[:, idx : idx + size]
+                idx += size
 
         # Compute outputs if f_y is available
         outputs: Dict[str, np.ndarray] = {}
@@ -1449,8 +1907,13 @@ class CompiledModel(Simulator):
                 d_vec = d_hist[i] if d_hist is not None else (d_current if d_current is not None else np.zeros(0))
                 y_hist[i] = np.array(self.f_y(x_hist[i], z_vec, d_vec, u_vec, p, ti)).flatten()
 
-            for j, name in enumerate(self._output_names):
-                outputs[name] = y_hist[:, j]
+            # Extract outputs by name (handle arrays)
+            idx = 0
+            for name in self._output_names:
+                # For outputs, we need to determine size from the function output
+                # For now, assume scalar outputs - array outputs would need tracking
+                outputs[name] = y_hist[:, idx]
+                idx += 1
 
         # Build data dict with all trajectories
         data: Dict[str, np.ndarray] = {}

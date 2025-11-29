@@ -79,6 +79,7 @@ class ExprKind(Enum):
 
     # Array operations
     INDEX = auto()  # x[i] - array indexing (stores index in 'value' field)
+    ARRAY_LITERAL = auto()  # [a, b, c] - array literal with children as elements
 
     # Discrete/event operators (Modelica MLS 3.8)
     PRE = auto()  # pre(x) - previous value of discrete variable
@@ -113,6 +114,11 @@ class ExprKind(Enum):
 
     # Hybrid system operators (Modelica MLS 8.5)
     REINIT = auto()  # reinit(x, expr) - reinitialize state at event
+
+    # Special operators (Modelica MLS 3.7.4, 3.7.5)
+    INITIAL = auto()  # initial() - True only during initialization
+    TERMINAL = auto()  # terminal() - True only at end of simulation
+    SAMPLE = auto()  # sample(start, interval) - periodic event trigger
 
 
 @dataclass(frozen=True)
@@ -163,6 +169,9 @@ class Expr:
         elif self.kind == ExprKind.INDEX:
             # Legacy INDEX kind - prefer using VARIABLE with indices
             return f"{self.name}[{int(self.value)}]"
+        elif self.kind == ExprKind.ARRAY_LITERAL:
+            elements = ", ".join(str(child) for child in self.children)
+            return f"[{elements}]"
         elif self.kind in (
             ExprKind.SIN,
             ExprKind.COS,
@@ -217,6 +226,12 @@ class Expr:
             return f"(if {self.children[0]} then {self.children[1]} else {self.children[2]})"
         elif self.kind == ExprKind.REINIT:
             return f"reinit({self.name}, {self.children[0]})"
+        elif self.kind == ExprKind.INITIAL:
+            return "initial()"
+        elif self.kind == ExprKind.TERMINAL:
+            return "terminal()"
+        elif self.kind == ExprKind.SAMPLE:
+            return f"sample({self.children[0]}, {self.children[1]})"
         return f"Expr({self.kind})"
 
     @property
@@ -335,6 +350,10 @@ def to_expr(x: Any) -> Expr:
         return Expr(ExprKind.CONSTANT, value=float(x))
     if isinstance(x, np.ndarray) and x.size == 1:
         return Expr(ExprKind.CONSTANT, value=float(x.flat[0]))
+    if isinstance(x, list):
+        # Convert list to array literal - recursively convert each element
+        children = tuple(to_expr(elem) for elem in x)
+        return Expr(ExprKind.ARRAY_LITERAL, children=children)
     raise TypeError(f"Cannot convert {type(x)} to Expr")
 
 

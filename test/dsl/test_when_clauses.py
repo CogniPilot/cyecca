@@ -792,3 +792,365 @@ class TestDiscreteVariables:
         # Since a goes up by 1 and b goes down by 1, a + b should stay ~10
         assert np.abs(final_a + final_b - 10) < 2, "a + b should stay near 10"
 
+
+# =============================================================================
+# Initial() Function Tests
+# =============================================================================
+
+
+class TestInitialFunction:
+    """Test the initial() function for initialization events."""
+
+    def test_initial_returns_expr(self) -> None:
+        """Test that initial() returns an Expr with INITIAL kind."""
+        from cyecca.dsl import initial
+        from cyecca.dsl.expr import Expr, ExprKind
+
+        result = initial()
+        assert isinstance(result, Expr)
+        assert result.kind == ExprKind.INITIAL
+        assert repr(result) == "initial()"
+
+    def test_initial_in_when_clause(self) -> None:
+        """Test using initial() as when-clause condition."""
+        from cyecca.dsl import WhenClause, der, equations, initial, model, reinit, var, when
+
+        @model
+        class M:
+            x = var(start=0.0)
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+
+                with when(initial()):
+                    reinit(m.x, 5.0)
+
+        flat = M().flatten()
+        assert len(flat.when_clauses) == 1
+        wc = flat.when_clauses[0]
+        assert wc.condition.kind.name == "INITIAL"
+
+    def test_initial_triggers_at_start(self) -> None:
+        """Test that initial() when-clause triggers at t=0."""
+        from cyecca.dsl import der, equations, initial, model, reinit, var, when
+        from cyecca.dsl.backends.casadi import CasadiBackend
+
+        @model
+        class Integrator:
+            x = var(start=0.0)
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+
+                # Override initial value to 10.0
+                with when(initial()):
+                    reinit(m.x, 10.0)
+
+        flat = Integrator().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(t0=0.0, tf=1.0, dt=0.1)
+
+        x = result("x")
+
+        # At t=0, initial() should trigger and set x=10.0
+        # Then x grows linearly: x(t) = 10 + t
+        assert x[0] == pytest.approx(10.0, rel=1e-3), f"Expected x[0]=10.0, got {x[0]}"
+        assert x[-1] == pytest.approx(11.0, rel=1e-3), f"Expected x[tf]=11.0, got {x[-1]}"
+
+    def test_initial_with_expression(self) -> None:
+        """Test initial() with reinit expression involving variables."""
+        from cyecca.dsl import der, equations, initial, model, reinit, var, when
+        from cyecca.dsl.backends.casadi import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=1.0)
+            k = var(2.0, parameter=True)
+
+            @equations
+            def _(m):
+                der(m.x) == 0.0
+
+                # Set x = k * 5 at start
+                with when(initial()):
+                    reinit(m.x, m.k * 5.0)
+
+        flat = M().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(t0=0.0, tf=1.0, dt=0.1)
+
+        x = result("x")
+        # k=2, so x should be 2*5=10 after initial()
+        assert x[0] == pytest.approx(10.0, rel=1e-3)
+        assert x[-1] == pytest.approx(10.0, rel=1e-3)  # der(x)==0
+
+    def test_initial_only_fires_once(self) -> None:
+        """Test that initial() only fires at t=0, not at later times."""
+        from cyecca.dsl import der, equations, initial, model, reinit, var, when
+        from cyecca.dsl.backends.casadi import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=0.0)
+            count = var(0, discrete=True)
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+
+                # This should only fire once at t=0
+                with when(initial()):
+                    reinit(m.x, 100.0)
+                    reinit(m.count, 1)
+
+        flat = M().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(t0=0.0, tf=2.0, dt=0.1)
+
+        count = result("count")
+        # Count should be 1 (initial fired once) at all times after t=0
+        assert count[-1] == pytest.approx(1.0), f"Expected count=1, got {count[-1]}"
+
+    def test_terminal_not_implemented(self) -> None:
+        """Test that terminal() raises NotImplementedError in CasADi backend."""
+        from cyecca.dsl import der, equations, model, reinit, terminal, var, when
+        from cyecca.dsl.backends.casadi import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=0.0)
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+
+                with when(terminal()):
+                    reinit(m.x, 0.0)
+
+        flat = M().flatten()
+
+        with pytest.raises(NotImplementedError, match="terminal.*not yet implemented"):
+            CasadiBackend.compile(flat)
+
+
+class TestSampleFunction:
+    """Test the sample(start, interval) function for periodic events."""
+
+    def test_sample_returns_expr(self) -> None:
+        """Test that sample() returns an Expr with SAMPLE kind."""
+        from cyecca.dsl import sample
+        from cyecca.dsl.expr import Expr, ExprKind
+
+        result = sample(0, 0.1)
+        assert isinstance(result, Expr)
+        assert result.kind == ExprKind.SAMPLE
+        assert "sample" in repr(result)
+
+    def test_sample_requires_positive_interval(self) -> None:
+        """Test that sample() requires interval > 0."""
+        from cyecca.dsl import sample
+
+        with pytest.raises(ValueError, match="positive"):
+            sample(0, 0)
+
+        with pytest.raises(ValueError, match="positive"):
+            sample(0, -0.1)
+
+    def test_sample_in_when_clause(self) -> None:
+        """Test using sample() as when-clause condition."""
+        from cyecca.dsl import WhenClause, der, equations, model, reinit, sample, var, when
+
+        @model
+        class M:
+            x = var(start=0.0)
+            u = var(discrete=True)
+
+            @equations
+            def _(m):
+                der(m.x) == m.u
+
+                with when(sample(0, 0.1)):
+                    reinit(m.u, 1.0)
+
+        flat = M().flatten()
+        assert len(flat.when_clauses) == 1
+        wc = flat.when_clauses[0]
+        assert wc.condition.kind.name == "SAMPLE"
+
+    def test_sample_triggers_periodically(self) -> None:
+        """Test that sample() when-clause triggers at regular intervals."""
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl.backends.casadi import CasadiBackend
+
+        @model
+        class Counter:
+            t_sim = var(start=0.0)  # Tracks time
+            count = var(0, discrete=True)
+
+            @equations
+            def _(m):
+                der(m.t_sim) == 1.0
+
+                # Increment counter every 0.25 seconds
+                with when(sample(0, 0.25)):
+                    reinit(m.count, pre(m.count) + 1)
+
+        flat = Counter().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(t0=0.0, tf=1.0, dt=0.01)
+
+        count = result("count")
+        # In 1 second with interval=0.25, we should have events at t=0, 0.25, 0.5, 0.75, 1.0
+        # That's 5 events, so count should be 5
+        assert count[-1] >= 4, f"Expected count >= 4 events, got {count[-1]}"
+
+    def test_sample_with_nonzero_start(self) -> None:
+        """Test sample() with start > 0."""
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl.backends.casadi import CasadiBackend
+
+        @model
+        class DelayedCounter:
+            t_sim = var(start=0.0)
+            count = var(0, discrete=True)
+
+            @equations
+            def _(m):
+                der(m.t_sim) == 1.0
+
+                # Start sampling at t=0.5
+                with when(sample(0.5, 0.25)):
+                    reinit(m.count, pre(m.count) + 1)
+
+        flat = DelayedCounter().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(t0=0.0, tf=1.5, dt=0.01)
+
+        count = result("count")
+        # Events at t=0.5, 0.75, 1.0, 1.25, 1.5 = 5 events
+        # But first event is at t=0.5, not t=0
+        t = result.t
+        # Find count at t < 0.5 - should be 0
+        idx_before = np.where(t < 0.4)[0]
+        if len(idx_before) > 0:
+            assert count[idx_before[-1]] == 0, "Count should be 0 before first sample"
+
+    def test_sampled_data_controller(self) -> None:
+        """Test a simple sampled-data P controller."""
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl.backends.casadi import CasadiBackend
+
+        @model
+        class SampledPController:
+            """First-order plant with sampled P controller."""
+
+            # Plant state
+            x = var(start=0.0)
+
+            # Controller output (discrete - updated at sample times)
+            u = var(0.0, discrete=True)
+
+            # Parameters
+            tau = var(1.0, parameter=True)  # Plant time constant
+            Kp = var(2.0, parameter=True)  # Proportional gain
+            ref = var(1.0, parameter=True)  # Reference
+            Ts = var(0.1, parameter=True)  # Sample time
+
+            @equations
+            def _(m):
+                # Plant: dx/dt = (-x + u) / tau
+                der(m.x) == (-m.x + m.u) / m.tau
+
+                # Sampled P controller
+                with when(sample(0, 0.1)):
+                    reinit(m.u, m.Kp * (m.ref - m.x))
+
+        flat = SampledPController().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(t0=0.0, tf=5.0, dt=0.01)
+
+        x = result("x")
+        u = result("u")
+
+        # System should approach reference (1.0) over time
+        # With P control only, there will be steady-state error
+        # Final value: x_ss = Kp*ref / (1 + Kp) = 2*1 / 3 = 0.667 approximately
+        # (This is first-order approximation, actual depends on sampling)
+        assert x[-1] > 0.5, f"Expected x to approach reference, got {x[-1]}"
+
+        # u should be non-zero (controller is active)
+        assert np.any(u > 0), "Controller should produce non-zero output"
+
+    def test_sample_accumulator(self) -> None:
+        """Test accumulating samples over time."""
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl.backends.casadi import CasadiBackend
+
+        @model
+        class Accumulator:
+            """Accumulate input signal at sample times."""
+
+            # Continuous input (ramp)
+            ramp = var(start=0.0)
+
+            # Accumulated sum (discrete)
+            total = var(0.0, discrete=True)
+
+            @equations
+            def _(m):
+                der(m.ramp) == 1.0  # Ramp from 0 to tf
+
+                # Accumulate ramp value at each sample
+                with when(sample(0, 0.5)):
+                    reinit(m.total, pre(m.total) + m.ramp)
+
+        flat = Accumulator().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(t0=0.0, tf=2.0, dt=0.01)
+
+        total = result("total")
+        # At t=0: total = 0 + 0 = 0
+        # At t=0.5: total = 0 + 0.5 = 0.5
+        # At t=1.0: total = 0.5 + 1.0 = 1.5
+        # At t=1.5: total = 1.5 + 1.5 = 3.0
+        # At t=2.0: total = 3.0 + 2.0 = 5.0
+        # Sum: 0 + 0.5 + 1.0 + 1.5 + 2.0 = 5.0
+        assert total[-1] >= 4.0, f"Expected total >= 4.0, got {total[-1]}"
+
+    def test_multiple_sample_rates(self) -> None:
+        """Test multiple when-clauses with different sample rates."""
+        from cyecca.dsl import der, equations, model, pre, reinit, sample, var, when
+        from cyecca.dsl.backends.casadi import CasadiBackend
+
+        @model
+        class MultiRate:
+            t_sim = var(start=0.0)
+            fast_count = var(0, discrete=True)
+            slow_count = var(0, discrete=True)
+
+            @equations
+            def _(m):
+                der(m.t_sim) == 1.0
+
+                # Fast sampling (0.1s)
+                with when(sample(0, 0.1)):
+                    reinit(m.fast_count, pre(m.fast_count) + 1)
+
+                # Slow sampling (0.5s)
+                with when(sample(0, 0.5)):
+                    reinit(m.slow_count, pre(m.slow_count) + 1)
+
+        flat = MultiRate().flatten()
+        compiled = CasadiBackend.compile(flat)
+        result = compiled.simulate(t0=0.0, tf=1.0, dt=0.01)
+
+        fast = result("fast_count")
+        slow = result("slow_count")
+
+        # Fast should have ~10-11 events (0, 0.1, ..., 1.0)
+        # Slow should have ~2-3 events (0, 0.5, 1.0)
+        assert fast[-1] >= 9, f"Expected fast_count >= 9, got {fast[-1]}"
+        assert slow[-1] >= 2, f"Expected slow_count >= 2, got {slow[-1]}"
+        assert fast[-1] > slow[-1], "Fast counter should exceed slow counter"

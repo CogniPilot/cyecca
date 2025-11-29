@@ -198,23 +198,38 @@ def var(
 
 
 @beartype
-def submodel(model_class: Type) -> SubmodelField:
+def submodel(model_class: Type, **overrides: Any) -> SubmodelField:
     """
-    Declare a submodel (nested model).
+    Declare a submodel (nested model) with optional parameter overrides.
 
-    Submodels allow hierarchical composition of models.
+    Submodels allow hierarchical composition of models. You can override
+    parameter values for this specific instance of the submodel.
+
+    Parameters
+    ----------
+    model_class : Type
+        The model class to instantiate as a submodel
+    **overrides : Any
+        Parameter value overrides. The parameter names must match
+        parameters defined in the submodel class.
+
+    Returns
+    -------
+    SubmodelField
+        A submodel field descriptor
 
     Example
     -------
     >>> from cyecca.dsl import model, var, submodel
     >>> @model
-    ... class Controller:
-    ...     gain = var(1.0, parameter=True)
+    ... class Resistor:
+    ...     R = var(1.0, parameter=True)  # Default 1 Ohm
     >>> @model
-    ... class System:
-    ...     ctrl = submodel(Controller)
+    ... class Circuit:
+    ...     r1 = submodel(Resistor)           # Uses default R=1.0
+    ...     r2 = submodel(Resistor, R=100.0)  # Override R=100.0
     """
-    return SubmodelField(model_class=model_class)
+    return SubmodelField(model_class=model_class, overrides=overrides)
 
 
 # =============================================================================
@@ -266,12 +281,38 @@ def model(cls: Type[Any]) -> Type[Any]:
     initial_equations_methods: List[Callable] = []
     algorithm_methods: List[Callable] = []
     for name, value in vars(cls).items():
-        if callable(value) and is_equations_method(value):
-            equations_methods.append(value)
-        if callable(value) and is_initial_equations_method(value):
-            initial_equations_methods.append(value)
-        if callable(value) and is_algorithm_method(value):
-            algorithm_methods.append(value)
+        if callable(value):
+            # Check for conflicting decorators on same method
+            is_eq = is_equations_method(value)
+            is_init_eq = is_initial_equations_method(value)
+            is_alg = is_algorithm_method(value)
+
+            decorator_count = sum([is_eq, is_init_eq, is_alg])
+            if decorator_count > 1:
+                decorators = []
+                if is_eq:
+                    decorators.append("@equations")
+                if is_init_eq:
+                    decorators.append("@initial_equations")
+                if is_alg:
+                    decorators.append("@algorithm")
+                import warnings
+
+                warnings.warn(
+                    f"Model '{cls.__name__}': Method '{name}' has multiple DSL decorators "
+                    f"({', '.join(decorators)}). This usually happens when multiple methods "
+                    f"use the same name (like '_'). Each decorated method must have a unique name. "
+                    f"Only the last definition will be used.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+            if is_eq:
+                equations_methods.append(value)
+            if is_init_eq:
+                initial_equations_methods.append(value)
+            if is_alg:
+                algorithm_methods.append(value)
 
     # Validate: equations/initial_equations/algorithm must use decorators
     equations_attr = getattr(cls, "equations", None)

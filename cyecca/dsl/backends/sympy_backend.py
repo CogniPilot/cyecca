@@ -31,13 +31,37 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import sympy as sp
-from sympy import Symbol, Function, Derivative, Eq, Matrix
-from sympy import sin, cos, tan, asin, acos, atan, atan2
-from sympy import sqrt, exp, log, log as ln, Abs, sign, floor, ceiling
-from sympy import sinh, cosh, tanh, asinh, acosh, atanh
-from sympy import Piecewise, And, Or, Not, Min, Max
+from sympy import (
+    Abs,
+    And,
+    Derivative,
+    Eq,
+    Function,
+    Matrix,
+    Max,
+    Min,
+    Not,
+    Or,
+    Piecewise,
+    Symbol,
+    acos,
+    acosh,
+    asin,
+    asinh,
+    atan,
+    atan2,
+    atanh,
+    ceiling,
+    cos,
+    cosh,
+    exp,
+    floor,
+)
+from sympy import log
+from sympy import log as ln
+from sympy import sign, sin, sinh, sqrt, tan, tanh
 
-from cyecca.dsl.causality import analyze_causality, SortedSystem
+from cyecca.dsl.causality import SortedSystem, analyze_causality
 from cyecca.dsl.equations import Equation
 from cyecca.dsl.expr import Expr, ExprKind
 from cyecca.dsl.flat_model import FlatModel
@@ -594,11 +618,7 @@ class CompiledSymPyModel:
         )
 
     def __repr__(self) -> str:
-        return (
-            f"CompiledSymPyModel('{self.name}', "
-            f"states={self.state_names}, "
-            f"params={self.param_names})"
-        )
+        return f"CompiledSymPyModel('{self.name}', " f"states={self.state_names}, " f"params={self.param_names})"
 
 
 # =============================================================================

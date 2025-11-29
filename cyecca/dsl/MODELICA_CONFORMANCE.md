@@ -12,9 +12,9 @@
 |--------|-------|
 | **Overall Conformance** | **~30-35%** |
 | **DAE Representation (Appendix B)** | ~65% |
-| **Core Equation Features (Ch. 8)** | ~45% |
+| **Core Equation Features (Ch. 8)** | ~55% |
 | **Connectors and Connections (Ch. 9)** | ~70% |
-| **Test Coverage** | 88% (254 tests) |
+| **Test Coverage** | 85% (309 tests) |
 | **Production Ready** | No (Prototype) |
 
 The Cyecca DSL implements a focused subset of Modelica targeting **continuous-time ODE/DAE simulation** with hybrid system support and component-based modeling via connectors.
@@ -104,9 +104,9 @@ INITIALIZATION:
 | `pre()` operator | 3.7.5 | ✅ Complete | `pre(m.x)` |
 | `edge()` operator | 3.7.5 | ✅ Complete | `edge(m.x)` |
 | `change()` operator | 3.7.5 | ✅ Complete | `change(m.x)` |
-| `initial()` function | 3.7.4 | ❌ Not Implemented | |
-| `terminal()` function | 3.7.4 | ❌ Not Implemented | |
-| `sample()` function | 3.7.5 | ❌ Not Implemented | |
+| `initial()` function | 3.7.4 | ✅ Complete | `initial()` in when-clauses |
+| `terminal()` function | 3.7.4 | ⚠️ Partial | Expr exists, not implemented in backend |
+| `sample()` function | 3.7.5 | ✅ Complete | `sample(start, interval)` |
 | `noEvent()` operator | 3.7.4 | ❌ Not Implemented | |
 | `smooth()` operator | 3.7.4 | ❌ Not Implemented | |
 | `reinit()` operator | 8.3.6 | ✅ Complete | `reinit(m.x, expr)` |
@@ -166,8 +166,8 @@ INITIALIZATION:
 |---------|---------|--------|-------|
 | Simple equality equations | 8.3.1 | ✅ Complete | `m.x == expr` |
 | For-equations | 8.3.2 | ❌ Not Implemented | Use Python loops |
-| Connect-equations | 8.3.3 | ❌ Not Implemented | |
-| If-equations | 8.3.4 | ❌ Not Implemented | Use `if_then_else()` |
+| Connect-equations | 8.3.3 | ✅ Complete | `connect(m.a, m.b)` |
+| If-equations | 8.3.4 | ✅ Complete | `if_eq()`, `elseif_eq()`, `else_eq()` |
 | When-equations | 8.3.5 | ✅ Complete | `when(cond)` context |
 | `reinit()` | 8.3.6 | ✅ Complete | In when-clauses |
 | `assert()` | 8.3.7 | ❌ Not Implemented | |
@@ -269,10 +269,11 @@ INITIALIZATION:
 
 ### Priority 1: Critical for Practical Use (High Impact)
 
-1. **`sample()` Function** (MLS 3.7.5)
-   - Essential for sampled-data systems and digital controllers
-   - Enables `when sample(0, dt) then` patterns
-   - Effort: Medium
+1. ~~**`sample()` Function** (MLS 3.7.5)~~ ✅ **IMPLEMENTED**
+   - `sample(start, interval)` for periodic event triggering
+   - Enables sampled-data systems and digital controllers
+   - Supports multiple sample rates simultaneously
+   - Use: `when(sample(0, 0.1)): reinit(m.u, controller_output)`
 
 2. **For-Equations** (MLS 8.3.2)
    - Required for large-scale array models
@@ -289,9 +290,9 @@ INITIALIZATION:
    - Required for proper discrete variable handling
    - Effort: Medium
 
-5. **`initial()` Function** (MLS 3.7.4)
-   - Enables `when initial() then` for initialization logic
-   - Effort: Low
+5. ~~**`initial()` Function** (MLS 3.7.4)~~ ✅ **IMPLEMENTED**
+   - `initial()` returns True only at t=0
+   - Use in when-clauses: `when(initial()): reinit(m.x, expr)`
 
 ### Priority 2: Important for Real Applications (Medium Impact)
 
@@ -370,16 +371,17 @@ INITIALIZATION:
 
 | Feature | Status |
 |---------|--------|
-| ODE integration | ✅ |
-| DAE solving (index-1) | ✅ |
-| Event detection | ✅ |
+| ODE integration (RK4, CVODES) | ✅ |
+| DAE solving (IDAS, index-1) | ✅ |
+| Event detection (zero-crossing) | ✅ |
 | State reinitialization | ✅ |
 | Parameter handling | ✅ |
 | Output computation | ✅ |
 | Initial conditions | ✅ |
+| initial() event | ✅ |
 | Event iteration | ⚠️ Basic |
 
-### Category: Variable System (~80% complete)
+### Category: Variable System (~85% complete)
 
 | Feature | Status |
 |---------|--------|
@@ -387,47 +389,53 @@ INITIALIZATION:
 | Boolean variables | ✅ |
 | Integer variables | ✅ |
 | Array variables | ✅ |
+| Multi-dim arrays (matrices) | ✅ |
 | Variability prefixes | ✅ |
 | Causality prefixes | ✅ |
 | Standard attributes | ✅ |
 | stateSelect | ❌ |
 
-### Category: Operators (~75% complete)
+### Category: Operators (~85% complete)
 
 | Feature | Status |
 |---------|--------|
-| Arithmetic | ✅ |
-| Relational | ✅ |
-| Boolean logic | ✅ |
+| Arithmetic (+, -, *, /, **) | ✅ |
+| Relational (<, <=, >, >=) | ✅ |
+| Equality (eq(), ne()) | ✅ |
+| Boolean logic (and_, or_, not_) | ✅ |
+| if_then_else() | ✅ |
 | der() | ✅ |
 | pre() | ✅ |
 | edge(), change() | ✅ |
 | reinit() | ✅ |
-| sample() | ❌ |
+| initial() | ✅ |
+| sample() | ✅ |
+| Math functions (25+) | ✅ |
 | noEvent(), smooth() | ❌ |
-| initial(), terminal() | ❌ |
+| terminal() | ⚠️ Partial |
 
-### Category: Equation Types (~50% complete)
+### Category: Equation Types (~55% complete)
 
 | Feature | Status |
 |---------|--------|
 | Simple equality | ✅ |
 | When-equations | ✅ |
 | Initial equations | ✅ |
+| Connect-equations | ✅ |
 | For-equations | ❌ |
-| If-equations | ❌ |
-| Connect-equations | ❌ |
+| If-equations | ✅ |
 | Assert | ❌ |
 
-### Category: Component Modeling (~25% complete)
+### Category: Component Modeling (~60% complete)
 
 | Feature | Status |
 |---------|--------|
-| Model class | ✅ |
-| Block class | ✅ |
-| Function class | ✅ |
-| Submodels | ✅ |
-| Connectors | ❌ |
+| Model class (@model) | ✅ |
+| Block class (@block) | ✅ |
+| Function class (@function) | ✅ |
+| Connector class (@connector) | ✅ |
+| Submodels (submodel()) | ✅ |
+| connect() | ✅ |
 | Packages | ❌ |
 | Inheritance | ❌ |
 
@@ -453,6 +461,7 @@ INITIALIZATION:
 4. ✅ **Rapid model development** in Python with Modelica-like syntax
 5. ✅ **Code generation** to CasADi for optimization/estimation
 6. ✅ **Component-based modeling** with connectors and connect()
+7. ✅ **Array-based modeling** with multi-dimensional variables
 
 ### What Cyecca DSL is NOT Good For
 
@@ -464,9 +473,55 @@ INITIALIZATION:
 
 ### Overall Assessment
 
-The Cyecca DSL implements approximately **25-30%** of the Modelica Language Specification features. However, this subset is strategically chosen to cover the core simulation capabilities described in **Appendix B (DAE Representation)** at approximately **60%** completeness.
+The Cyecca DSL implements approximately **30-35%** of the Modelica Language Specification features. However, this subset is strategically chosen to cover the core simulation capabilities described in **Appendix B (DAE Representation)** at approximately **65%** completeness.
 
-For the target use case of **continuous-time control system simulation with basic hybrid events**, the implementation is functional and useful. For full Modelica compatibility or industrial-scale multi-domain modeling, significant additional work would be required.
+For the target use case of **continuous-time control system simulation with basic hybrid events**, the implementation is functional and useful. The recent addition of `initial()` function and connectors with `connect()` significantly improved the hybrid system and component-based modeling capabilities.
+
+For full Modelica compatibility or industrial-scale multi-domain modeling, significant additional work would be required.
+
+---
+
+## Part 6: Codebase Metrics
+
+### Module Coverage (309 tests, 85% overall)
+
+| Module | Coverage | Lines |
+|--------|----------|-------|
+| `__init__.py` | 100% | 14 |
+| `algorithm.py` | 97% | 62 |
+| `backends/casadi.py` | 82% | ~750 |
+| `backends/sympy_backend.py` | 33% | 230 |
+| `causality.py` | 90% | 232 |
+| `context.py` | 93% | 162 |
+| `decorators.py` | 96% | 170 |
+| `equations.py` | 84% | 86 |
+| `expr.py` | 94% | 261 |
+| `flat_model.py` | 96% | 50 |
+| `instance.py` | 89% | 255 |
+| `operators.py` | 88% | 198 |
+| `operators_core.py` | 96% | 100 |
+| `simulation.py` | 92% | 73 |
+| `types.py` | 97% | 101 |
+| `variables.py` | 92% | 189 |
+
+### Key Expression Types Supported (ExprKind enum)
+
+- **Leaf nodes**: VARIABLE, DERIVATIVE, CONSTANT, TIME
+- **Unary ops**: NEG, NOT, SIN, COS, TAN, ASIN, ACOS, ATAN, SQRT, EXP, LOG, LOG10, ABS, SIGN, FLOOR, CEIL, SINH, COSH, TANH, ASINH, ACOSH, ATANH
+- **Binary ops**: ADD, SUB, MUL, DIV, POW, ATAN2, MIN, MAX, MOD, AND, OR
+- **Relational**: LT, LE, GT, GE, EQ, NE
+- **Conditional**: IF_THEN_ELSE
+- **Array**: INDEX
+- **Discrete**: PRE, EDGE, CHANGE, REINIT
+- **Special**: INITIAL, TERMINAL, SAMPLE
+
+### Backend Support
+
+| Backend | Status | Integrators |
+|---------|--------|-------------|
+| CasADi SX | ✅ Complete | RK4, CVODES, IDAS |
+| CasADi MX | ✅ Complete | RK4, CVODES, IDAS |
+| SymPy | ⚠️ Partial | Analytical only |
 
 ---
 
@@ -474,5 +529,9 @@ For the target use case of **continuous-time control system simulation with basi
 
 - [Modelica Language Specification v3.7-dev](https://specification.modelica.org/master/)
 - [Appendix B: Modelica DAE Representation](https://specification.modelica.org/master/modelica-dae-representation.html)
-- [Chapter 8: Equations](https://specification.modelica.org/master/equations.html)
+- [Chapter 3: Operators and Expressions](https://specification.modelica.org/master/operators-and-expressions.html)
 - [Chapter 4: Classes, Predefined Types, and Declarations](https://specification.modelica.org/master/class-predefined-types-and-declarations.html)
+- [Chapter 8: Equations](https://specification.modelica.org/master/equations.html)
+- [Chapter 9: Connectors and Connections](https://specification.modelica.org/master/connectors-and-connections.html)
+- [Chapter 11: Statements and Algorithm Sections](https://specification.modelica.org/master/statements-and-algorithm-sections.html)
+- [Chapter 12: Functions](https://specification.modelica.org/master/functions.html)

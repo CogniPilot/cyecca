@@ -31,7 +31,7 @@ DESIGN PRINCIPLES - DO NOT REMOVE OR IGNORE
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, List, Optional, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 
 from beartype import beartype
 
@@ -166,6 +166,199 @@ class WhenClause:
 
 
 @dataclass
+class IfEquationBranch:
+    """
+    A single branch of an if-equation (then, elseif, or else).
+
+    This holds the condition (for then/elseif branches) and the body equations.
+    For else branches, condition is None.
+    """
+
+    condition: Optional[Expr]  # None for else branch
+    body: List[Union["Equation", "WhenClause", "Reinit"]]
+
+    def __repr__(self) -> str:
+        if self.condition is None:
+            return f"ElseBranch({len(self.body)} equations)"
+        return f"IfBranch({self.condition}, {len(self.body)} equations)"
+
+    def _prefix_names(self, prefix: str) -> "IfEquationBranch":
+        """Create a new branch with all variable names prefixed."""
+        new_condition = prefix_expr(self.condition, prefix) if self.condition else None
+        new_body = []
+        for item in self.body:
+            if hasattr(item, "_prefix_names"):
+                new_body.append(item._prefix_names(prefix))
+            else:
+                new_body.append(item)
+        return IfEquationBranch(condition=new_condition, body=new_body)
+
+
+@dataclass
+class IfEquation:
+    """
+    Represents an if-equation for conditional equations.
+
+    In Modelica, if-equations select which equations are active based on
+    a condition:
+
+        if condition then
+            equations...
+        elseif condition2 then
+            equations...
+        else
+            equations...
+        end if;
+
+    Key Constraint (Modelica MLS 8.3.4):
+    - For non-parameter conditions, all branches MUST have the same number
+      of equations (the DAE structure cannot change dynamically).
+    - For parameter conditions, branches can have different equation counts
+      (structure is determined at compile time).
+
+    Modelica Spec: Section 8.3.4 - If-Equations
+    """
+
+    branches: List[IfEquationBranch]  # First is "then", rest are "elseif"/"else"
+
+    def __repr__(self) -> str:
+        return f"IfEquation({len(self.branches)} branches)"
+
+    def _prefix_names(self, prefix: str) -> "IfEquation":
+        """Create a new IfEquation with all variable names prefixed."""
+        new_branches = [b._prefix_names(prefix) for b in self.branches]
+        return IfEquation(branches=new_branches)
+
+    def is_parameter_condition(self) -> bool:
+        """Check if all conditions are parameter expressions (constant at compile time)."""
+        # TODO: Implement proper parameter detection
+        # For now, check if conditions only reference parameters
+        for branch in self.branches:
+            if branch.condition is not None:
+                # Need to check if condition only uses parameters
+                # This requires analysis of the expression
+                pass
+        return False
+
+    def validate_equation_counts(self) -> None:
+        """Validate that non-parameter if-equations have equal branch sizes."""
+        if self.is_parameter_condition():
+            # Parameter conditions allow unequal branches
+            return
+
+        # Non-parameter conditions require equal equation counts
+        if len(self.branches) < 2:
+            return
+
+        counts = [len(b.body) for b in self.branches]
+        if len(set(counts)) > 1:
+            raise ValueError(
+                f"If-equation with non-parameter conditions must have equal "
+                f"equation counts in all branches, got: {counts}"
+            )
+
+    def expand(self) -> List["Equation"]:
+        """
+        Expand if-equation into regular equations with conditional expressions.
+
+        For non-parameter conditions, each equation in the branches is converted
+        to an equation using if_then_else:
+
+            if cond1 then
+                y == expr1
+            elseif cond2 then
+                y == expr2
+            else
+                y == expr3
+            end if;
+
+        Becomes:
+            y == if_then_else(cond1, expr1, if_then_else(cond2, expr2, expr3))
+
+        This preserves the DAE structure while making the equations conditional.
+
+        Returns
+        -------
+        List[Equation]
+            The expanded equations with conditional expressions
+
+        Raises
+        ------
+        ValueError
+            If branches have unequal equation counts and not parameter conditions
+        """
+        # Validate equation counts
+        self.validate_equation_counts()
+
+        if len(self.branches) == 0:
+            return []
+
+        if len(self.branches) == 1:
+            # Single branch (just if, no else) - return equations as-is
+            return [eq for eq in self.branches[0].body if isinstance(eq, Equation)]
+
+        # Multiple branches - need to merge corresponding equations
+        num_equations = len(self.branches[0].body)
+        expanded: List["Equation"] = []
+
+        for i in range(num_equations):
+            # Get the i-th equation from each branch
+            branch_eqs = []
+            for branch in self.branches:
+                if i < len(branch.body):
+                    eq = branch.body[i]
+                    if isinstance(eq, Equation):
+                        branch_eqs.append((branch.condition, eq))
+                    else:
+                        # Skip non-equation items (WhenClause, Reinit) for now
+                        pass
+
+            if not branch_eqs:
+                continue
+
+            # Build nested if_then_else expression for the RHS
+            # Start from the last (else) branch and work backwards
+            first_eq = branch_eqs[0][1]
+            lhs = first_eq.lhs
+            is_derivative = first_eq.is_derivative
+            var_name = first_eq.var_name
+
+            # Build the conditional RHS
+            # For: if cond1 then e1 elseif cond2 then e2 else e3
+            # Result: if_then_else(cond1, e1, if_then_else(cond2, e2, e3))
+            rhs = self._build_conditional_rhs(branch_eqs)
+
+            expanded.append(
+                Equation(
+                    lhs=lhs,
+                    rhs=rhs,
+                    is_derivative=is_derivative,
+                    var_name=var_name,
+                )
+            )
+
+        return expanded
+
+    def _build_conditional_rhs(self, branch_eqs: List[Tuple[Optional[Expr], "Equation"]]) -> Expr:
+        """Build nested if_then_else expression from branch equations."""
+        if len(branch_eqs) == 1:
+            # Single branch (else or final branch)
+            return branch_eqs[0][1].rhs
+
+        condition, eq = branch_eqs[0]
+        if condition is None:
+            # Else branch (shouldn't be first but handle it)
+            return eq.rhs
+
+        # Build: if_then_else(condition, eq.rhs, rest)
+        rest = self._build_conditional_rhs(branch_eqs[1:])
+        return Expr(
+            ExprKind.IF_THEN_ELSE,
+            children=[condition, eq.rhs, rest],
+        )
+
+
+@dataclass
 class ArrayEquation:
     """
     Represents an array equation that expands to multiple scalar equations.
@@ -193,7 +386,24 @@ class ArrayEquation:
         base_indices = self.lhs_var._indices
         equations = []
 
-        for rel_indices in iter_indices(remaining_shape):
+        # Handle array literal RHS - flatten nested array literals for matrices
+        rhs_elements = None
+        if isinstance(self.rhs, Expr) and self.rhs.kind == ExprKind.ARRAY_LITERAL:
+            # Flatten nested array literals (for matrices)
+            # [[1,2], [3,4], [5,6]] -> [1, 2, 3, 4, 5, 6] in row-major order
+            def flatten_array_literal(expr: Expr) -> list:
+                """Recursively flatten nested ARRAY_LITERALs."""
+                result = []
+                for child in expr.children:
+                    if isinstance(child, Expr) and child.kind == ExprKind.ARRAY_LITERAL:
+                        result.extend(flatten_array_literal(child))
+                    else:
+                        result.append(child)
+                return result
+
+            rhs_elements = flatten_array_literal(self.rhs)
+
+        for i, rel_indices in enumerate(iter_indices(remaining_shape)):
             full_indices = base_indices + rel_indices
             indexed_name = self.lhs_var._base_name + format_indices(full_indices)
 
@@ -204,7 +414,14 @@ class ArrayEquation:
                 lhs = Expr(ExprKind.VARIABLE, name=self.lhs_var._base_name, indices=full_indices)
 
             # Create RHS for this element
-            if isinstance(self.rhs, SymbolicVar):
+            if rhs_elements is not None:
+                # Array literal - use the i-th element
+                if i >= len(rhs_elements):
+                    raise ValueError(
+                        f"Array literal has {len(rhs_elements)} elements, " f"but LHS has shape {remaining_shape}"
+                    )
+                rhs = rhs_elements[i]
+            elif isinstance(self.rhs, SymbolicVar):
                 if self.rhs._remaining_shape != remaining_shape:
                     raise ValueError(
                         f"Shape mismatch in array equation: "

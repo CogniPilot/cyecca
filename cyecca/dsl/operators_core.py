@@ -379,3 +379,117 @@ def ne(a: Any, b: Any) -> Expr:
         Boolean expression representing `a != b`
     """
     return Expr(ExprKind.NE, (to_expr(a), to_expr(b)))
+
+
+# =============================================================================
+# Special operators: initial(), terminal()
+# =============================================================================
+
+
+@beartype
+def initial() -> Expr:
+    """
+    Return True only during initialization (t=0).
+
+    In Modelica (MLS 3.7.4), initial() returns True during the initialization
+    phase and False during simulation. This is typically used in when-clauses
+    to execute one-time initialization logic:
+
+        when(initial()):
+            reinit(m.x, 0.0)
+
+    Returns
+    -------
+    Expr
+        Boolean expression that is True only at initialization
+
+    Example
+    -------
+    >>> from cyecca.dsl import model, var, der, equations, when, reinit, initial
+    >>> @model
+    ... class Integrator:
+    ...     x = var(start=0.0)
+    ...     u = var(input=True)
+    ...
+    ...     @equations
+    ...     def _(m):
+    ...         der(m.x) == m.u
+    ...         when(initial()):
+    ...             reinit(m.x, 1.0)  # Reset to 1.0 at start
+    """
+    return Expr(ExprKind.INITIAL)
+
+
+@beartype
+def terminal() -> Expr:
+    """
+    Return True only at the end of simulation.
+
+    In Modelica (MLS 3.7.4), terminal() returns True at the final time
+    of simulation and False otherwise. This can be used for end-of-simulation
+    actions.
+
+    Returns
+    -------
+    Expr
+        Boolean expression that is True only at end of simulation
+
+    Note
+    ----
+    This function is provided for Modelica conformance but has limited
+    utility in the current implementation since the simulator doesn't
+    distinguish a terminal phase.
+    """
+    return Expr(ExprKind.TERMINAL)
+
+
+@beartype
+def sample(start: Union[int, float], interval: Union[int, float]) -> Expr:
+    """
+    Generate periodic events at regular intervals.
+
+    In Modelica (MLS 3.7.5), sample(start, interval) returns True at times
+    start, start + interval, start + 2*interval, etc. This is used in
+    when-clauses for sampled-data systems and digital controllers.
+
+    Parameters
+    ----------
+    start : float
+        Time of the first sample event (typically 0)
+    interval : float
+        Time interval between sample events (must be > 0)
+
+    Returns
+    -------
+    Expr
+        Boolean expression that is True at sample instants
+
+    Example
+    -------
+    >>> from cyecca.dsl import model, var, der, equations, when, reinit, sample, pre
+    >>> @model
+    ... class SampledController:
+    ...     x = var(start=0.0)        # Plant state
+    ...     u = var(discrete=True)     # Control signal (discrete)
+    ...     Kp = var(1.0, parameter=True)
+    ...     ref = var(1.0, parameter=True)
+    ...
+    ...     @equations
+    ...     def _(m):
+    ...         der(m.x) == m.u        # Simple integrator plant
+    ...         with when(sample(0, 0.1)):  # 10 Hz sampling
+    ...             reinit(m.u, m.Kp * (m.ref - m.x))  # P controller update
+
+    Note
+    ----
+    The sample() function is the standard way to implement discrete-time
+    controllers in Modelica. The interval must be positive. At each sample
+    instant, the when-clause body is executed, typically updating discrete
+    control variables based on the current plant state.
+    """
+    if interval <= 0:
+        raise ValueError(f"sample() interval must be positive, got {interval}")
+
+    start_expr = to_expr(float(start))
+    interval_expr = to_expr(float(interval))
+    return Expr(ExprKind.SAMPLE, (start_expr, interval_expr))

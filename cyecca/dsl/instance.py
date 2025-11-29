@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, List, Type, Union
 
-from cyecca.dsl.equations import ArrayEquation, Assignment, Equation, WhenClause
+from cyecca.dsl.equations import ArrayEquation, Assignment, Equation, IfEquation, WhenClause
 from cyecca.dsl.expr import Expr, ExprKind, find_derivatives, format_indices, is_array_state
 from cyecca.dsl.flat_model import FlatModel
 from cyecca.dsl.types import Var, VarKind
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 class SubmodelProxy:
     """Proxy for accessing submodel variables with dot notation.
-    
+
     Supports nested submodels: m.resistor.pin.v
     """
 
@@ -51,13 +51,13 @@ class SubmodelProxy:
     def __getattr__(self, attr: str) -> Any:
         if attr.startswith("_"):
             raise AttributeError(attr)
-        
+
         # First check if this is a nested submodel
         if attr in self._instance._submodels:
             nested_instance = self._instance._submodels[attr]
             nested_name = f"{self._name}.{attr}"
             return SubmodelProxy(nested_name, nested_instance, self._parent)
-        
+
         # Access submodel's symbolic variable with prefixed name
         full_name = f"{self._name}.{attr}"
         if full_name in self._parent._sym_vars:
@@ -82,6 +82,7 @@ class ModelInstance:
         # Symbolic storage - unified
         self._sym_vars: Dict[str, SymbolicVar] = {}
         self._submodels: Dict[str, "ModelInstance"] = {}
+        self._param_overrides: Dict[str, Any] = {}  # Parameter overrides from submodel()
 
         self._time = TimeVar()  # Time variable (Modelica built-in)
 
@@ -100,6 +101,8 @@ class ModelInstance:
             # Instantiate the submodel class (which is already decorated with @model)
             # This creates a ModelClass instance with proper equations() method
             sub_instance = subfld.model_class(name=name)
+            # Store the overrides on the instance for use during flattening
+            sub_instance._param_overrides = subfld.overrides
             self._submodels[name] = sub_instance
 
             # Flatten submodel symbols into parent with prefixed names
@@ -214,6 +217,7 @@ class ModelInstance:
         equations: List[Equation] = []
         array_equations: List[ArrayEquation] = []
         when_clauses_from_equations: List[WhenClause] = []
+        if_equations: List[IfEquation] = []
 
         for eq in raw_equations:
             if isinstance(eq, ArrayEquation):
@@ -225,8 +229,10 @@ class ModelInstance:
                 equations.append(eq)
             elif isinstance(eq, WhenClause):
                 when_clauses_from_equations.append(eq)
+            elif isinstance(eq, IfEquation):
+                if_equations.append(eq)
             else:
-                raise TypeError(f"Expected Equation, ArrayEquation, or WhenClause, got {type(eq)}")
+                raise TypeError(f"Expected Equation, ArrayEquation, WhenClause, or IfEquation, got {type(eq)}")
 
         # Collect equations from submodels (with prefixed variable names)
         for sub_name, sub_instance in self._submodels.items():
@@ -244,6 +250,16 @@ class ModelInstance:
                 elif isinstance(eq, WhenClause):
                     prefixed_wc = eq._prefix_names(sub_name)
                     when_clauses_from_equations.append(prefixed_wc)
+                elif isinstance(eq, IfEquation):
+                    prefixed_if = eq._prefix_names(sub_name)
+                    if_equations.append(prefixed_if)
+
+        # Expand if-equations into regular equations with conditional expressions
+        # This converts: if cond then y==e1 else y==e2 end if
+        # Into: y == if_then_else(cond, e1, e2)
+        for if_eq in if_equations:
+            expanded = if_eq.expand()
+            equations.extend(expanded)
 
         # Collect algorithm assignments
         algorithm_assignments: List[Assignment] = []
@@ -390,6 +406,9 @@ class ModelInstance:
             all_derivatives: set[str],
         ) -> None:
             """Recursively collect variables from a submodel and its nested submodels."""
+            # Get parameter overrides for this submodel instance
+            overrides = getattr(sub_instance, "_param_overrides", {})
+
             # Collect derivatives from this submodel's equations
             sub_derivatives: set[str] = set()
             for eq in sub_instance.get_equations():
@@ -437,7 +456,10 @@ class ModelInstance:
                     sub_v.kind = VarKind.CONSTANT if v.constant else VarKind.PARAMETER
                     param_names.append(full_name)
                     param_vars[full_name] = sub_v
-                    if v.default is not None:
+                    # Apply override if present, otherwise use default/start
+                    if name in overrides:
+                        param_defaults[full_name] = overrides[name]
+                    elif v.default is not None:
                         param_defaults[full_name] = v.default
                     elif v.start is not None:
                         param_defaults[full_name] = v.start
@@ -478,7 +500,7 @@ class ModelInstance:
 
         # Collect all derivatives from all equations (including nested)
         all_derivatives: set[str] = set(derivatives_used)
-        
+
         # Add submodel variables (recursively)
         for sub_name, sub in self._submodels.items():
             collect_submodel_vars(sub, sub_name, all_derivatives)
@@ -506,6 +528,7 @@ class ModelInstance:
             param_defaults=param_defaults,
             initial_equations=initial_equations_list,
             when_clauses=when_clauses_list,
+            if_equations=if_equations,
             algorithm_assignments=algorithm_assignments,
             algorithm_locals=algorithm_locals,
             expand_arrays=expand_arrays,

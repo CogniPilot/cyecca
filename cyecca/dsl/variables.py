@@ -203,9 +203,10 @@ class SymbolicVar:
         Comparison: m.x == 1.0 in if_then_else (returns Expr)
 
         We distinguish by checking if we're in expression-building mode.
+        For array variables with remaining shape, creates ArrayEquation.
         """
         from cyecca.dsl.context import get_current_equation_context
-        from cyecca.dsl.equations import Equation
+        from cyecca.dsl.equations import ArrayEquation, Equation
 
         rhs = to_expr(other)
 
@@ -216,7 +217,11 @@ class SymbolicVar:
             if ctx.is_building_expr:
                 return Expr(ExprKind.EQ, (self._expr, rhs))
             # Otherwise, register as equation
-            eq = Equation(lhs=self._expr, rhs=rhs)
+            # Use ArrayEquation if this is an array variable with remaining dimensions
+            if self._remaining_shape != ():
+                eq = ArrayEquation(lhs_var=self, rhs=rhs, is_derivative=False)
+            else:
+                eq = Equation(lhs=self._expr, rhs=rhs)
             ctx.add_equation(eq)
             return None
 
@@ -405,6 +410,10 @@ class ArrayDerivativeExpr:
         """
         from cyecca.dsl.context import get_current_equation_context
         from cyecca.dsl.equations import ArrayEquation
+
+        # Convert list to Expr (ARRAY_LITERAL)
+        if isinstance(other, list):
+            other = to_expr(other)
 
         eq = ArrayEquation(
             lhs_var=self._var,

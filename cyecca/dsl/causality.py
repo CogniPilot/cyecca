@@ -443,16 +443,12 @@ def analyze_causality(model: FlatModel) -> SortedSystem:
                         result.is_ode_explicit = False
             else:
                 # Couldn't solve symbolically - implicit block
-                result.implicit_blocks.append(
-                    ImplicitBlock(equations=block_eqs, unknowns=block_unknowns)
-                )
+                result.implicit_blocks.append(ImplicitBlock(equations=block_eqs, unknowns=block_unknowns))
                 if any(u.startswith("der_") for u in block_unknowns):
                     result.is_ode_explicit = False
         else:
             # Multi-equation block - coupled system, needs simultaneous solve
-            result.implicit_blocks.append(
-                ImplicitBlock(equations=block_eqs, unknowns=block_unknowns)
-            )
+            result.implicit_blocks.append(ImplicitBlock(equations=block_eqs, unknowns=block_unknowns))
             if any(u.startswith("der_") for u in block_unknowns):
                 result.is_ode_explicit = False
 

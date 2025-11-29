@@ -20,7 +20,7 @@ Integrators:
 """
 
 from cyecca.dsl.backends.casadi import CasadiBackend, CompiledModel, Integrator, SymbolicType
-from cyecca.dsl.backends.sympy_backend import SymPyBackend, CompiledSymPyModel
+from cyecca.dsl.backends.sympy_backend import CompiledSymPyModel, SymPyBackend
 from cyecca.dsl.simulation import SimulationResult, Simulator
 
 __all__ = [

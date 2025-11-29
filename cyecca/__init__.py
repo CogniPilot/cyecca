@@ -1,3 +1,3 @@
-from . import dynamics, lie, planning
+from . import lie, planning
 
-__all__ = ["lie", "dynamics", "planning"]
+__all__ = ["lie", "planning"]

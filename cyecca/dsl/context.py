@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
 
 from beartype import beartype
 
-from cyecca.dsl.equations import Reinit, WhenClause
+from cyecca.dsl.equations import IfEquation, IfEquationBranch, Reinit, WhenClause
 from cyecca.dsl.expr import Expr, to_expr
 from cyecca.dsl.variables import SymbolicVar
 
@@ -140,6 +140,48 @@ def pop_equation_context() -> EquationContext:
 # Marker attribute for @equations decorated methods
 _EQUATIONS_MARKER = "_cyecca_equations_method"
 
+# Track decorated method names to detect overwrites (name -> decorator type)
+# This is keyed by the code object's filename and first line number of the class
+_decorated_methods_registry: dict = {}
+
+
+def _get_class_key() -> tuple:
+    """Get a key identifying the current class being defined."""
+    import inspect
+
+    # Walk up the stack to find the class definition frame
+    for frame_info in inspect.stack():
+        # Look for a frame that's defining a class (has __qualname__ being built)
+        if "__qualname__" in frame_info.frame.f_locals:
+            return (frame_info.filename, frame_info.frame.f_locals.get("__qualname__", ""))
+    return None
+
+
+def _check_and_register_decorated_method(func: Callable, decorator_name: str) -> None:
+    """Check if this method name was already decorated and warn if so."""
+    import warnings
+
+    func_name = func.__name__
+    class_key = _get_class_key()
+
+    if class_key is None:
+        return  # Not in a class definition, skip tracking
+
+    registry_key = (class_key, func_name)
+
+    if registry_key in _decorated_methods_registry:
+        prev_decorator = _decorated_methods_registry[registry_key]
+        warnings.warn(
+            f"Method '{func_name}' was already decorated with @{prev_decorator}, "
+            f"but is now being decorated with @{decorator_name}. "
+            f"The previous method will be overwritten! "
+            f"Use unique method names for each decorated block.",
+            UserWarning,
+            stacklevel=4,  # Point to the actual decorator usage
+        )
+
+    _decorated_methods_registry[registry_key] = decorator_name
+
 
 def equations(func: Callable) -> Callable:
     """
@@ -170,6 +212,7 @@ def equations(func: Callable) -> Callable:
     Callable
         The decorated method with equation capture marker
     """
+    _check_and_register_decorated_method(func, "equations")
     setattr(func, _EQUATIONS_MARKER, True)
     return func
 
@@ -205,6 +248,7 @@ def initial_equations(func: Callable) -> Callable:
     Callable
         The decorated method with initial equation capture marker
     """
+    _check_and_register_decorated_method(func, "initial_equations")
     setattr(func, _INITIAL_EQUATIONS_MARKER, True)
     return func
 
@@ -254,17 +298,17 @@ def execute_initial_equations_method(func: Callable, model_instance: "ModelInsta
     Returns
     -------
     List[Equation]
-        The collected initial equations
+        The collected initial equations (including ArrayEquation)
     """
     ctx = push_equation_context()
     try:
         func(model_instance)
     finally:
         pop_equation_context()
-    # Filter to only Equation (no WhenClause in initial equations)
-    from cyecca.dsl.equations import Equation
+    # Filter to Equation or ArrayEquation (no WhenClause in initial equations)
+    from cyecca.dsl.equations import ArrayEquation, Equation
 
-    return [eq for eq in ctx.equations if isinstance(eq, Equation)]
+    return [eq for eq in ctx.equations if isinstance(eq, (Equation, ArrayEquation))]
 
 
 # =============================================================================
@@ -297,6 +341,7 @@ def algorithm(func: Callable) -> Callable:
     Callable
         The decorated method with algorithm capture marker
     """
+    _check_and_register_decorated_method(func, "algorithm")
     setattr(func, _ALGORITHM_MARKER, True)
     return func
 
@@ -582,10 +627,7 @@ def connect(a: Any, b: Any) -> None:
     b_vars = set(b_metadata.variables.keys())
 
     if a_vars != b_vars:
-        raise TypeError(
-            f"Connectors '{a._name}' and '{b._name}' have different variables: "
-            f"{a_vars} vs {b_vars}"
-        )
+        raise TypeError(f"Connectors '{a._name}' and '{b._name}' have different variables: " f"{a_vars} vs {b_vars}")
 
     # Generate connection equations for each variable
     for var_name, a_var in a_metadata.variables.items():
@@ -618,3 +660,281 @@ def connect(a: Any, b: Any) -> None:
             )
 
         ctx.add_equation(eq)
+
+
+# =============================================================================
+# If-equation support (Modelica MLS 8.3.4)
+# =============================================================================
+
+
+class IfContext:
+    """
+    Context manager for building if-equations.
+
+    This is used internally by the `if_eq()` function to collect
+    equations within if/elseif/else branches.
+
+    Use inside an @equations block:
+
+        @equations
+        def _(m):
+            with if_eq(m.use_linear):
+                m.y == m.a * m.x + m.b
+            with else_eq():
+                m.y == m.a * m.x**2 + m.b * m.x + m.c
+
+    Note: elseif/else branches are linked to the preceding if_eq via
+    thread-local state, so they must immediately follow the if_eq block.
+
+    Modelica Spec: Section 8.3.4 - If-Equations
+    """
+
+    # Thread-local storage for the current if-equation being built
+    _current: threading.local = threading.local()
+
+    def __init__(self, condition: Expr, is_elseif: bool = False, is_else: bool = False):
+        self.condition: Optional[Expr] = condition if not is_else else None
+        self.is_elseif = is_elseif
+        self.is_else = is_else
+        self.body: List[Union["Equation", "WhenClause", "Reinit"]] = []
+        self._in_equations_context = False
+        self._saved_when_ctx: Optional["WhenContext"] = None
+        self._parent_if_eq: Optional["IfEquation"] = None
+
+    def __enter__(self) -> "IfContext":
+        eq_ctx = get_current_equation_context()
+        if eq_ctx is not None:
+            self._in_equations_context = True
+            # Save and clear any current when context (nested when not allowed)
+            self._saved_when_ctx = eq_ctx._current_when
+            eq_ctx._current_when = None
+            # Enter if context
+            eq_ctx._current_if = self
+
+        # For elseif/else, link to parent if-equation
+        if self.is_elseif or self.is_else:
+            if not hasattr(IfContext._current, "pending_if") or IfContext._current.pending_if is None:
+                raise RuntimeError("elseif_eq()/else_eq() must immediately follow an if_eq() or elseif_eq() block")
+            self._parent_if_eq = IfContext._current.pending_if
+        else:
+            # Start new if-equation chain
+            IfContext._current.pending_if = None
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        eq_ctx = get_current_equation_context()
+
+        if self._in_equations_context and eq_ctx is not None:
+            # Restore when context
+            eq_ctx._current_when = self._saved_when_ctx
+            eq_ctx._current_if = None
+
+        # Create branch for this block
+        branch = IfEquationBranch(condition=self.condition, body=self.body)
+
+        if self.is_elseif or self.is_else:
+            # Add to existing if-equation
+            if self._parent_if_eq is not None:
+                self._parent_if_eq.branches.append(branch)
+                if self.is_else:
+                    # Complete the if-equation
+                    if eq_ctx is not None:
+                        eq_ctx.add_equation(self._parent_if_eq)
+                    IfContext._current.pending_if = None
+                else:
+                    # Keep chain open for more elseif/else
+                    IfContext._current.pending_if = self._parent_if_eq
+        else:
+            # Start new if-equation
+            if_eq = IfEquation(branches=[branch])
+            # Store for potential elseif/else
+            IfContext._current.pending_if = if_eq
+            # If no elseif/else follows (determined in next call or finalize),
+            # register immediately in add_if_standalone()
+
+        return None
+
+
+# Store reference to current if context on EquationContext for equation collection
+def _add_if_support_to_context():
+    """Monkey-patch EquationContext to support if-equations."""
+    original_init = EquationContext.__init__
+
+    def new_init(self) -> None:
+        original_init(self)
+        self._current_if: Optional[IfContext] = None
+
+    EquationContext.__init__ = new_init
+
+    # Also patch add_equation to support if-context
+    original_add_equation = EquationContext.add_equation
+
+    def new_add_equation(self, eq) -> None:
+        if self._current_if is not None:
+            self._current_if.body.append(eq)
+        elif self._current_when is not None:
+            self._current_when.body.append(eq)
+        else:
+            self.equations.append(eq)
+
+    EquationContext.add_equation = new_add_equation
+
+
+_add_if_support_to_context()
+
+
+def _finalize_pending_if() -> None:
+    """Finalize any pending if-equation without else/elseif.
+
+    Called at end of @equations block to register standalone if-equations.
+    """
+    if hasattr(IfContext._current, "pending_if") and IfContext._current.pending_if is not None:
+        eq_ctx = get_current_equation_context()
+        if eq_ctx is not None:
+            eq_ctx.equations.append(IfContext._current.pending_if)
+        IfContext._current.pending_if = None
+
+
+# Patch execute_equations_method to finalize pending if-equations
+_original_execute_equations_method = execute_equations_method
+
+
+def execute_equations_method(
+    func: Callable, model_instance: "ModelInstance"
+) -> List[Union["Equation", "ArrayEquation", "WhenClause"]]:
+    """
+    Execute an @equations method and collect equations via context.
+
+    Parameters
+    ----------
+    func : Callable
+        The @equations decorated method
+    model_instance : ModelInstance
+        The model instance to pass to the method
+
+    Returns
+    -------
+    List[Union[Equation, ArrayEquation, WhenClause]]
+        The collected equations
+    """
+    ctx = push_equation_context()
+    try:
+        func(model_instance)
+        _finalize_pending_if()
+    finally:
+        pop_equation_context()
+    return ctx.equations
+
+
+@beartype
+def if_eq(condition: Any) -> IfContext:
+    """
+    Create an if-equation for conditional equations (Modelica MLS 8.3.4).
+
+    If-equations select which equations are active based on a condition.
+    Use this as a context manager in an @equations method:
+
+        @equations
+        def _(m):
+            with if_eq(m.use_linear):
+                m.y == m.a * m.x + m.b
+            with else_eq():
+                m.y == m.a * m.x**2 + m.b * m.x + m.c
+
+    For multiple conditions:
+
+        @equations
+        def _(m):
+            with if_eq(m.mode == 1):
+                m.y == m.x
+            with elseif_eq(m.mode == 2):
+                m.y == 2 * m.x
+            with else_eq():
+                m.y == 3 * m.x
+
+    Parameters
+    ----------
+    condition : Expr or SymbolicVar
+        Boolean condition that selects which equations are active
+
+    Returns
+    -------
+    IfContext
+        A context manager for the if-equation body
+
+    Notes
+    -----
+    Modelica Spec: Section 8.3.4 - If-Equations
+
+    Key constraints:
+    - For non-parameter conditions, all branches MUST have the same
+      number of equations (the DAE structure cannot change dynamically).
+    - For parameter conditions, branches can differ (structure is
+      determined at compile time and only one branch is kept).
+    """
+    return IfContext(to_expr(condition), is_elseif=False, is_else=False)
+
+
+@beartype
+def elseif_eq(condition: Any) -> IfContext:
+    """
+    Create an elseif branch for an if-equation.
+
+    Must immediately follow an if_eq() or another elseif_eq() block:
+
+        @equations
+        def _(m):
+            with if_eq(m.mode == 1):
+                m.y == m.x
+            with elseif_eq(m.mode == 2):
+                m.y == 2 * m.x
+            with else_eq():
+                m.y == 0
+
+    Parameters
+    ----------
+    condition : Expr or SymbolicVar
+        Boolean condition for this elseif branch
+
+    Returns
+    -------
+    IfContext
+        A context manager for the elseif body
+
+    Raises
+    ------
+    RuntimeError
+        If not immediately following an if_eq() or elseif_eq() block.
+    """
+    return IfContext(to_expr(condition), is_elseif=True, is_else=False)
+
+
+def else_eq() -> IfContext:
+    """
+    Create an else branch for an if-equation.
+
+    Must immediately follow an if_eq() or elseif_eq() block:
+
+        @equations
+        def _(m):
+            with if_eq(m.use_linear):
+                m.y == m.a * m.x + m.b
+            with else_eq():
+                m.y == m.a * m.x**2 + m.b * m.x + m.c
+
+    Returns
+    -------
+    IfContext
+        A context manager for the else body
+
+    Raises
+    ------
+    RuntimeError
+        If not immediately following an if_eq() or elseif_eq() block.
+    """
+    # Create a dummy True condition that will be ignored (marked as is_else=True)
+    from cyecca.dsl.expr import Expr, ExprKind
+
+    dummy_condition = Expr(ExprKind.CONSTANT, value=True)
+    return IfContext(dummy_condition, is_elseif=False, is_else=True)

@@ -344,12 +344,6 @@ class TestConnectorIntegration:
         flat = comp.flatten()
 
         # Connector variables should appear with dotted names
-        all_vars = (
-            flat.state_names
-            + flat.algebraic_names
-            + flat.param_names
-            + flat.input_names
-            + flat.output_names
-        )
+        all_vars = flat.state_names + flat.algebraic_names + flat.param_names + flat.input_names + flat.output_names
         assert "pin.v" in all_vars
         assert "pin.i" in all_vars

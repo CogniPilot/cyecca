@@ -64,6 +64,9 @@ class ModelMetadata:
 
     variables: Dict[str, Var] = field(default_factory=dict)
     submodels: Dict[str, SubmodelField] = field(default_factory=dict)
+    is_connector: bool = False  # True if decorated with @connector
+    is_block: bool = False  # True if decorated with @block
+    is_function: bool = False  # True if decorated with @function
 
 
 # =============================================================================
@@ -109,6 +112,8 @@ def var(
     constant: bool = False,
     # Visibility (Modelica-style)
     protected: bool = False,
+    # Connector prefixes (Modelica MLS Ch. 9)
+    flow: bool = False,
 ) -> Var:
     """
     Declare a variable in a Cyecca model.
@@ -158,6 +163,13 @@ def var(
     protected : bool, optional
         If True, variable is internal (not part of public interface)
 
+    Connector Prefixes (Modelica MLS Ch. 9)
+    ---------------------------------------
+    flow : bool, optional
+        If True, variable uses sum-to-zero semantics in connections.
+        Flow variables (like current, force) are summed to zero at connection points.
+        Non-flow variables (like voltage, position) are equated at connection points.
+
     Automatic Classification
     ------------------------
     If none of the flags are True:
@@ -181,6 +193,7 @@ def var(
         output=output,
         constant=constant,
         protected=protected,
+        flow=flow,
     )
 
 
@@ -431,5 +444,101 @@ def block(cls: Type[Any]) -> Type[Any]:
 
     model_cls = model(cls)
     model_cls._is_block = True
+
+    return model_cls
+
+
+# =============================================================================
+# @connector decorator - Modelica connector (Ch. 9)
+# =============================================================================
+
+
+@beartype
+def connector(cls: Type[Any]) -> Type[Any]:
+    """
+    Decorator to convert a class into a Cyecca connector.
+
+    A connector is a specialized restricted class (Modelica Ch. 9) for
+    defining physical interfaces between components. Connectors contain:
+    - Potential (effort) variables: equality at connection points
+    - Flow variables (flow=True): sum-to-zero at connection points
+
+    Connectors cannot contain:
+    - Equations (use @equations)
+    - Algorithm sections (use @algorithm)
+    - Submodels
+
+    The balancing restriction (MLS 9.3.1) requires:
+    - Number of flow variables == number of non-flow, non-parameter,
+      non-input, non-output variables
+
+    Example
+    -------
+    >>> from cyecca.dsl import connector, var
+    >>> @connector
+    ... class Pin:
+    ...     '''Electrical pin with voltage and current.'''
+    ...     v = var()           # Potential variable (voltage)
+    ...     i = var(flow=True)  # Flow variable (current)
+
+    >>> @connector
+    ... class Flange:
+    ...     '''Mechanical flange with position and force.'''
+    ...     s = var()           # Position (potential)
+    ...     f = var(flow=True)  # Force (flow)
+
+    Raises
+    ------
+    TypeError
+        If the connector contains @equations or @algorithm methods.
+        If the connector contains submodels.
+        If the balancing restriction is violated.
+    """
+    errors = []
+
+    # Check for @equations methods (not allowed in connectors)
+    for name, value in vars(cls).items():
+        if callable(value) and is_equations_method(value):
+            errors.append("Connectors cannot have @equations")
+            break
+
+    # Check for @algorithm methods (not allowed in connectors)
+    for name, value in vars(cls).items():
+        if callable(value) and is_algorithm_method(value):
+            errors.append("Connectors cannot have @algorithm")
+            break
+
+    # Check for submodels (not allowed in connectors)
+    for name, value in vars(cls).items():
+        if isinstance(value, SubmodelField):
+            errors.append(f"Connectors cannot have submodels: '{name}'")
+
+    # Count flow vs non-flow variables for balancing restriction
+    n_flow = 0
+    n_potential = 0  # non-flow, non-parameter, non-input, non-output
+
+    for name, value in vars(cls).items():
+        if isinstance(value, Var):
+            if value.flow:
+                n_flow += value.size  # Account for arrays
+            elif not (value.parameter or value.constant or value.input or value.output):
+                n_potential += value.size  # Account for arrays
+
+    if n_flow != n_potential:
+        errors.append(
+            f"Connector balancing violation (MLS 9.3.1): "
+            f"{n_flow} flow variable(s) vs {n_potential} potential variable(s). "
+            f"These must be equal."
+        )
+
+    if errors:
+        error_msg = f"Connector '{cls.__name__}' violates Modelica connector constraints:\n" + "\n".join(
+            f"  - {e}" for e in errors
+        )
+        raise TypeError(error_msg)
+
+    model_cls = model(cls)
+    model_cls._is_connector = True
+    model_cls._dsl_metadata.is_connector = True  # Also set in metadata for instance access
 
     return model_cls

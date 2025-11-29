@@ -263,6 +263,9 @@ class Var:
     # Visibility (Modelica-style)
     protected: bool = False  # If True, variable is in protected section
 
+    # Connector prefixes (Modelica MLS Chapter 9)
+    flow: bool = False  # If True, variable uses sum-to-zero semantics in connections
+
     # Internal (set by @model decorator and analysis)
     name: Optional[str] = None
     kind: Optional[VarKind] = None  # Set during equation analysis
@@ -316,6 +319,8 @@ class Var:
         # Visibility
         if self.protected:
             parts.append("protected=True")
+        if self.flow:
+            parts.append("flow=True")
         return f"var({', '.join(parts)})" if parts else "var()"
 
     def get_initial_value(self) -> NumericValue:

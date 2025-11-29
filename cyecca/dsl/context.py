@@ -476,3 +476,145 @@ def reinit(var: SymbolicVar, expr: Any) -> Optional[Reinit]:
         ctx.add_reinit(r)
         return None
     return r
+
+
+# =============================================================================
+# Connect equations (Modelica MLS Ch. 9)
+# =============================================================================
+
+
+@beartype
+def connect(a: Any, b: Any) -> None:
+    """
+    Connect two connectors, generating appropriate connection equations.
+
+    This implements Modelica connection semantics (MLS Chapter 9):
+    - Potential (non-flow) variables: equality equations (a.v == b.v)
+    - Flow variables: sum-to-zero equations (a.i + b.i == 0)
+
+    Must be used inside an @equations block:
+
+        @equations
+        def _(m):
+            connect(m.resistor.p, m.ground.p)
+            connect(m.resistor.n, m.capacitor.p)
+
+    Parameters
+    ----------
+    a : SubmodelProxy
+        First connector (e.g., m.resistor.p)
+    b : SubmodelProxy
+        Second connector (e.g., m.ground.p)
+
+    Raises
+    ------
+    RuntimeError
+        If called outside an @equations block.
+    TypeError
+        If a or b are not connector proxies.
+
+    Example
+    -------
+    >>> from cyecca.dsl import model, connector, var, equations, connect, submodel
+    >>> @connector
+    ... class Pin:
+    ...     v = var()           # Potential (voltage)
+    ...     i = var(flow=True)  # Flow (current)
+
+    >>> @model
+    ... class Resistor:
+    ...     p = submodel(Pin)   # Positive pin
+    ...     n = submodel(Pin)   # Negative pin
+    ...     R = var(1000.0, parameter=True)
+    ...
+    ...     @equations
+    ...     def _(m):
+    ...         m.p.v - m.n.v == m.R * m.p.i
+    ...         m.p.i + m.n.i == 0  # Current conservation
+
+    >>> @model
+    ... class Circuit:
+    ...     r1 = submodel(Resistor)
+    ...     r2 = submodel(Resistor)
+    ...
+    ...     @equations
+    ...     def _(m):
+    ...         connect(m.r1.n, m.r2.p)  # Series connection
+
+    Notes
+    -----
+    Modelica Spec: Section 9.2 - Generation of Connection Equations
+
+    For each pair of corresponding primitive components:
+    - a.v == b.v (for non-flow variables, equality)
+    - a.i + b.i == 0 (for flow variables, sum to zero)
+
+    The sign convention for flow variables assumes "inside" connectors
+    where positive flow is into the component.
+    """
+    from cyecca.dsl.equations import Equation
+    from cyecca.dsl.instance import SubmodelProxy
+
+    ctx = get_current_equation_context()
+    if ctx is None:
+        raise RuntimeError("connect() can only be used inside an @equations block")
+
+    # Validate that both are SubmodelProxy (connector instances)
+    if not isinstance(a, SubmodelProxy):
+        raise TypeError(f"connect() first argument must be a connector, got {type(a)}")
+    if not isinstance(b, SubmodelProxy):
+        raise TypeError(f"connect() second argument must be a connector, got {type(b)}")
+
+    # Get the connector metadata
+    a_instance = a._instance
+    b_instance = b._instance
+    a_metadata = a_instance._metadata
+    b_metadata = b_instance._metadata
+
+    # Check that both are connectors (check metadata, not class attribute)
+    if not a_metadata.is_connector:
+        raise TypeError(f"connect() first argument '{a._name}' is not a connector")
+    if not b_metadata.is_connector:
+        raise TypeError(f"connect() second argument '{b._name}' is not a connector")
+
+    # Verify connectors have matching structure
+    a_vars = set(a_metadata.variables.keys())
+    b_vars = set(b_metadata.variables.keys())
+
+    if a_vars != b_vars:
+        raise TypeError(
+            f"Connectors '{a._name}' and '{b._name}' have different variables: "
+            f"{a_vars} vs {b_vars}"
+        )
+
+    # Generate connection equations for each variable
+    for var_name, a_var in a_metadata.variables.items():
+        b_var = b_metadata.variables[var_name]
+
+        # Skip parameters and constants
+        if a_var.parameter or a_var.constant:
+            continue
+
+        # Get the full qualified names
+        a_full_name = f"{a._name}.{var_name}"
+        b_full_name = f"{b._name}.{var_name}"
+
+        # Get symbolic variables from parent
+        a_sym = a._parent._sym_vars[a_full_name]
+        b_sym = b._parent._sym_vars[b_full_name]
+
+        if a_var.flow:
+            # Flow variable: sum-to-zero (a.i + b.i == 0)
+            # Using the inside connector convention
+            eq = Equation(
+                lhs=to_expr(a_sym) + to_expr(b_sym),
+                rhs=to_expr(0.0),
+            )
+        else:
+            # Potential variable: equality (a.v == b.v)
+            eq = Equation(
+                lhs=to_expr(a_sym),
+                rhs=to_expr(b_sym),
+            )
+
+        ctx.add_equation(eq)

@@ -5,6 +5,24 @@ This module provides a high-level, declarative API for defining dynamic systems
 that closely mirrors Modelica syntax while remaining fully Pythonic.
 
 ================================================================================
+MODELICA CONFORMANCE
+================================================================================
+
+For detailed conformance analysis, see: MODELICA_CONFORMANCE.md
+
+Reference: https://specification.modelica.org/master/
+
+Overall Conformance: ~25-30% of Modelica Language Specification
+DAE Representation (Appendix B): ~60% complete
+
+We implement a semi-explicit index-1 DAE:
+
+    der(x) = f(x, z, u, p, t)           # Explicit ODE
+    0 = g(x, z, u, p, t)                # Algebraic constraints
+    y = h(x, z, u, p, t)                # Outputs
+    when condition: reinit(x, x_new)    # Events
+
+================================================================================
 PROTOTYPE MODE - API IS IN FLUX
 ================================================================================
 
@@ -118,10 +136,10 @@ The DSL is structured in two layers:
 from cyecca.dsl.algorithm import AlgorithmVar, assign, local
 
 # Context and when-clause support
-from cyecca.dsl.context import algorithm, equations, initial_equations, reinit, when
+from cyecca.dsl.context import algorithm, connect, equations, initial_equations, reinit, when
 
 # Decorators and var() factory
-from cyecca.dsl.decorators import FunctionMetadata, ModelMetadata, block, function, model, submodel, var
+from cyecca.dsl.decorators import FunctionMetadata, ModelMetadata, block, connector, function, model, submodel, var
 
 # Equations and statements
 from cyecca.dsl.equations import Assignment, Equation, Reinit, WhenClause
@@ -170,6 +188,7 @@ __all__ = [
     "model",
     "block",
     "function",
+    "connector",
     "equations",
     "initial_equations",
     "algorithm",
@@ -187,6 +206,8 @@ __all__ = [
     "pre",
     "edge",
     "change",
+    # Connectors
+    "connect",
     # When-clauses (hybrid systems)
     "when",
     "reinit",

@@ -38,7 +38,10 @@ if TYPE_CHECKING:
 
 
 class SubmodelProxy:
-    """Proxy for accessing submodel variables with dot notation."""
+    """Proxy for accessing submodel variables with dot notation.
+    
+    Supports nested submodels: m.resistor.pin.v
+    """
 
     def __init__(self, name: str, instance: "ModelInstance", parent: "ModelInstance"):
         self._name = name
@@ -48,6 +51,13 @@ class SubmodelProxy:
     def __getattr__(self, attr: str) -> Any:
         if attr.startswith("_"):
             raise AttributeError(attr)
+        
+        # First check if this is a nested submodel
+        if attr in self._instance._submodels:
+            nested_instance = self._instance._submodels[attr]
+            nested_name = f"{self._name}.{attr}"
+            return SubmodelProxy(nested_name, nested_instance, self._parent)
+        
         # Access submodel's symbolic variable with prefixed name
         full_name = f"{self._name}.{attr}"
         if full_name in self._parent._sym_vars:
@@ -284,11 +294,12 @@ class ModelInstance:
                 base_name = arr_eq.lhs_var.base_name
                 array_state_names.add(base_name)
 
-        # Separate derivative equations from algebraic and output
-        derivative_equations: Dict[str, Expr] = {}
-        array_derivative_equations: Dict[str, Any] = {}
+        # Differential equations (contain der() terms) and algebraic/output equations
+        differential_equations: List[Equation] = []
+        array_differential_equations: Dict[str, Any] = {}
         algebraic_equations: List[Equation] = []
         output_equations_map: Dict[str, Expr] = {}
+        is_explicit = True  # Track if all differential eqs are explicit form
 
         # Classify variables
         state_names: List[str] = []
@@ -359,8 +370,15 @@ class ModelInstance:
 
         # Classify scalar equations
         for eq in equations:
-            if eq.is_derivative and eq.var_name:
-                derivative_equations[eq.var_name] = eq.rhs
+            lhs_has_der = bool(find_derivatives(eq.lhs))
+            rhs_has_der = bool(find_derivatives(eq.rhs))
+
+            if lhs_has_der or rhs_has_der:
+                # This is a differential equation (contains der() somewhere)
+                differential_equations.append(eq)
+                # Check if it's truly implicit (der on RHS, or LHS is not pure der(x))
+                if rhs_has_der or not eq.is_derivative:
+                    is_explicit = False
             elif eq.lhs.kind == ExprKind.VARIABLE and eq.lhs.name in output_name_set:
                 output_equations_map[eq.lhs.name] = eq.rhs
             else:
@@ -370,9 +388,10 @@ class ModelInstance:
         for arr_eq in array_equations:
             if arr_eq.is_derivative:
                 base_name = arr_eq.lhs_var.base_name
-                array_derivative_equations[base_name] = {
+                array_differential_equations[base_name] = {
                     "shape": arr_eq.lhs_var.shape,
                     "rhs": arr_eq.rhs,
+                    "is_explicit": True,  # Array equations are always explicit for now
                 }
 
         # Add submodel variables
@@ -469,10 +488,11 @@ class ModelInstance:
             param_vars=param_vars,
             discrete_vars=discrete_vars,
             algebraic_vars=algebraic_vars,
-            derivative_equations=derivative_equations,
-            array_derivative_equations=array_derivative_equations,
+            differential_equations=differential_equations,
+            array_differential_equations=array_differential_equations,
             output_equations=output_equations_map,
             algebraic_equations=algebraic_equations,
+            is_explicit=is_explicit,
             state_defaults=state_defaults,
             input_defaults=input_defaults,
             discrete_defaults=discrete_defaults,

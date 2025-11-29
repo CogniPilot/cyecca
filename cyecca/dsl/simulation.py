@@ -90,6 +90,7 @@ class SimulationResult:
     state_names: List[str] = field(default_factory=list)
     output_names: List[str] = field(default_factory=list)
     input_names: List[str] = field(default_factory=list)
+    discrete_names: List[str] = field(default_factory=list)
 
     @beartype
     def __call__(self, var: Any) -> np.ndarray:
@@ -159,6 +160,11 @@ class SimulationResult:
     def inputs(self) -> Dict[str, np.ndarray]:
         """Input trajectories as a dict."""
         return {name: self._data[name] for name in self.input_names if name in self._data}
+
+    @property
+    def discrete(self) -> Dict[str, np.ndarray]:
+        """Discrete variable trajectories as a dict."""
+        return {name: self._data[name] for name in self.discrete_names if name in self._data}
 
     @property
     def data(self) -> Dict[str, np.ndarray]:

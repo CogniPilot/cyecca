@@ -56,9 +56,15 @@ class FlatModel:
     - der(var) in equations → state
     - otherwise → algebraic
 
-    All equations come from a single equations() method. The `output_equations`
-    field is populated by extracting equations of the form `output_var == expr`
-    for backend convenience.
+    DAE Form
+    --------
+    Differential equations are stored in implicit residual form: 0 = f(ẋ, x, z, u, p, t)
+
+    - `differential_equations`: List of equations containing der() terms
+    - `is_explicit`: True if all differential eqs are in form der(x) == rhs (no der on RHS)
+
+    If is_explicit=True, backends can use explicit integrators (RK4, CVODES).
+    If is_explicit=False, backends must use implicit DAE solvers (IDAS).
 
     Backends (CasADi, JAX, etc.) compile this into executable functions.
     """
@@ -81,19 +87,24 @@ class FlatModel:
     discrete_vars: Dict[str, Var]
     algebraic_vars: Dict[str, Var]
 
-    # Equations
-    # NOTE: In Modelica, all equations are in one section. The separation here
-    # is for backend convenience only. Output equations are extracted from
-    # equations that define output variables (var with output=True).
-    derivative_equations: Dict[str, Expr]  # state_name -> rhs expression for der(state)
+    # Differential equations (contain der() terms)
+    # Stored in residual form: 0 = lhs - rhs
+    # For explicit eq "der(x) == rhs": lhs=der(x), rhs=rhs
+    # For implicit eq "m*der(v) == g": lhs=m*der(v), rhs=g
+    differential_equations: List[Equation]
+
+    # Output and algebraic equations
     output_equations: Dict[str, Expr]  # output_name -> rhs (extracted from equations())
     algebraic_equations: List[Equation]  # 0 = f(x, z) equations
 
+    # DAE form indicator
+    is_explicit: bool = True  # True if all diff eqs are der(x)==rhs form (no der on RHS)
+
     # Default values
-    state_defaults: Dict[str, Any]
-    input_defaults: Dict[str, Any]
-    discrete_defaults: Dict[str, Any]
-    param_defaults: Dict[str, Any]
+    state_defaults: Dict[str, Any] = field(default_factory=dict)
+    input_defaults: Dict[str, Any] = field(default_factory=dict)
+    discrete_defaults: Dict[str, Any] = field(default_factory=dict)
+    param_defaults: Dict[str, Any] = field(default_factory=dict)
 
     # Initial equations (Modelica: initial equation section)
     # These are solved once at t=0 to determine initial values
@@ -103,10 +114,10 @@ class FlatModel:
     # Event-driven equations with conditions and reinit statements
     when_clauses: List[WhenClause] = field(default_factory=list)
 
-    # Array derivative equations (when expand_arrays=False)
+    # Array differential equations (when expand_arrays=False)
     # For CasADi MX backend: keeps array structure for efficient matrix operations
-    # Key is base variable name (e.g., 'pos'), value is {'shape': (3,), 'rhs': SymbolicVar}
-    array_derivative_equations: Dict[str, Any] = field(default_factory=dict)
+    # Key is base variable name (e.g., 'pos'), value is {'shape': (3,), 'rhs': SymbolicVar, 'is_explicit': bool}
+    array_differential_equations: Dict[str, Any] = field(default_factory=dict)
 
     # Algorithm section
     # Ordered list of assignments from algorithm() method
@@ -131,4 +142,6 @@ class FlatModel:
             parts.append(f"params={self.param_names}")
         if self.when_clauses:
             parts.append(f"when_clauses={len(self.when_clauses)}")
+        if not self.is_explicit:
+            parts.append("implicit_dae=True")
         return f"FlatModel({', '.join(parts)})"

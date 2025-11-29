@@ -167,15 +167,21 @@ class CasadiCompiler:
 
         # Symbol dictionaries (populated during compilation)
         self.state_syms: Dict[str, SymT] = {}
+        self.xdot_syms: Dict[str, SymT] = {}  # State derivative symbols for implicit DAE
         self.input_syms: Dict[str, SymT] = {}
         self.param_syms: Dict[str, SymT] = {}
         self.algebraic_syms: Dict[str, SymT] = {}
+        self.discrete_syms: Dict[str, SymT] = {}  # Discrete variables
         self.pre_syms: Dict[str, SymT] = {}  # For when-clauses
         self.t_sym: SymT = None
 
         # Shape tracking (for MX indexed access)
         self.state_shapes: Dict[str, Tuple[int, ...]] = {}
         self.algebraic_shapes: Dict[str, Tuple[int, ...]] = {}
+        self.discrete_shapes: Dict[str, Tuple[int, ...]] = {}
+
+        # Implicit DAE flag (set during _create_symbols if der() appears in RHS)
+        self.is_implicit_dae: bool = False
 
         # Combined symbol lookup
         self.base_syms: Dict[str, SymT] = {}
@@ -216,6 +222,8 @@ class CasadiCompiler:
             self.state_shapes[name] = shape
             size = self._shape_to_size(shape)
             self.state_syms[name] = self._sym(name, size)
+            # Also create xdot symbols for implicit DAE support
+            self.xdot_syms[name] = self._sym(f"der_{name}", size)
 
         # Input symbols
         for name in model.input_names:
@@ -237,8 +245,20 @@ class CasadiCompiler:
             size = self._shape_to_size(shape)
             self.algebraic_syms[name] = self._sym(name, size)
 
+        # Discrete variable symbols
+        for name in model.discrete_names:
+            v = model.discrete_vars[name]
+            shape = v.shape if v.shape else ()
+            self.discrete_shapes[name] = shape
+            size = self._shape_to_size(shape)
+            self.discrete_syms[name] = self._sym(name, size)
+
         # Time symbol
         self.t_sym = self._sym("t")
+
+        # Check if model uses implicit DAE form (der() appears in equations RHS)
+        # Use is_explicit from flattener (no longer detect here)
+        self.is_implicit_dae = not model.is_explicit
 
         # Combined lookup (NOT including outputs - they get substituted)
         self.base_syms = {
@@ -246,6 +266,7 @@ class CasadiCompiler:
             **self.input_syms,
             **self.param_syms,
             **self.algebraic_syms,
+            **self.discrete_syms,
         }
 
     def _resolve_indexed_variable(self, name: str) -> SymT:
@@ -266,7 +287,7 @@ class CasadiCompiler:
         indices = tuple(int(i) for i in idx_str.split(","))
 
         sym = self.base_syms[base_name]
-        all_shapes = {**self.state_shapes, **self.algebraic_shapes}
+        all_shapes = {**self.state_shapes, **self.algebraic_shapes, **self.discrete_shapes}
         shape = all_shapes.get(base_name, ())
 
         # Convert multi-dimensional index to flat index
@@ -291,6 +312,7 @@ class CasadiCompiler:
         - Constants and time
         - All math/logic operations via dispatch table
         - MX-specific indexed variable access
+        - Derivative nodes (for implicit DAE form)
         """
         # Variable reference
         if expr.kind == ExprKind.VARIABLE:
@@ -314,9 +336,24 @@ class CasadiCompiler:
 
             raise ValueError(f"Unknown variable: {name}")
 
-        # Derivative (should not appear in RHS)
+        # Derivative node - for implicit DAE form
         if expr.kind == ExprKind.DERIVATIVE:
-            raise ValueError("DERIVATIVE nodes should not appear in RHS expressions")
+            var_name = expr.name
+            if var_name in self.xdot_syms:
+                return self.xdot_syms[var_name]
+            # Handle indexed derivatives like der(x[0])
+            if "[" in var_name:
+                base_name = var_name.split("[")[0]
+                if base_name in self.xdot_syms:
+                    idx_str = var_name[var_name.index("[") + 1 : var_name.rindex("]")]
+                    indices = tuple(int(i) for i in idx_str.split(","))
+                    shape = self.state_shapes.get(base_name, ())
+                    if len(indices) == 1:
+                        return self.xdot_syms[base_name][indices[0]]
+                    else:
+                        flat_idx = self._compute_flat_index(indices, shape)
+                        return self.xdot_syms[base_name][flat_idx]
+            raise ValueError(f"Unknown derivative variable: {var_name}")
 
         # Constant
         if expr.kind == ExprKind.CONSTANT:
@@ -385,33 +422,42 @@ class CasadiCompiler:
         return self.expr_to_casadi(expr)
 
     def _build_state_derivatives(self) -> List[SymT]:
-        """Build the state derivative vector."""
+        """Build the state derivative vector for explicit ODE form.
+
+        Only valid when model.is_explicit=True. Each differential equation
+        must be in form der(x) == rhs where var_name is set.
+        """
         model = self.model
         state_derivs: List[SymT] = []
+
+        # Build lookup from var_name to rhs for explicit equations
+        deriv_rhs_map: Dict[str, Expr] = {}
+        for eq in model.differential_equations:
+            if eq.is_derivative and eq.var_name:
+                deriv_rhs_map[eq.var_name] = eq.rhs
 
         for name in model.state_names:
             shape = self.state_shapes.get(name, ())
             size = self._shape_to_size(shape)
 
-            # Check for array derivative equation (MX backend)
-            if self.is_mx and name in model.array_derivative_equations:
-                arr_eq = model.array_derivative_equations[name]
+            # Check for array differential equation (MX backend)
+            if self.is_mx and name in model.array_differential_equations:
+                arr_eq = model.array_differential_equations[name]
                 rhs = arr_eq["rhs"]
                 # RHS is a SymbolicVar - get its symbol
                 if rhs.base_name in self.base_syms:
                     state_derivs.append(self.base_syms[rhs.base_name])
                 else:
                     state_derivs.append(self._zeros(size))
-            elif name in model.derivative_equations:
-                # Scalar/element equation
-                deriv_expr = model.derivative_equations[name]
-                state_derivs.append(self.expr_to_casadi(deriv_expr))
+            elif name in deriv_rhs_map:
+                # Scalar/element equation: der(x) == rhs
+                state_derivs.append(self.expr_to_casadi(deriv_rhs_map[name]))
             else:
                 # Check for element-wise equations (MX)
                 if self.is_mx:
                     deriv_vec = self._zeros(size)
                     has_any = False
-                    for key, deriv_expr in model.derivative_equations.items():
+                    for key, deriv_expr in deriv_rhs_map.items():
                         if key.startswith(f"{name}["):
                             has_any = True
                             idx_str = key[key.index("[") + 1 : key.rindex("]")]
@@ -465,53 +511,114 @@ class CasadiCompiler:
             residuals.append(lhs - rhs)
         return residuals
 
-    def _build_when_clause_funcs(self, x: SymT, u: SymT, p: SymT) -> List[Dict[str, Any]]:
-        """Build event and reinit functions for when-clauses."""
+    def _build_differential_residuals(self) -> List[SymT]:
+        """
+        Build differential equation residuals for implicit DAE form.
+
+        For implicit form, equations are: 0 = f(xdot, x, z, u, p, t)
+
+        All differential equations are converted to residual form:
+        - Explicit eq "der(x) == rhs" → residual: xdot - rhs
+        - Implicit eq "lhs == rhs" → residual: lhs - rhs (with xdot symbols for der())
+
+        The expr_to_casadi() method converts der(x) nodes to xdot_syms[x].
+        """
+        model = self.model
+        residuals: List[SymT] = []
+
+        for eq in model.differential_equations:
+            # Convert both sides (der() nodes become xdot symbols)
+            lhs = self.expr_to_casadi(eq.lhs)
+            rhs = self.expr_to_casadi(eq.rhs)
+            residuals.append(lhs - rhs)
+
+        return residuals
+
+    def _build_when_clause_funcs(self, x: SymT, d: SymT, u: SymT, p: SymT) -> List[Dict[str, Any]]:
+        """Build event and reinit functions for when-clauses.
+
+        Parameters
+        ----------
+        x : SymT
+            Continuous state vector
+        d : SymT
+            Discrete state vector
+        u : SymT
+            Input vector
+        p : SymT
+            Parameter vector
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            List of when-clause function dictionaries with:
+            - f_event: Event detection function (zero-crossing)
+            - f_reinit: State/discrete update function at event
+        """
         model = self.model
         when_clause_funcs: List[Dict[str, Any]] = []
 
         if not model.when_clauses:
             return when_clause_funcs
 
-        # Create pre-event state symbols
+        # Create pre-event symbols for states
         for name in model.state_names:
             v = model.state_vars[name]
             size = v.size if v.size > 1 else 1
             self.pre_syms[name] = self._sym(f"pre_{name}", size)
 
-        pre_list = [self.pre_syms[n] for n in model.state_names]
-        x_pre = ca.vertcat(*pre_list) if pre_list else self._sym("x_pre", 0)
+        # Create pre-event symbols for discrete variables
+        for name in model.discrete_names:
+            v = model.discrete_vars[name]
+            size = v.size if v.size > 1 else 1
+            self.pre_syms[name] = self._sym(f"pre_{name}", size)
+
+        # Build combined pre-vectors
+        state_pre_list = [self.pre_syms[n] for n in model.state_names]
+        discrete_pre_list = [self.pre_syms[n] for n in model.discrete_names]
+
+        x_pre = ca.vertcat(*state_pre_list) if state_pre_list else self._sym("x_pre", 0)
+        d_pre = ca.vertcat(*discrete_pre_list) if discrete_pre_list else self._sym("d_pre", 0)
 
         for i, wc in enumerate(model.when_clauses):
             # Event function: returns value that crosses zero
+            # Events can depend on both x and d
             event_expr = self.expr_to_casadi_when(wc.condition)
             f_event = ca.Function(
                 f"f_event_{i}",
-                [x, u, p, self.t_sym],
+                [x, d, u, p, self.t_sym],
                 [event_expr],
-                ["x", "u", "p", "t"],
+                ["x", "d", "u", "p", "t"],
                 ["event"],
             )
 
-            # Reinit function: computes new state after event
+            # Reinit function: computes new state AND discrete values after event
+            # Start with pre-values (identity mapping)
             x_new_list = [self.pre_syms[n] for n in model.state_names]
+            d_new_list = [self.pre_syms[n] for n in model.discrete_names]
 
             for item in wc.body:
                 if isinstance(item, Reinit):
                     var_name = item.var_name
+                    new_val = self.expr_to_casadi_when(item.expr)
+
                     if var_name in model.state_names:
                         idx = model.state_names.index(var_name)
-                        new_val = self.expr_to_casadi_when(item.expr)
                         x_new_list[idx] = new_val
+                    elif var_name in model.discrete_names:
+                        idx = model.discrete_names.index(var_name)
+                        d_new_list[idx] = new_val
 
             x_new = ca.vertcat(*x_new_list) if x_new_list else self._sym("x_new", 0)
+            # For d_new, if there are no discrete vars, use d_pre (same empty symbol)
+            d_new = ca.vertcat(*d_new_list) if d_new_list else d_pre
 
             f_reinit = ca.Function(
                 f"f_reinit_{i}",
-                [x_pre, u, p, self.t_sym],
-                [x_new],
-                ["x_pre", "u", "p", "t"],
-                ["x_new"],
+                [x_pre, d_pre, u, p, self.t_sym],
+                [x_new, d_new],
+                ["x_pre", "d_pre", "u", "p", "t"],
+                ["x_new", "d_new"],
             )
 
             when_clause_funcs.append(
@@ -528,6 +635,15 @@ class CasadiCompiler:
         """
         Compile the model to CasADi functions.
 
+        Supports two forms:
+        - Explicit ODE: der(x) = f(x, z, u, p, t)
+        - Implicit DAE: 0 = f(xdot, x, z, u, p, t)
+
+        The implicit form is automatically detected when der(x) appears on
+        the RHS of equations. IDAS can use either form, but the implicit
+        form is more general and allows for index-1 DAEs where the derivatives
+        cannot be explicitly isolated.
+
         Returns
         -------
         CompiledModel
@@ -535,11 +651,8 @@ class CasadiCompiler:
         """
         model = self.model
 
-        # Create all symbols
+        # Create all symbols (also detects implicit DAE)
         self._create_symbols()
-
-        # Build derivative vector
-        state_derivs = self._build_state_derivatives()
 
         # Build output vector
         y_exprs = self._build_outputs()
@@ -549,20 +662,44 @@ class CasadiCompiler:
 
         # Build CasADi vectors
         state_list = [self.state_syms[n] for n in model.state_names]
+        xdot_list = [self.xdot_syms[n] for n in model.state_names]
         input_list = [self.input_syms[n] for n in model.input_names]
         param_list = [self.param_syms[n] for n in model.param_names]
         algebraic_list = [self.algebraic_syms[n] for n in model.algebraic_names]
+        discrete_list = [self.discrete_syms[n] for n in model.discrete_names]
 
         x = ca.vertcat(*state_list) if state_list else self._sym("x", 0)
-        xdot = ca.vertcat(*state_derivs) if state_derivs else self._sym("xdot", 0)
+        xdot_sym = ca.vertcat(*xdot_list) if xdot_list else self._sym("xdot", 0)
         u = ca.vertcat(*input_list) if input_list else self._sym("u", 0)
         p = ca.vertcat(*param_list) if param_list else self._sym("p", 0)
         y = ca.vertcat(*y_exprs) if y_exprs else self._sym("y", 0)
         z = ca.vertcat(*algebraic_list) if algebraic_list else self._sym("z", 0)
         alg = ca.vertcat(*alg_residuals) if alg_residuals else self._sym("alg", 0)
+        d = ca.vertcat(*discrete_list) if discrete_list else self._sym("d", 0)
 
-        # Create dynamics function f_x(x, z, u, p, t) -> xdot
-        f_x = ca.Function("f_x", [x, z, u, p, self.t_sym], [xdot], ["x", "z", "u", "p", "t"], ["xdot"])
+        # Build differential equation representation
+        if self.is_implicit_dae:
+            # Implicit DAE form: 0 = f(xdot, x, z, u, p, t)
+            diff_residuals = self._build_differential_residuals()
+            diff_res = ca.vertcat(*diff_residuals) if diff_residuals else self._sym("diff_res", 0)
+
+            # Create residual function f_res(xdot, x, z, u, p, t) -> residual
+            f_res = ca.Function(
+                "f_res",
+                [xdot_sym, x, z, u, p, self.t_sym],
+                [diff_res],
+                ["xdot", "x", "z", "u", "p", "t"],
+                ["residual"],
+            )
+            f_x = None  # No explicit form for implicit DAE
+        else:
+            # Explicit ODE form: xdot = f(x, z, u, p, t)
+            state_derivs = self._build_state_derivatives()
+            xdot_expr = ca.vertcat(*state_derivs) if state_derivs else self._sym("xdot", 0)
+
+            # Create dynamics function f_x(x, z, u, p, t) -> xdot
+            f_x = ca.Function("f_x", [x, z, u, p, self.t_sym], [xdot_expr], ["x", "z", "u", "p", "t"], ["xdot"])
+            f_res = None  # No residual form for explicit ODE
 
         # Create algebraic residual function (for DAE)
         f_alg = (
@@ -571,11 +708,15 @@ class CasadiCompiler:
             else None
         )
 
-        # Create output function
-        f_y = ca.Function("f_y", [x, z, u, p, self.t_sym], [y], ["x", "z", "u", "p", "t"], ["y"]) if y_exprs else None
+        # Create output function (now includes d for discrete-dependent outputs)
+        f_y = (
+            ca.Function("f_y", [x, z, d, u, p, self.t_sym], [y], ["x", "z", "d", "u", "p", "t"], ["y"])
+            if y_exprs
+            else None
+        )
 
-        # Build when-clause functions
-        when_clause_funcs = self._build_when_clause_funcs(x, u, p)
+        # Build when-clause functions (handle both state and discrete reinit)
+        when_clause_funcs = self._build_when_clause_funcs(x, d, u, p)
 
         # Build algebraic defaults
         algebraic_defaults: Dict[str, Any] = {}
@@ -586,14 +727,18 @@ class CasadiCompiler:
         return CompiledModel(
             name=model.name,
             f_x=f_x,
+            f_res=f_res,
             f_y=f_y,
+            is_implicit=self.is_implicit_dae,
             _state_names=model.state_names,
             _input_names=model.input_names,
             _param_names=model.param_names,
             _output_names=model.output_names,
+            _discrete_names=model.discrete_names,
             state_defaults=model.state_defaults,
             input_defaults=model.input_defaults,
             param_defaults=model.param_defaults,
+            discrete_defaults=model.discrete_defaults,
             when_clause_funcs=when_clause_funcs,
             _algebraic_names=model.algebraic_names,
             algebraic_defaults=algebraic_defaults,
@@ -670,25 +815,41 @@ class CompiledModel(Simulator):
     If the model has when-clauses, the simulator uses event detection to
     find zero-crossings and applies state reinitializations at events.
 
+    Discrete Variables
+    ------------------
+    Discrete variables are piecewise-constant: they only change at events
+    via reinit() statements in when-clauses. They are tracked separately
+    from continuous states and included in simulation results.
+
     DAE Support (IDAS)
     ------------------
     For models with algebraic variables, use integrator=Integrator.IDAS.
-    The model is formulated as:
+
+    Explicit form (default):
         ẋ = f(x, z, u, p, t)    (differential equations)
         0 = g(x, z, u, p, t)    (algebraic equations)
-    where x are states, z are algebraic variables.
+
+    Implicit form (when der() appears on RHS):
+        0 = F(ẋ, x, z, u, p, t)  (implicit differential-algebraic equations)
+
+    The implicit form is required for index-1 DAEs where the derivatives
+    cannot be explicitly isolated (e.g., mass matrix systems: M(x)*ẋ = f(x)).
     """
 
     name: str
-    f_x: ca.Function  # Dynamics: f_x(x, z, u, p, t) -> xdot
-    f_y: Optional[ca.Function]  # Outputs: f_y(x, z, u, p, t) -> y
-    _state_names: List[str]
-    _input_names: List[str]
-    _param_names: List[str]
-    _output_names: List[str]
-    state_defaults: Dict[str, Any]
-    input_defaults: Dict[str, Any]
-    param_defaults: Dict[str, Any]
+    f_x: Optional[ca.Function] = None  # Explicit dynamics: f_x(x, z, u, p, t) -> xdot
+    f_res: Optional[ca.Function] = None  # Implicit residual: f_res(xdot, x, z, u, p, t) -> 0
+    f_y: Optional[ca.Function] = None  # Outputs: f_y(x, z, d, u, p, t) -> y
+    is_implicit: bool = False  # True if model uses implicit DAE form
+    _state_names: List[str] = None
+    _input_names: List[str] = None
+    _param_names: List[str] = None
+    _output_names: List[str] = None
+    _discrete_names: List[str] = None
+    state_defaults: Dict[str, Any] = None
+    input_defaults: Dict[str, Any] = None
+    param_defaults: Dict[str, Any] = None
+    discrete_defaults: Dict[str, Any] = None
     when_clause_funcs: List[Dict[str, Any]] = None
     _algebraic_names: List[str] = None
     algebraic_defaults: Dict[str, Any] = None
@@ -701,6 +862,16 @@ class CompiledModel(Simulator):
             self._algebraic_names = []
         if self.algebraic_defaults is None:
             self.algebraic_defaults = {}
+        if self._discrete_names is None:
+            self._discrete_names = []
+        if self.discrete_defaults is None:
+            self.discrete_defaults = {}
+        if self.state_defaults is None:
+            self.state_defaults = {}
+        if self.input_defaults is None:
+            self.input_defaults = {}
+        if self.param_defaults is None:
+            self.param_defaults = {}
 
     @property
     def state_names(self) -> List[str]:
@@ -723,9 +894,18 @@ class CompiledModel(Simulator):
         return self._algebraic_names
 
     @property
+    def discrete_names(self) -> List[str]:
+        return self._discrete_names
+
+    @property
     def has_algebraic(self) -> bool:
         """Check if model has algebraic variables (DAE system)."""
         return len(self._algebraic_names) > 0
+
+    @property
+    def has_discrete(self) -> bool:
+        """Check if model has discrete variables."""
+        return len(self._discrete_names) > 0
 
     @property
     def has_events(self) -> bool:
@@ -819,6 +999,13 @@ class CompiledModel(Simulator):
             if name in self.algebraic_defaults:
                 z_init[i] = self.algebraic_defaults[name]
 
+        # Build initial discrete variable vector
+        n_discrete = len(self._discrete_names)
+        d_init = np.zeros(n_discrete)
+        for i, name in enumerate(self._discrete_names):
+            if name in self.discrete_defaults:
+                d_init[i] = self.discrete_defaults[name]
+
         # Build constant input vector
         n_inputs = self.f_x.size1_in(2)  # u is input 2
         u_const = np.zeros(n_inputs)
@@ -850,21 +1037,25 @@ class CompiledModel(Simulator):
             k4 = np.array(self.f_x(x + h * k3, z_empty, u_vec, p, ti + h)).flatten()
             return x + (h / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
 
-        def check_events(x: np.ndarray, ti: float) -> List[Tuple[int, float]]:
+        def check_events(x: np.ndarray, d: np.ndarray, ti: float) -> List[Tuple[int, float]]:
             """Check event functions and return list of (event_idx, value)."""
             u_vec = get_input(ti)
             events = []
             for i, wc_func in enumerate(self.when_clause_funcs):
-                val = float(np.array(wc_func["f_event"](x, u_vec, p, ti)).flatten()[0])
+                val = float(np.array(wc_func["f_event"](x, d, u_vec, p, ti)).flatten()[0])
                 events.append((i, val))
             return events
 
-        def apply_reinit(x: np.ndarray, event_idx: int, ti: float) -> np.ndarray:
-            """Apply reinit for the given event."""
+        def apply_reinit(
+            x: np.ndarray, d: np.ndarray, event_idx: int, ti: float
+        ) -> Tuple[np.ndarray, np.ndarray]:
+            """Apply reinit for the given event. Returns (x_new, d_new)."""
             u_vec = get_input(ti)
             wc_func = self.when_clause_funcs[event_idx]
-            x_new = np.array(wc_func["f_reinit"](x, u_vec, p, ti)).flatten()
-            return x_new
+            result = wc_func["f_reinit"](x, d, u_vec, p, ti)
+            x_new = np.array(result[0]).flatten()
+            d_new = np.array(result[1]).flatten() if n_discrete > 0 else d.copy()
+            return x_new, d_new
 
         # For CVODES (ODE), we'll create the integrator inside the step function
         cvodes_dae = None
@@ -956,9 +1147,11 @@ class CompiledModel(Simulator):
                 tf,
                 dt,
                 x_init,
+                d_init,
                 p,
                 n_inputs,
                 n_states,
+                n_discrete,
                 get_input,
                 step_func,
                 check_events,
@@ -968,13 +1161,16 @@ class CompiledModel(Simulator):
                 z_empty,
             )
 
-        # Integration without events
+        # Integration without events (discrete remains constant)
         t = np.arange(t0, tf + dt, dt)
         n_steps = len(t)
 
         # Storage
         x_hist = np.zeros((n_steps, n_states))
         x_hist[0] = x_init
+        d_hist = np.zeros((n_steps, n_discrete)) if n_discrete > 0 else None
+        if d_hist is not None:
+            d_hist[:] = d_init  # Discrete stays constant without events
         u_hist = np.zeros((n_steps, n_inputs)) if n_inputs > 0 else None
 
         # Integration loop
@@ -992,7 +1188,7 @@ class CompiledModel(Simulator):
                 x = step_func(x, ti, dt)
                 x_hist[i + 1] = x
 
-        return self._build_result(t, x_hist, u_hist, n_inputs, p, get_input, z_empty)
+        return self._build_result(t, x_hist, d_hist, u_hist, n_inputs, n_discrete, p, get_input, z_empty, d_init)
 
     def _simulate_with_events(
         self,
@@ -1000,9 +1196,11 @@ class CompiledModel(Simulator):
         tf: float,
         dt: float,
         x_init: np.ndarray,
+        d_init: np.ndarray,
         p: np.ndarray,
         n_inputs: int,
         n_states: int,
+        n_discrete: int,
         get_input: Callable,
         step_func: Callable,
         check_events: Callable,
@@ -1013,28 +1211,32 @@ class CompiledModel(Simulator):
     ) -> SimulationResult:
         """
         Simulate with event detection using bisection for zero-crossing.
+
+        Discrete variables are updated only at events via reinit().
         """
         # Use variable-length lists for event-triggered simulation
         t_list: List[float] = [t0]
         x_list: List[np.ndarray] = [x_init.copy()]
+        d_list: List[np.ndarray] = [d_init.copy()] if n_discrete > 0 else None
         u_list: List[np.ndarray] = [get_input(t0)] if n_inputs > 0 else None
 
         x = x_init.copy()
+        d = d_init.copy()
         t = t0
         n_events = 0
         event_times: List[float] = []
 
         # Track previous event values for edge detection
-        prev_events = check_events(x, t)
+        prev_events = check_events(x, d, t)
 
         while t < tf and n_events < max_events:
-            # Tentative step
+            # Tentative step (discrete d stays constant between events)
             h = min(dt, tf - t)
             x_next = step_func(x, t, h)
             t_next = t + h
 
             # Check for events (sign changes in event functions)
-            curr_events = check_events(x_next, t_next)
+            curr_events = check_events(x_next, d, t_next)
 
             event_occurred = False
             triggered_event = -1
@@ -1054,7 +1256,7 @@ class CompiledModel(Simulator):
                 for _ in range(20):  # Max bisection iterations
                     t_mid = (t_lo + t_hi) / 2
                     x_mid = step_func(x_lo, t_lo, t_mid - t_lo)
-                    mid_events = check_events(x_mid, t_mid)
+                    mid_events = check_events(x_mid, d, t_mid)
                     mid_val = mid_events[triggered_event][1]
 
                     if mid_val > 0:
@@ -1070,33 +1272,40 @@ class CompiledModel(Simulator):
                 t_event = (t_lo + t_hi) / 2
                 x_event = step_func(x_lo, t_lo, t_event - t_lo)
 
-                # Apply reinit
-                x_new = apply_reinit(x_event, triggered_event, t_event)
+                # Apply reinit (updates both x and d)
+                x_new, d_new = apply_reinit(x_event, d, triggered_event, t_event)
 
                 # Record pre-event state
                 t_list.append(t_event)
                 x_list.append(x_event.copy())
+                if d_list is not None:
+                    d_list.append(d.copy())
                 if u_list is not None:
                     u_list.append(get_input(t_event))
 
                 # Record post-event state (same time, different state)
                 t_list.append(t_event)
                 x_list.append(x_new.copy())
+                if d_list is not None:
+                    d_list.append(d_new.copy())
                 if u_list is not None:
                     u_list.append(get_input(t_event))
 
                 # Continue from post-event state
                 x = x_new
+                d = d_new
                 t = t_event
                 n_events += 1
                 event_times.append(t_event)
-                prev_events = check_events(x, t)
+                prev_events = check_events(x, d, t)
             else:
                 # No event - accept the step
                 t = t_next
                 x = x_next
                 t_list.append(t)
                 x_list.append(x.copy())
+                if d_list is not None:
+                    d_list.append(d.copy())
                 if u_list is not None:
                     u_list.append(get_input(t))
                 prev_events = curr_events
@@ -1109,19 +1318,23 @@ class CompiledModel(Simulator):
         # Convert lists to arrays
         t_arr = np.array(t_list)
         x_arr = np.array(x_list)
+        d_arr = np.array(d_list) if d_list is not None else None
         u_arr = np.array(u_list) if u_list is not None else None
 
-        return self._build_result(t_arr, x_arr, u_arr, n_inputs, p, get_input, z_empty)
+        return self._build_result(t_arr, x_arr, d_arr, u_arr, n_inputs, n_discrete, p, get_input, z_empty, d_init)
 
     def _build_result(
         self,
         t: np.ndarray,
         x_hist: np.ndarray,
+        d_hist: Optional[np.ndarray],
         u_hist: Optional[np.ndarray],
         n_inputs: int,
+        n_discrete: int,
         p: np.ndarray,
         get_input: Callable,
         z: Optional[np.ndarray] = None,
+        d_current: Optional[np.ndarray] = None,
     ) -> SimulationResult:
         """Build SimulationResult from trajectory data."""
         n_steps = len(t)
@@ -1136,6 +1349,12 @@ class CompiledModel(Simulator):
             states[name] = x_hist[:, idx]
             idx += 1
 
+        # Convert discrete variables to named dict
+        discrete: Dict[str, np.ndarray] = {}
+        if d_hist is not None and n_discrete > 0:
+            for j, name in enumerate(self._discrete_names):
+                discrete[name] = d_hist[:, j]
+
         # Convert inputs to named dict
         inputs: Dict[str, np.ndarray] = {}
         if u_hist is not None:
@@ -1147,10 +1366,13 @@ class CompiledModel(Simulator):
         if self.f_y is not None:
             n_outputs = self.f_y.size1_out(0)
             y_hist = np.zeros((n_steps, n_outputs))
+
+            # f_y signature: f_y(x, z, d, u, p, t)
             for i in range(n_steps):
                 ti = t[i]
                 u_vec = get_input(ti)
-                y_hist[i] = np.array(self.f_y(x_hist[i], z_vec, u_vec, p, ti)).flatten()
+                d_vec = d_hist[i] if d_hist is not None else (d_current if d_current is not None else np.zeros(0))
+                y_hist[i] = np.array(self.f_y(x_hist[i], z_vec, d_vec, u_vec, p, ti)).flatten()
 
             for j, name in enumerate(self._output_names):
                 outputs[name] = y_hist[:, j]
@@ -1158,6 +1380,7 @@ class CompiledModel(Simulator):
         # Build data dict with all trajectories
         data: Dict[str, np.ndarray] = {}
         data.update(states)
+        data.update(discrete)
         data.update(outputs)
         data.update(inputs)
 
@@ -1168,10 +1391,13 @@ class CompiledModel(Simulator):
             state_names=list(self._state_names),
             output_names=list(self._output_names),
             input_names=list(self._input_names),
+            discrete_names=list(self._discrete_names),
         )
 
     def __repr__(self) -> str:
         parts = [f"'{self.name}'", f"states={self._state_names}"]
+        if self._discrete_names:
+            parts.append(f"discrete={self._discrete_names}")
         if self._input_names:
             parts.append(f"inputs={self._input_names}")
         if self._param_names:

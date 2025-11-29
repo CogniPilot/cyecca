@@ -646,3 +646,149 @@ class TestBouncingBallPhysics:
             # After bounce, velocity should be near zero
             v_after = np.abs(v[first_bounce_idx : first_bounce_idx + 100])
             assert np.mean(v_after) < 0.5, "Ball should stop after inelastic collision"
+
+
+class TestDiscreteVariables:
+    """Test discrete variables with when-clauses.
+
+    Discrete variables are piecewise constant and can only change at events
+    via reinit() statements in when-clauses.
+    """
+
+    def test_discrete_variable_counter(self) -> None:
+        """Test a counter that increments on each event."""
+        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class EventCounter:
+            # Continuous variable that triggers events
+            x = var(start=0.0)
+            # Discrete counter - increments on each event
+            count = var(0, discrete=True)
+            # Threshold for events (crosses every 1.0 units of x)
+            threshold = var(1.0, parameter=True)
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0  # x increases linearly
+
+                # When x crosses threshold, reset x and increment count
+                with when(m.x > m.threshold):
+                    reinit(m.x, 0.0)
+                    reinit(m.count, pre(m.count) + 1)
+
+        flat = EventCounter().flatten()
+
+        # Verify discrete variable is correctly classified
+        assert "count" in flat.discrete_names
+        assert "x" in flat.state_names
+
+        # Compile and simulate
+        compiled = CasadiBackend.compile(flat)
+        assert compiled.has_discrete
+        assert compiled.has_events
+
+        result = compiled.simulate(tf=5.0, dt=0.01)
+
+        # Check that count is in results
+        assert "count" in result.available_names
+
+        # After 5 seconds with events every 1 second, should have ~5 events
+        count = result("count")
+        assert count[-1] >= 4, f"Expected at least 4 events, got {count[-1]}"
+        assert count[-1] <= 6, f"Expected at most 6 events, got {count[-1]}"
+
+        # Count should only increase (discrete, monotonic)
+        for i in range(1, len(count)):
+            assert count[i] >= count[i - 1], "Counter should never decrease"
+
+    def test_discrete_variable_in_result(self) -> None:
+        """Test that discrete variable trajectory is available in result."""
+        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            t_trigger = var(start=0.0)
+            mode = var(0, discrete=True)
+
+            @equations
+            def _(m):
+                der(m.t_trigger) == 1.0
+
+                with when(m.t_trigger > 2.0):
+                    reinit(m.t_trigger, 0.0)
+                    reinit(m.mode, pre(m.mode) + 1)
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=7.0, dt=0.01)
+
+        # Access discrete variable via different methods
+        mode_via_call = result("mode")
+        assert mode_via_call is not None
+
+        # Check discrete property
+        assert "mode" in result.discrete
+        assert np.array_equal(result.discrete["mode"], mode_via_call)
+
+    def test_discrete_without_events_stays_constant(self) -> None:
+        """Test discrete variable without events stays at initial value."""
+        from cyecca.dsl import der, equations, model, var
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class M:
+            x = var(start=0.0)
+            flag = var(42, discrete=True)  # Initial value 42
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+                # No when-clauses - flag should never change
+
+        compiled = CasadiBackend.compile(M().flatten())
+        result = compiled.simulate(tf=5.0, dt=0.1)
+
+        # Without events, discrete stays constant
+        flag = result("flag")
+        assert np.all(flag == 42), "Discrete var should stay at initial value"
+
+    def test_discrete_multiple_reinits_same_event(self) -> None:
+        """Test multiple discrete variables updated in same event."""
+        from cyecca.dsl import der, equations, model, pre, reinit, var, when
+        from cyecca.dsl.backends import CasadiBackend
+
+        @model
+        class MultiDiscrete:
+            x = var(start=0.0)
+            a = var(0, discrete=True)
+            b = var(10, discrete=True)
+
+            @equations
+            def _(m):
+                der(m.x) == 1.0
+
+                with when(m.x > 1.0):
+                    reinit(m.x, 0.0)
+                    reinit(m.a, pre(m.a) + 1)
+                    reinit(m.b, pre(m.b) - 1)
+
+        compiled = CasadiBackend.compile(MultiDiscrete().flatten())
+        result = compiled.simulate(tf=5.0, dt=0.01)
+
+        a = result("a")
+        b = result("b")
+
+        # Both should change at same events
+        final_a = a[-1]
+        final_b = b[-1]
+
+        # a starts at 0, increments ~5 times; b starts at 10, decrements ~5 times
+        assert final_a >= 4, f"Expected a >= 4, got {final_a}"
+        assert final_b <= 6, f"Expected b <= 6, got {final_b}"
+
+        # Check they changed together: sum should stay constant (0 + 10 = 10)
+        # Since a goes up by 1 and b goes down by 1, a + b should stay ~10
+        assert np.abs(final_a + final_b - 10) < 2, "a + b should stay near 10"
+

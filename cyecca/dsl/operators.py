@@ -398,6 +398,93 @@ def tanh(x: Any) -> Union[Expr, float]:
 
 
 @beartype
+def asinh(x: Any) -> Union[Expr, float]:
+    """Inverse hyperbolic sine function.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        import math
+
+        return math.asinh(val)
+    return Expr(ExprKind.ASINH, (val,))
+
+
+@beartype
+def acosh(x: Any) -> Union[Expr, float]:
+    """Inverse hyperbolic cosine function.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        import math
+
+        return math.acosh(val)
+    return Expr(ExprKind.ACOSH, (val,))
+
+
+@beartype
+def atanh(x: Any) -> Union[Expr, float]:
+    """Inverse hyperbolic tangent function.
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val = _to_symbolic(x)
+    if isinstance(val, float):
+        import math
+
+        return math.atanh(val)
+    return Expr(ExprKind.ATANH, (val,))
+
+
+@beartype
+def mod(x: Any, y: Any) -> Union[Expr, float]:
+    """Modulo operation (remainder after division).
+
+    Modelica Spec: Section 3.7.3 - Built-in Mathematical Functions.
+
+    Parameters
+    ----------
+    x : numeric or Expr
+        Dividend
+    y : numeric or Expr
+        Divisor
+
+    Returns
+    -------
+    Expr or float
+        Expr node for symbolic inputs, Python float for numeric inputs.
+    """
+    val_x = _to_symbolic(x)
+    val_y = _to_symbolic(y)
+    if isinstance(val_x, float) and isinstance(val_y, float):
+        return val_x % val_y
+    # Convert floats to Expr if needed
+    if isinstance(val_x, float):
+        val_x = Expr(ExprKind.CONSTANT, value=val_x)
+    if isinstance(val_y, float):
+        val_y = Expr(ExprKind.CONSTANT, value=val_y)
+    return Expr(ExprKind.MOD, (val_x, val_y))
+
+
+@beartype
 def log10(x: Any) -> Union[Expr, float]:
     """Base-10 logarithm function.
 

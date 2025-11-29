@@ -55,9 +55,10 @@ Into sorted/solved form where possible:
 
 Steps:
 1. Build incidence matrix: which variables appear in which equations
-2. Match equations to unknowns (Dulmage-Mendelsohn or similar)
-3. Sort into BLT form (strongly connected components)
-4. For each block:
+2. Match equations to unknowns (Hopcroft-Karp or greedy matching)
+3. Build dependency graph from matching
+4. Sort into BLT form using Tarjan's algorithm for SCCs
+5. For each block:
    - If scalar and linear in unknown: solve symbolically
    - Otherwise: leave as implicit (needs Newton iteration at runtime)
 
@@ -67,7 +68,7 @@ Steps:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from cyecca.dsl.equations import Equation
 from cyecca.dsl.expr import Expr, ExprKind, find_derivatives
@@ -224,11 +225,21 @@ def is_linear_in(expr: Expr, var_name: str) -> Tuple[bool, Optional[Expr], Optio
     if expr.kind == ExprKind.SUB and len(expr.children) == 2:
         left, right = expr.children
 
+        # Case: linear_expr - const (variable on left)
         if var_to_find not in find_variables(right):
             is_lin, coef, const = is_linear_in(left, var_name)
             if is_lin and coef is not None and const is not None:
                 new_const = Expr(ExprKind.SUB, children=(const, right))
                 return True, coef, new_const
+
+        # Case: const - linear_expr (variable on right, negated coefficient)
+        if var_to_find not in find_variables(left):
+            is_lin, coef, const = is_linear_in(right, var_name)
+            if is_lin and coef is not None and const is not None:
+                # Negate the coefficient: const - (coef * var + c) = -coef * var + (const - c)
+                neg_coef = Expr(ExprKind.NEG, children=(coef,))
+                new_const = Expr(ExprKind.SUB, children=(left, const))
+                return True, neg_coef, new_const
 
     # Not linear (or too complex for us to detect)
     return False, None, None
@@ -313,98 +324,194 @@ def solve_linear(eq: Equation, var_name: str) -> Optional[SolvedEquation]:
 
 
 def analyze_causality(model: FlatModel) -> SortedSystem:
-    """Perform causality analysis on a flattened model.
+    """Perform causality analysis on a flattened model using BLT decomposition.
 
-    This is a simplified version that:
-    1. Tries to solve each equation for its "natural" unknown
-    2. For derivative equations (der(x) == ...), tries to isolate der(x)
-    3. Leaves unsolved equations as implicit blocks
+    This implements the standard Modelica causality analysis:
+    1. Build incidence structure (bipartite graph: equations ↔ unknowns)
+    2. Find maximum matching (which equation solves for which unknown)
+    3. Build dependency graph based on matching
+    4. Use Tarjan's algorithm to find SCCs (strongly connected components)
+    5. Process blocks in topological order, solving scalar blocks symbolically
 
-    A full implementation would do proper BLT decomposition with
-    Tarjan's algorithm for SCCs.
+    The result is a SortedSystem with equations in evaluation order.
     """
     result = SortedSystem(model=model)
 
-    # Classify equations
+    # Collect equations to analyze (skip output equations)
+    equations: List[Equation] = []
     for eq in model.equations:
-        # Skip output equations (already extracted)
         if eq.lhs.kind == ExprKind.VARIABLE and eq.lhs.name in model.output_equations:
             continue
+        equations.append(eq)
 
-        # Check if this is a derivative equation
-        lhs_derivs = find_derivatives(eq.lhs)
-        rhs_derivs = find_derivatives(eq.rhs)
+    if not equations:
+        return result
 
-        if eq.is_derivative and eq.var_name:
-            # Explicit form: der(x) == rhs
-            # Check if rhs contains any derivatives (would make it implicit)
-            if rhs_derivs:
-                result.is_ode_explicit = False
-                # Try to solve anyway
-                solved = solve_linear(eq, f"der_{eq.var_name}")
-                if solved:
-                    result.solved.append(solved)
-                else:
-                    result.implicit_blocks.append(
-                        ImplicitBlock(equations=[eq], unknowns=[f"der_{eq.var_name}"])
-                    )
+    # Determine unknowns: der(state) for each state, plus algebraic variables
+    unknowns: List[str] = []
+    for state in model.state_names:
+        unknowns.append(f"der_{state}")
+    unknowns.extend(model.algebraic_names)
+
+    # Build incidence structure: which unknowns appear in which equations
+    # incidence[eq_idx] = set of unknown indices that appear in equation
+    incidence: List[Set[int]] = []
+    unknown_to_idx = {u: i for i, u in enumerate(unknowns)}
+
+    for eq in equations:
+        vars_in_eq = find_variables(eq.lhs) | find_variables(eq.rhs)
+        eq_unknowns: Set[int] = set()
+        for v in vars_in_eq:
+            if v in unknown_to_idx:
+                eq_unknowns.add(unknown_to_idx[v])
+        incidence.append(eq_unknowns)
+
+    n_eq = len(equations)
+    n_var = len(unknowns)
+
+    # Step 2: Find maximum matching using augmenting paths (Hopcroft-Karp simplified)
+    # matching[eq_idx] = var_idx that this equation is matched to (-1 if unmatched)
+    # var_matched[var_idx] = eq_idx that this variable is matched to (-1 if unmatched)
+    matching: List[int] = [-1] * n_eq
+    var_matched: List[int] = [-1] * n_var
+
+    def find_augmenting_path(eq: int, visited: Set[int]) -> bool:
+        """Try to find an augmenting path starting from equation eq."""
+        for var in incidence[eq]:
+            if var in visited:
+                continue
+            visited.add(var)
+
+            # If var is unmatched, or we can rematch its current equation
+            if var_matched[var] == -1 or find_augmenting_path(var_matched[var], visited):
+                matching[eq] = var
+                var_matched[var] = eq
+                return True
+        return False
+
+    # Greedy initial matching + augmenting paths
+    for eq in range(n_eq):
+        find_augmenting_path(eq, set())
+
+    # Check for structurally singular system
+    unmatched_eqs = [i for i in range(n_eq) if matching[i] == -1]
+    if unmatched_eqs:
+        # Some equations couldn't be matched - system may be over/under-determined
+        for eq_idx in unmatched_eqs:
+            result.unhandled.append(equations[eq_idx])
+
+    # Step 3: Build dependency graph for matched equations
+    # Edge from eq_i to eq_j if eq_i uses the variable that eq_j solves for
+    # (and eq_i != eq_j)
+    matched_eqs = [i for i in range(n_eq) if matching[i] != -1]
+
+    # adj[eq_idx] = list of equation indices that this equation depends on
+    adj: Dict[int, List[int]] = {eq: [] for eq in matched_eqs}
+
+    for eq in matched_eqs:
+        for var in incidence[eq]:
+            if var != matching[eq]:  # Don't include the variable we solve for
+                other_eq = var_matched[var]
+                if other_eq != -1 and other_eq != eq:
+                    adj[eq].append(other_eq)
+
+    # Step 4: Tarjan's algorithm for SCCs
+    sccs = _tarjan_scc(matched_eqs, adj)
+
+    # Step 5: Process each SCC (block) in topological order
+    # Tarjan returns SCCs in reverse topological order, so reverse
+    sccs.reverse()
+
+    for scc in sccs:
+        block_eqs = [equations[i] for i in scc]
+        block_unknowns = [unknowns[matching[i]] for i in scc]
+
+        if len(scc) == 1:
+            # Scalar block - try to solve symbolically
+            eq = block_eqs[0]
+            var_name = block_unknowns[0]
+
+            solved = solve_linear(eq, var_name)
+            if solved:
+                result.solved.append(solved)
+                # After solving, the derivative is isolated on LHS (der(x) = expr)
+                # Check if the SOLVED expression still contains other derivatives
+                if solved.is_derivative:
+                    # Check if solved.expr contains any derivatives - that would be implicit
+                    expr_derivs = find_derivatives(solved.expr)
+                    if expr_derivs:
+                        result.is_ode_explicit = False
             else:
-                # Pure explicit: der(x) = rhs (rhs has no derivatives)
-                result.solved.append(
-                    SolvedEquation(
-                        var_name=eq.var_name,
-                        expr=eq.rhs,
-                        original=eq,
-                        is_derivative=True,
-                    )
-                )
-        elif lhs_derivs:
-            # Implicit derivative equation: something with der() on LHS
-            # e.g., m * der(v) == g
-            result.is_ode_explicit = False
-
-            # Try to solve for each derivative
-            solved_any = False
-            for der_var in lhs_derivs:
-                solved = solve_linear(eq, f"der_{der_var}")
-                if solved:
-                    result.solved.append(solved)
-                    solved_any = True
-                    break
-
-            if not solved_any:
-                # Couldn't solve - add as implicit block
-                unknowns = [f"der_{v}" for v in lhs_derivs]
-                result.implicit_blocks.append(ImplicitBlock(equations=[eq], unknowns=unknowns))
-        else:
-            # Algebraic equation (no derivatives)
-            # Try to identify what variable to solve for
-            vars_in_eq = find_variables(eq.lhs) | find_variables(eq.rhs)
-
-            # Filter to algebraic variables only
-            algebraic_vars = [v for v in vars_in_eq if v in model.algebraic_names]
-
-            if len(algebraic_vars) == 1:
-                # Single algebraic unknown - try to solve
-                solved = solve_linear(eq, algebraic_vars[0])
-                if solved:
-                    result.solved.append(solved)
-                else:
-                    result.implicit_blocks.append(
-                        ImplicitBlock(equations=[eq], unknowns=algebraic_vars)
-                    )
-            elif algebraic_vars:
-                # Multiple unknowns - need coupled solve
+                # Couldn't solve symbolically - implicit block
                 result.implicit_blocks.append(
-                    ImplicitBlock(equations=[eq], unknowns=algebraic_vars)
+                    ImplicitBlock(equations=block_eqs, unknowns=block_unknowns)
                 )
-                result.has_algebraic = True
-            else:
-                # No algebraic unknowns - might be a constraint or output
-                result.unhandled.append(eq)
+                if any(u.startswith("der_") for u in block_unknowns):
+                    result.is_ode_explicit = False
+        else:
+            # Multi-equation block - coupled system, needs simultaneous solve
+            result.implicit_blocks.append(
+                ImplicitBlock(equations=block_eqs, unknowns=block_unknowns)
+            )
+            if any(u.startswith("der_") for u in block_unknowns):
+                result.is_ode_explicit = False
 
-    # Set has_algebraic if any algebraic variables exist
+    # Set has_algebraic flag
     if model.algebraic_names:
         result.has_algebraic = True
 
     return result
+
+
+def _tarjan_scc(nodes: List[int], adj: Dict[int, List[int]]) -> List[List[int]]:
+    """Find strongly connected components using Tarjan's algorithm.
+
+    Args:
+        nodes: List of node identifiers
+        adj: Adjacency list (adj[node] = list of nodes this node points to)
+
+    Returns:
+        List of SCCs, each SCC is a list of nodes.
+        SCCs are returned in reverse topological order.
+    """
+    index_counter = [0]
+    stack: List[int] = []
+    lowlink: Dict[int, int] = {}
+    index: Dict[int, int] = {}
+    on_stack: Dict[int, bool] = {}
+    sccs: List[List[int]] = []
+
+    def strongconnect(node: int) -> None:
+        # Set the depth index for this node
+        index[node] = index_counter[0]
+        lowlink[node] = index_counter[0]
+        index_counter[0] += 1
+        stack.append(node)
+        on_stack[node] = True
+
+        # Consider successors
+        for successor in adj.get(node, []):
+            if successor not in index:
+                # Successor has not been visited; recurse
+                strongconnect(successor)
+                lowlink[node] = min(lowlink[node], lowlink[successor])
+            elif on_stack.get(successor, False):
+                # Successor is on stack, so in current SCC
+                lowlink[node] = min(lowlink[node], index[successor])
+
+        # If node is a root node, pop the stack and generate SCC
+        if lowlink[node] == index[node]:
+            scc: List[int] = []
+            while True:
+                w = stack.pop()
+                on_stack[w] = False
+                scc.append(w)
+                if w == node:
+                    break
+            sccs.append(scc)
+
+    for node in nodes:
+        if node not in index:
+            strongconnect(node)
+
+    return sccs

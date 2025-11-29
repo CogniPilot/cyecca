@@ -383,18 +383,25 @@ class ModelInstance:
                     "rhs": arr_eq.rhs,
                 }
 
-        # Add submodel variables
-        for sub_name, sub in self._submodels.items():
+        # Helper function to recursively collect submodel variables
+        def collect_submodel_vars(
+            sub_instance: "ModelInstance",
+            prefix: str,
+            all_derivatives: set[str],
+        ) -> None:
+            """Recursively collect variables from a submodel and its nested submodels."""
+            # Collect derivatives from this submodel's equations
             sub_derivatives: set[str] = set()
-            for eq in sub.get_equations():
+            for eq in sub_instance.get_equations():
                 if isinstance(eq, Equation):
                     for der_name in find_derivatives(eq.lhs):
-                        sub_derivatives.add(f"{sub_name}.{der_name}")
+                        sub_derivatives.add(f"{prefix}.{der_name}")
                     for der_name in find_derivatives(eq.rhs):
-                        sub_derivatives.add(f"{sub_name}.{der_name}")
+                        sub_derivatives.add(f"{prefix}.{der_name}")
 
-            for name, v in sub._metadata.variables.items():
-                full_name = f"{sub_name}.{name}"
+            # Add this submodel's direct variables
+            for name, v in sub_instance._metadata.variables.items():
+                full_name = f"{prefix}.{name}"
 
                 if (
                     full_name in state_vars
@@ -423,6 +430,7 @@ class ModelInstance:
                     constant=v.constant,
                     protected=v.protected,
                     name=full_name,
+                    flow=v.flow,
                 )
 
                 if v.constant or v.parameter:
@@ -451,7 +459,7 @@ class ModelInstance:
                     sub_v.kind = VarKind.OUTPUT
                     output_names.append(full_name)
                     output_vars[full_name] = sub_v
-                elif full_name in sub_derivatives or full_name in derivatives_used:
+                elif full_name in sub_derivatives or full_name in all_derivatives:
                     sub_v.kind = VarKind.STATE
                     state_names.append(full_name)
                     state_vars[full_name] = sub_v
@@ -462,6 +470,18 @@ class ModelInstance:
                     sub_v.kind = VarKind.ALGEBRAIC
                     algebraic_names.append(full_name)
                     algebraic_vars[full_name] = sub_v
+
+            # Recursively process nested submodels
+            for nested_name, nested_sub in sub_instance._submodels.items():
+                nested_prefix = f"{prefix}.{nested_name}"
+                collect_submodel_vars(nested_sub, nested_prefix, all_derivatives)
+
+        # Collect all derivatives from all equations (including nested)
+        all_derivatives: set[str] = set(derivatives_used)
+        
+        # Add submodel variables (recursively)
+        for sub_name, sub in self._submodels.items():
+            collect_submodel_vars(sub, sub_name, all_derivatives)
 
         return FlatModel(
             name=self._name,

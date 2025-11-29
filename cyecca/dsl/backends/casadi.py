@@ -99,6 +99,9 @@ def _make_expr_handlers():
         ExprKind.SINH: lambda c, e: ca.sinh(c(e.children[0])),
         ExprKind.COSH: lambda c, e: ca.cosh(c(e.children[0])),
         ExprKind.TANH: lambda c, e: ca.tanh(c(e.children[0])),
+        ExprKind.ASINH: lambda c, e: ca.asinh(c(e.children[0])),
+        ExprKind.ACOSH: lambda c, e: ca.acosh(c(e.children[0])),
+        ExprKind.ATANH: lambda c, e: ca.atanh(c(e.children[0])),
         ExprKind.NOT: lambda c, e: ca.logic_not(c(e.children[0])),
     }
 
@@ -112,6 +115,7 @@ def _make_expr_handlers():
         ExprKind.ATAN2: lambda c, e: ca.atan2(c(e.children[0]), c(e.children[1])),
         ExprKind.MIN: lambda c, e: ca.fmin(c(e.children[0]), c(e.children[1])),
         ExprKind.MAX: lambda c, e: ca.fmax(c(e.children[0]), c(e.children[1])),
+        ExprKind.MOD: lambda c, e: ca.fmod(c(e.children[0]), c(e.children[1])),
         ExprKind.AND: lambda c, e: ca.logic_and(c(e.children[0]), c(e.children[1])),
         ExprKind.OR: lambda c, e: ca.logic_or(c(e.children[0]), c(e.children[1])),
     }
@@ -260,9 +264,12 @@ class CasadiCompiler:
         # Time symbol
         self.t_sym = self._sym("t")
 
-        # Detect if model uses implicit DAE form
-        # Implicit if any equation has der() on RHS or non-pure der() on LHS
-        self.is_implicit_dae = self._detect_implicit_dae()
+        # Run BLT causality analysis to solve equations
+        from cyecca.dsl.causality import analyze_causality
+        self.sorted_system = analyze_causality(self.model)
+
+        # Use BLT result to determine if system is explicit
+        self.is_implicit_dae = not self.sorted_system.is_ode_explicit
 
         # Combined lookup (NOT including outputs - they get substituted)
         self.base_syms = {
@@ -454,17 +461,24 @@ class CasadiCompiler:
     def _build_state_derivatives(self) -> List[SymT]:
         """Build the state derivative vector for explicit ODE form.
 
-        Only valid when system is explicit. Each state must have exactly one
-        equation of form der(x) == rhs.
+        Uses BLT-solved equations from causality analysis. Each state must have
+        exactly one solved equation for der(state).
         """
         model = self.model
         state_derivs: List[SymT] = []
 
-        # Build lookup from var_name to rhs for explicit equations
-        deriv_rhs_map: Dict[str, Expr] = {}
+        # Build lookup from var_name to solved expression for derivatives
+        # Use BLT-solved equations which handle cases like C*der(v) == i
+        deriv_rhs_map: Dict[str, "Expr"] = {}
+        for solved in self.sorted_system.solved:
+            if solved.is_derivative:
+                deriv_rhs_map[solved.var_name] = solved.expr
+
+        # Also check original equations for pure der(x) == rhs form
         for eq in model.equations:
             if eq.is_derivative and eq.var_name:
-                deriv_rhs_map[eq.var_name] = eq.rhs
+                if eq.var_name not in deriv_rhs_map:
+                    deriv_rhs_map[eq.var_name] = eq.rhs
 
         for name in model.state_names:
             shape = self.state_shapes.get(name, ())
@@ -535,26 +549,19 @@ class CasadiCompiler:
     def _build_algebraic_residuals(self) -> List[SymT]:
         """Build algebraic equation residuals (0 = lhs - rhs).
 
-        Algebraic equations are those that don't contain der() on LHS
-        and are not output equations.
+        Uses BLT-solved equations for algebraic variables. Only includes
+        equations that were successfully matched and solved.
         """
-        from cyecca.dsl.expr import find_derivatives
-
         residuals: List[SymT] = []
-        for eq in self.model.equations:
-            # Skip output equations
-            if eq.lhs.kind == ExprKind.VARIABLE and eq.lhs.name in self.model.output_equations:
-                continue
 
-            # Skip differential equations (those with der() on LHS)
-            lhs_derivs = find_derivatives(eq.lhs)
-            if lhs_derivs:
-                continue
-
-            # This is an algebraic equation
-            lhs = self.expr_to_casadi(eq.lhs)
-            rhs = self.expr_to_casadi(eq.rhs)
-            residuals.append(lhs - rhs)
+        # Use BLT-solved algebraic equations (those that aren't derivatives)
+        for solved in self.sorted_system.solved:
+            if not solved.is_derivative:
+                # Build residual: var - expr = 0
+                if solved.var_name in self.algebraic_syms:
+                    var_sym = self.algebraic_syms[solved.var_name]
+                    expr_sym = self.expr_to_casadi(solved.expr)
+                    residuals.append(var_sym - expr_sym)
 
         return residuals
 
@@ -570,14 +577,22 @@ class CasadiCompiler:
 
         The expr_to_casadi() method converts der(x) nodes to xdot_syms[x].
         """
+        from cyecca.dsl.expr import find_derivatives
+
         model = self.model
         residuals: List[SymT] = []
 
-        for eq in model.differential_equations:
-            # Convert both sides (der() nodes become xdot symbols)
-            lhs = self.expr_to_casadi(eq.lhs)
-            rhs = self.expr_to_casadi(eq.rhs)
-            residuals.append(lhs - rhs)
+        # Filter equations that involve derivatives (differential equations)
+        for eq in model.equations:
+            # Check if equation involves any derivatives
+            lhs_derivs = find_derivatives(eq.lhs)
+            rhs_derivs = find_derivatives(eq.rhs)
+            if lhs_derivs or rhs_derivs:
+                # This is a differential equation
+                # Convert both sides (der() nodes become xdot symbols)
+                lhs = self.expr_to_casadi(eq.lhs)
+                rhs = self.expr_to_casadi(eq.rhs)
+                residuals.append(lhs - rhs)
 
         return residuals
 
@@ -1008,7 +1023,9 @@ class CompiledModel(Simulator):
             Simulation results with plotting utilities
         """
         # Compute number of states
-        n_states = self.f_x.size1_in(0)
+        n_states = len(self._state_names)
+        n_params = len(self._param_names)
+        n_inputs = len(self._input_names)
 
         # Build initial state vector
         x_init = np.zeros(n_states)
@@ -1029,9 +1046,6 @@ class CompiledModel(Simulator):
                 idx += 1
 
         # Build parameter vector
-        # f_x signature: f_x(x, z, u, p, t) -> xdot
-        # Input indices: 0=x, 1=z, 2=u, 3=p, 4=t
-        n_params = self.f_x.size1_in(3)  # p is input 3
         p = np.zeros(n_params)
         for i, name in enumerate(self._param_names):
             if params and name in params:
@@ -1054,7 +1068,6 @@ class CompiledModel(Simulator):
                 d_init[i] = self.discrete_defaults[name]
 
         # Build constant input vector
-        n_inputs = self.f_x.size1_in(2)  # u is input 2
         u_const = np.zeros(n_inputs)
         for i, name in enumerate(self._input_names):
             if u and name in u:
@@ -1141,8 +1154,23 @@ class CompiledModel(Simulator):
             z_in = z_sym[:n_alg] if n_alg > 0 else ca.SX()
             u_in = u_sym[:n_inputs] if n_inputs > 0 else ca.SX()
 
-            # Differential equations: ẋ = f(x, z, u, p, t)
-            xdot = self.f_x(x_sym, z_in, u_in, p_sym, t_sym)
+            if self.is_implicit:
+                # Implicit DAE form: use f_res to build the residual
+                # f_res signature: f_res(xdot, x, z, u, p, t) -> residual
+                xdot_sym = ca.SX.sym("xdot", n_states)
+                diff_res = self.f_res(xdot_sym, x_sym, z_in, u_in, p_sym, t_sym)
+
+                # IDAS can also handle implicit form, but it needs the ODE
+                # For now, we need to have explicit ODE form for IDAS
+                # Let's raise an error for implicit forms for now
+                raise ValueError(
+                    "Implicit DAE form is not yet fully supported by the IDAS integrator. "
+                    "Try reformulating your model to have explicit differential equations "
+                    "(der(x) == expr form, not implicit in der(x))."
+                )
+            else:
+                # Explicit ODE form: ẋ = f(x, z, u, p, t)
+                xdot = self.f_x(x_sym, z_in, u_in, p_sym, t_sym)
 
             # Algebraic equations: 0 = g(x, z, u, p, t)
             if self.f_alg is not None:

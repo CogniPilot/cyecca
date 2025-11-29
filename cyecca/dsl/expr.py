@@ -104,8 +104,12 @@ class ExprKind(Enum):
     SINH = auto()  # Hyperbolic sine
     COSH = auto()  # Hyperbolic cosine
     TANH = auto()  # Hyperbolic tangent
+    ASINH = auto()  # Inverse hyperbolic sine
+    ACOSH = auto()  # Inverse hyperbolic cosine
+    ATANH = auto()  # Inverse hyperbolic tangent
     MIN = auto()  # Minimum of two values
     MAX = auto()  # Maximum of two values
+    MOD = auto()  # Modulo operation
 
     # Hybrid system operators (Modelica MLS 8.5)
     REINIT = auto()  # reinit(x, expr) - reinitialize state at event
@@ -272,6 +276,42 @@ class Expr:
 
     def __ge__(self, other: Any) -> "Expr":
         return Expr(ExprKind.GE, (self, to_expr(other)))
+
+    def __eq__(self, other: Any) -> Any:  # type: ignore[override]
+        """Equality comparison or equation registration.
+
+        When inside an @equations context, this registers an equation.
+        Otherwise, returns a comparison Expr for use in conditionals.
+        """
+        from cyecca.dsl.context import get_current_equation_context
+        from cyecca.dsl.equations import Equation
+
+        rhs = to_expr(other)
+
+        # Check if in @equations context
+        ctx = get_current_equation_context()
+        if ctx is not None:
+            # If building a subexpression (e.g., inside if_then_else), return comparison
+            if ctx.is_building_expr:
+                return Expr(ExprKind.EQ, (self, rhs))
+            # Otherwise, register as equation
+            eq = Equation(lhs=self, rhs=rhs)
+            ctx.add_equation(eq)
+            return None
+
+        # Outside @equations context, return comparison Expr
+        return Expr(ExprKind.EQ, (self, rhs))
+
+    def __ne__(self, other: Any) -> "Expr":  # type: ignore[override]
+        """Not-equal comparison expression."""
+        return Expr(ExprKind.NE, (self, to_expr(other)))
+
+    def __hash__(self) -> int:
+        """Hash based on kind, children, name, value, and indices.
+
+        Required because we override __eq__.
+        """
+        return hash((self.kind, self.children, self.name, self.value, self.indices))
 
 
 @beartype

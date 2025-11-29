@@ -385,13 +385,13 @@ class ModelInstance:
         # Classify scalar equations - store all, extract outputs for convenience
         # For array outputs, collect elements by their indices to build aggregate expression
         array_output_elements: Dict[str, Dict[tuple, Expr]] = {}  # {base_name: {indices: rhs}}
-        
+
         for eq in equations:
             # Extract output equations for convenience (output_var == expr)
             if eq.lhs.kind == ExprKind.VARIABLE and eq.lhs.name in output_name_set:
                 base_name = eq.lhs.name
                 indices = eq.lhs.indices
-                
+
                 if indices:
                     # Array element equation - collect for aggregation
                     if base_name not in array_output_elements:
@@ -402,7 +402,7 @@ class ModelInstance:
                     output_equations_map[base_name] = eq.rhs
             # All equations go into the flat list
             all_equations.append(eq)
-        
+
         # Build aggregate ARRAY_LITERAL expressions for array outputs
         for base_name, elements in array_output_elements.items():
             if base_name in output_vars:
@@ -410,6 +410,7 @@ class ModelInstance:
                 if shape:
                     # Collect elements in row-major order
                     from cyecca.dsl.expr import iter_indices
+
                     rhs_elements = []
                     for indices in iter_indices(shape):
                         if indices in elements:

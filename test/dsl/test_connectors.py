@@ -16,7 +16,7 @@ class TestConnectorDecorator:
 
     def test_basic_connector(self) -> None:
         """Test basic connector with potential and flow variable."""
-        from cyecca.dsl import connector, Real, var
+        from cyecca.dsl import Real, connector, var
 
         @connector
         class Pin:
@@ -37,7 +37,7 @@ class TestConnectorDecorator:
 
     def test_mechanical_connector(self) -> None:
         """Test mechanical flange connector."""
-        from cyecca.dsl import connector, Real, var
+        from cyecca.dsl import Real, connector, var
 
         @connector
         class Flange:
@@ -52,7 +52,7 @@ class TestConnectorDecorator:
 
     def test_connector_with_parameters(self) -> None:
         """Test that parameters don't count in balancing."""
-        from cyecca.dsl import connector, Real, var
+        from cyecca.dsl import Real, connector, var
 
         @connector
         class ParameterizedPin:
@@ -67,7 +67,7 @@ class TestConnectorDecorator:
 
     def test_connector_balancing_violation(self) -> None:
         """Test that unbalanced connectors raise TypeError."""
-        from cyecca.dsl import connector, Real, var
+        from cyecca.dsl import Real, connector, var
 
         with pytest.raises(TypeError, match="balancing violation"):
 
@@ -81,7 +81,7 @@ class TestConnectorDecorator:
 
     def test_connector_no_equations(self) -> None:
         """Test that connectors cannot have @equations."""
-        from cyecca.dsl import connector, equations, Real, var
+        from cyecca.dsl import Real, connector, equations, var
 
         with pytest.raises(TypeError, match="cannot have @equations"):
 
@@ -96,7 +96,7 @@ class TestConnectorDecorator:
 
     def test_connector_no_algorithm(self) -> None:
         """Test that connectors cannot have @algorithm."""
-        from cyecca.dsl import algorithm, connector, Real, var
+        from cyecca.dsl import Real, algorithm, connector, var
 
         with pytest.raises(TypeError, match="cannot have @algorithm"):
 
@@ -111,7 +111,7 @@ class TestConnectorDecorator:
 
     def test_connector_no_submodels(self) -> None:
         """Test that connectors cannot have submodels."""
-        from cyecca.dsl import connector, model, submodel, Real, var
+        from cyecca.dsl import Real, connector, model, submodel, var
 
         @model
         class Inner:
@@ -127,7 +127,7 @@ class TestConnectorDecorator:
 
     def test_connector_array_balancing(self) -> None:
         """Test that array variables are properly counted for balancing."""
-        from cyecca.dsl import connector, Real, var
+        from cyecca.dsl import Real, connector, var
 
         @connector
         class VectorPin:
@@ -142,7 +142,7 @@ class TestConnectorDecorator:
 
     def test_connector_array_imbalance(self) -> None:
         """Test array size mismatch causes balancing error."""
-        from cyecca.dsl import connector, Real, var
+        from cyecca.dsl import Real, connector, var
 
         with pytest.raises(TypeError, match="balancing violation"):
 
@@ -157,7 +157,7 @@ class TestConnectFunction:
 
     def test_connect_generates_equations(self) -> None:
         """Test that connect() generates proper equations."""
-        from cyecca.dsl import connect, connector, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -181,7 +181,7 @@ class TestConnectFunction:
 
     def test_connect_outside_equations_raises(self) -> None:
         """Test that connect() outside @equations raises RuntimeError."""
-        from cyecca.dsl import connect, connector, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, model, submodel, var
 
         @connector
         class Pin:
@@ -199,7 +199,7 @@ class TestConnectFunction:
 
     def test_connect_non_connector_raises(self) -> None:
         """Test that connecting non-connectors raises TypeError."""
-        from cyecca.dsl import connect, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, equations, model, submodel, var
 
         @model
         class NotAConnector:
@@ -220,7 +220,7 @@ class TestConnectFunction:
 
     def test_connect_mismatched_connectors_raises(self) -> None:
         """Test that connecting different connector types raises TypeError."""
-        from cyecca.dsl import connect, connector, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -251,7 +251,7 @@ class TestConnectorIntegration:
 
     def test_resistor_model(self) -> None:
         """Test a simple resistor model with two pins."""
-        from cyecca.dsl import connector, der, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connector, der, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -285,7 +285,7 @@ class TestConnectorIntegration:
 
     def test_series_connection(self) -> None:
         """Test series connection of two resistors."""
-        from cyecca.dsl import connect, connector, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -329,7 +329,7 @@ class TestConnectorIntegration:
 
     def test_connector_flatten(self) -> None:
         """Test that connector variables are properly flattened."""
-        from cyecca.dsl import connector, model, submodel, Real, var
+        from cyecca.dsl import Real, connector, model, submodel, var
 
         @connector
         class Pin:

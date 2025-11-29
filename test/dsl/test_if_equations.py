@@ -24,7 +24,7 @@ class TestIfEquationBasics:
 
     def test_if_eq_creates_if_equation(self) -> None:
         """Test that if_eq() context manager creates IfEquation."""
-        from cyecca.dsl import IfEquation, else_eq, equations, if_eq, model, Real, var
+        from cyecca.dsl import IfEquation, Real, else_eq, equations, if_eq, model, var
 
         @model
         class M:
@@ -49,7 +49,7 @@ class TestIfEquationBasics:
 
     def test_if_eq_with_elseif(self) -> None:
         """Test if_eq with elseif branches."""
-        from cyecca.dsl import else_eq, elseif_eq, equations, if_eq, model, Real, var
+        from cyecca.dsl import Real, else_eq, elseif_eq, equations, if_eq, model, var
 
         @model
         class M:
@@ -75,7 +75,7 @@ class TestIfEquationBasics:
 
     def test_if_eq_single_branch(self) -> None:
         """Test if_eq with only a then branch (no else)."""
-        from cyecca.dsl import equations, if_eq, model, Real, var
+        from cyecca.dsl import Real, equations, if_eq, model, var
 
         @model
         class M:
@@ -102,7 +102,7 @@ class TestIfEquationExpansion:
 
     def test_if_else_expands_to_if_then_else(self) -> None:
         """Test that if/else expands to if_then_else expression."""
-        from cyecca.dsl import ExprKind, else_eq, equations, if_eq, model, Real, var
+        from cyecca.dsl import ExprKind, Real, else_eq, equations, if_eq, model, var
 
         @model
         class M:
@@ -130,7 +130,7 @@ class TestIfEquationExpansion:
 
     def test_multiple_elseif_creates_nested_conditionals(self) -> None:
         """Test that multiple elseif creates nested if_then_else."""
-        from cyecca.dsl import ExprKind, else_eq, elseif_eq, equations, if_eq, model, Real, var
+        from cyecca.dsl import ExprKind, Real, else_eq, elseif_eq, equations, if_eq, model, var
 
         @model
         class M:
@@ -167,7 +167,7 @@ class TestIfEquationSimulation:
 
     def test_if_eq_simulation_selects_correct_branch(self) -> None:
         """Test that simulation uses correct branch based on condition."""
-        from cyecca.dsl import der, else_eq, equations, if_eq, model, Real, var
+        from cyecca.dsl import Real, der, else_eq, equations, if_eq, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -204,7 +204,7 @@ class TestIfEquationSimulation:
 
     def test_if_eq_with_state_variable_condition(self) -> None:
         """Test if-equation with state-dependent condition."""
-        from cyecca.dsl import der, else_eq, equations, if_eq, model, Real, var
+        from cyecca.dsl import Real, der, else_eq, equations, if_eq, model, var
         from cyecca.dsl.backends import CasadiBackend
 
         @model
@@ -241,7 +241,7 @@ class TestIfEquationValidation:
 
     def test_elseif_requires_preceding_if(self) -> None:
         """Test that elseif_eq without preceding if_eq raises error."""
-        from cyecca.dsl import elseif_eq, equations, model, Real, var
+        from cyecca.dsl import Real, elseif_eq, equations, model, var
 
         @model
         class M:
@@ -260,7 +260,7 @@ class TestIfEquationValidation:
 
     def test_else_requires_preceding_if(self) -> None:
         """Test that else_eq without preceding if_eq raises error."""
-        from cyecca.dsl import else_eq, equations, model, Real, var
+        from cyecca.dsl import Real, else_eq, equations, model, var
 
         @model
         class M:

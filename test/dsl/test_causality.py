@@ -188,7 +188,7 @@ class TestAnalyzeCausality:
     """Test the full analyze_causality function."""
 
     def test_simple_ode(self) -> None:
-        from cyecca.dsl import der, equations, model, Real, var
+        from cyecca.dsl import Real, der, equations, model, var
         from cyecca.dsl.causality import analyze_causality
 
         @model
@@ -209,7 +209,7 @@ class TestAnalyzeCausality:
         assert sorted_sys.solved[0].var_name == "x"
 
     def test_coupled_ode(self) -> None:
-        from cyecca.dsl import der, equations, model, Real, var
+        from cyecca.dsl import Real, der, equations, model, var
         from cyecca.dsl.causality import analyze_causality
 
         @model
@@ -230,7 +230,7 @@ class TestAnalyzeCausality:
         assert len(sorted_sys.implicit_blocks) == 0
 
     def test_with_algebraic(self) -> None:
-        from cyecca.dsl import der, equations, model, Real, var
+        from cyecca.dsl import Real, der, equations, model, var
         from cyecca.dsl.causality import analyze_causality
 
         @model
@@ -251,7 +251,7 @@ class TestAnalyzeCausality:
         assert len(sorted_sys.solved) == 2
 
     def test_harmonic_oscillator(self) -> None:
-        from cyecca.dsl import der, equations, model, Real, var
+        from cyecca.dsl import Real, der, equations, model, var
         from cyecca.dsl.causality import analyze_causality
 
         @model
@@ -296,7 +296,7 @@ class TestRLCCircuit:
 
     def test_electrical_pin_connector(self) -> None:
         """Test the electrical Pin connector definition."""
-        from cyecca.dsl import connector, Real, var
+        from cyecca.dsl import Real, connector, var
 
         @connector
         class Pin:
@@ -311,7 +311,7 @@ class TestRLCCircuit:
 
     def test_resistor_model(self) -> None:
         """Test the Resistor component model."""
-        from cyecca.dsl import connect, connector, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -340,7 +340,7 @@ class TestRLCCircuit:
 
     def test_capacitor_model(self) -> None:
         """Test the Capacitor component model."""
-        from cyecca.dsl import connector, der, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connector, der, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -371,7 +371,7 @@ class TestRLCCircuit:
 
     def test_inductor_model(self) -> None:
         """Test the Inductor component model."""
-        from cyecca.dsl import connector, der, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connector, der, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -401,7 +401,7 @@ class TestRLCCircuit:
 
     def test_voltage_source_dc(self) -> None:
         """Test the DC voltage source model."""
-        from cyecca.dsl import connector, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connector, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -429,7 +429,7 @@ class TestRLCCircuit:
 
     def test_ground_model(self) -> None:
         """Test the Ground reference model."""
-        from cyecca.dsl import connector, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connector, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -458,7 +458,7 @@ class TestRLCCircuit:
 
         This is a first-order system with one state (capacitor voltage).
         """
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, der, equations, model, submodel, var
         from cyecca.dsl.causality import analyze_causality
 
         @connector
@@ -539,7 +539,7 @@ class TestRLCCircuit:
 
     def test_rlc_circuit_definition(self) -> None:
         """Test the full RLC circuit definition from the Modelica example."""
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, der, equations, model, submodel, var
 
         @connector
         class Pin:
@@ -637,7 +637,7 @@ class TestRLCCircuit:
 
     def test_rlc_circuit_causality(self) -> None:
         """Test causality analysis of the RLC circuit."""
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, der, equations, model, submodel, var
         from cyecca.dsl.causality import analyze_causality
 
         @connector
@@ -734,7 +734,7 @@ class TestRLCCircuit:
 
     def test_rlc_circuit_simulation(self) -> None:
         """Test that the RLC circuit can be compiled and simulated."""
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, der, equations, model, submodel, var
         from cyecca.dsl.backends import CasadiBackend
 
         @connector
@@ -845,7 +845,7 @@ class TestRLCCircuit:
         With R=10, L=0.5, C=0.01: 2*sqrt(0.5/0.01) = 2*sqrt(50) ≈ 14.14
         So R=10 < 14.14, meaning we have underdamped oscillation.
         """
-        from cyecca.dsl import connect, connector, der, equations, model, submodel, Real, var
+        from cyecca.dsl import Real, connect, connector, der, equations, model, submodel, var
         from cyecca.dsl.backends import CasadiBackend
         from cyecca.dsl.backends.casadi import Integrator
 

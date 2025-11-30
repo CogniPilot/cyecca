@@ -47,8 +47,8 @@ class SympyBackend(Backend):
     - Taylor series
     """
 
-    def __init__(self, model: Model):
-        super().__init__(model)
+    def __init__(self, model: Model) -> None:
+        super(SympyBackend, self).__init__(model)
 
         # SymPy symbols for each variable
         self.symbols: dict[str, sp.Symbol] = {}

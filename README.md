@@ -213,24 +213,24 @@ This is the v2 rewrite focused on:
 3. Engineering-friendly API
 4. Comprehensive testing
 
-## Comparison with v1
+## Comparison with v0.3.0
 
-**v1 (old)**: Focused on Lie groups and direct CasADi usage, tightly coupled
+**v0.3.0**: Focused on Lie groups and direct CasADi usage, tightly coupled
 
-**v2 (this)**: Clean IR layer, multiple backends, designed as compiler target
+**v0.4.0**: Clean IR layer, multiple backends, designed as compiler target, Lie group library moved to Modelica
 
 ## License
 
-MIT License - See LICENSE file
+Apache 2.0 License - See LICENSE file
 
 ## Citation
 
 ```bibtex
-@software{cyecca,
-  title = {cyecca: Symbolic Estimation and Control with Computer Algebra},
-  author = {Goppert, James},
-  organization = {CogniPilot},
-  url = {https://github.com/CogniPilot/cyecca},
-  year = {2025}
+@inproceedings{condie2025rumoca,
+  title={Rumoca: Towards a Translator from Modelica to Algebraic Modeling Languages},
+  author={Condie, Micah and Woodbury, Abigaile and Goppert, James and Andersson, Joel},
+  booktitle={Modelica Conferences},
+  pages={1009--1016},
+  year={2025}
 }
 ```

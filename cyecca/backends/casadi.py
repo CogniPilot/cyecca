@@ -9,7 +9,8 @@ This backend converts Cyecca IR to CasADi symbolic expressions, enabling:
 - JIT compilation
 """
 
-from typing import Any, Callable, Optional
+from collections.abc import MutableMapping
+from typing import Any, Callable, Iterator, Optional, Union
 
 import casadi as ca
 from casadi import event_in, event_out
@@ -35,6 +36,124 @@ from cyecca.ir.variable import Variable
 from cyecca.ir.types import VariableType
 
 
+class LazySimulationResult(MutableMapping):
+    """
+    A dictionary-like object that lazily computes algebraic variables.
+
+    State variables are stored directly, while algebraic variables are
+    computed on-demand when accessed. This avoids unnecessary computation
+    for variables that are never queried.
+    """
+
+    def __init__(
+        self,
+        state_data: dict[str, np.ndarray],
+        algebraic_funcs: dict[str, ca.Function],
+        state_names: list[str],
+        param_names: list[str],
+        param_values: np.ndarray,
+    ) -> None:
+        self._state_data = state_data
+        self._algebraic_funcs = algebraic_funcs
+        self._state_names = state_names
+        self._param_names = param_names
+        self._param_values = param_values
+        self._cache: dict[str, np.ndarray] = {}
+
+    def _compute_algebraic(self, name: str) -> np.ndarray:
+        """Compute a single algebraic variable from state trajectory."""
+        if name not in self._algebraic_funcs:
+            raise KeyError(name)
+
+        func = self._algebraic_funcs[name]
+        n_steps = next(iter(self._state_data.values())).shape[0]
+        result = np.zeros(n_steps)
+
+        # Build state array for each timestep and evaluate
+        for i in range(n_steps):
+            state_vals = [self._state_data[s][i] for s in self._state_names]
+            args = state_vals + list(self._param_values)
+            result[i] = float(func(*args))
+
+        return result
+
+    def compute_all_algebraic(self) -> None:
+        """
+        Compute all algebraic variables in a single pass through the timesteps.
+
+        This is more efficient than accessing algebraic variables individually,
+        as it only loops through the timesteps once and reuses the state arrays.
+        Results are cached for subsequent access.
+        """
+        if not self._algebraic_funcs:
+            return
+
+        # Skip if all already computed
+        uncached = [name for name in self._algebraic_funcs if name not in self._cache]
+        if not uncached:
+            return
+
+        n_steps = next(iter(self._state_data.values())).shape[0]
+
+        # Pre-allocate result arrays for uncached variables
+        results: dict[str, np.ndarray] = {name: np.zeros(n_steps) for name in uncached}
+
+        # Single pass through all timesteps
+        for i in range(n_steps):
+            state_vals = [self._state_data[s][i] for s in self._state_names]
+            args = state_vals + list(self._param_values)
+
+            # Evaluate all uncached algebraic functions at this timestep
+            for name in uncached:
+                results[name][i] = float(self._algebraic_funcs[name](*args))
+
+        # Store in cache
+        self._cache.update(results)
+
+    def __getitem__(self, key: str) -> np.ndarray:
+        # Check state data first
+        if key in self._state_data:
+            return self._state_data[key]
+
+        # Check cache
+        if key in self._cache:
+            return self._cache[key]
+
+        # Compute algebraic variable lazily
+        if key in self._algebraic_funcs:
+            result = self._compute_algebraic(key)
+            self._cache[key] = result
+            return result
+
+        raise KeyError(key)
+
+    def __setitem__(self, key: str, value: np.ndarray) -> None:
+        self._state_data[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        if key in self._state_data:
+            del self._state_data[key]
+        elif key in self._cache:
+            del self._cache[key]
+        else:
+            raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        # Iterate over all available keys (states + algebraic)
+        yield from self._state_data.keys()
+        yield from self._algebraic_funcs.keys()
+
+    def __len__(self) -> int:
+        return len(self._state_data) + len(self._algebraic_funcs)
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._state_data or key in self._algebraic_funcs
+
+    def keys(self):
+        """Return all available variable names."""
+        return list(self._state_data.keys()) + list(self._algebraic_funcs.keys())
+
+
 class CasadiBackend(Backend):
     """
     CasADi backend for fast numerical simulation.
@@ -45,19 +164,29 @@ class CasadiBackend(Backend):
     - Automatic differentiation
     - Sparse Jacobians
     - Code generation
+
+    Args:
+        model: The Cyecca IR model to compile
+        sym_type: Type of CasADi symbols to use - 'SX' (scalar, default) or 'MX' (matrix)
     """
 
-    def __init__(self, model: Model):
-        super().__init__(model)
+    def __init__(self, model: Model, sym_type: str = "SX") -> None:
+        super(CasadiBackend, self).__init__(model)
+
+        if sym_type not in ["SX", "MX"]:
+            raise ValueError(f"sym_type must be 'SX' or 'MX', got '{sym_type}'")
+
+        self.sym_type = sym_type
+        self.sym_class: type[Union[ca.SX, ca.MX]] = ca.SX if sym_type == "SX" else ca.MX
 
         # CasADi symbols for each variable
-        self.symbols: dict[str, ca.SX] = {}
+        self.symbols: dict[str, Union[ca.SX, ca.MX]] = {}
 
         # Symbolic expressions for derivatives
-        self.derivatives: dict[str, ca.SX] = {}
+        self.derivatives: dict[str, Union[ca.SX, ca.MX]] = {}
 
         # Symbolic expressions for algebraic equations
-        self.algebraic: dict[str, ca.SX] = {}
+        self.algebraic: dict[str, Union[ca.SX, ca.MX]] = {}
 
         # When equations (for event handling)
         self.when_equations: list[tuple[Expr, list[Equation]]] = []
@@ -74,6 +203,7 @@ class CasadiBackend(Backend):
         # Compiled functions
         self.f_ode: Optional[ca.Function] = None
         self.integrator: Optional[ca.Function] = None
+        self.algebraic_funcs: dict[str, ca.Function] = {}
 
     def compile(self) -> None:
         """Compile the IR model to CasADi symbolic expressions."""
@@ -82,7 +212,7 @@ class CasadiBackend(Backend):
             if var.is_array:
                 raise NotImplementedError("Array variables not yet supported in CasADi backend")
 
-            self.symbols[var.name] = ca.SX.sym(var.name)
+            self.symbols[var.name] = self.sym_class.sym(var.name)
 
             # Track state/param/input names and defaults
             if var.var_type == VariableType.STATE:
@@ -90,7 +220,11 @@ class CasadiBackend(Backend):
                 self.state_defaults[var.name] = self._extract_value(var.start)
             elif var.var_type == VariableType.PARAMETER:
                 self.param_names.append(var.name)
-                value = self._extract_value(var.value) if var.value is not None else self._extract_value(var.start)
+                value = (
+                    self._extract_value(var.value)
+                    if var.value is not None
+                    else self._extract_value(var.start)
+                )
                 self.param_defaults[var.name] = value if value is not None else 0.0
             elif var.var_type == VariableType.INPUT:
                 self.input_names.append(var.name)
@@ -127,13 +261,31 @@ class CasadiBackend(Backend):
         # Build ODE function: xdot = f(x, u, p)
         if self.state_names:
             x = ca.vertcat(*[self.symbols[name] for name in self.state_names])
-            u = ca.vertcat(*[self.symbols[name] for name in self.input_names]) if self.input_names else ca.SX([])
-            p = ca.vertcat(*[self.symbols[name] for name in self.param_names]) if self.param_names else ca.SX([])
+            u = (
+                ca.vertcat(*[self.symbols[name] for name in self.input_names])
+                if self.input_names
+                else self.sym_class([])
+            )
+            p = (
+                ca.vertcat(*[self.symbols[name] for name in self.param_names])
+                if self.param_names
+                else self.sym_class([])
+            )
 
-            xdot_exprs = [self.derivatives.get(name, ca.SX(0)) for name in self.state_names]
+            xdot_exprs = [
+                self.derivatives.get(name, self.sym_class(0)) for name in self.state_names
+            ]
             xdot = ca.vertcat(*xdot_exprs)
 
-            self.f_ode = ca.Function('ode', [x, u, p], [xdot], ['x', 'u', 'p'], ['xdot'])
+            self.f_ode = ca.Function("ode", [x, u, p], [xdot], ["x", "u", "p"], ["xdot"])
+
+        # Build algebraic functions: z = g(x, p)
+        # These are used for lazy evaluation of algebraic variables in simulation results
+        if self.algebraic:
+            x_syms = [self.symbols[name] for name in self.state_names]
+            p_syms = [self.symbols[name] for name in self.param_names]
+            for name, expr in self.algebraic.items():
+                self.algebraic_funcs[name] = ca.Function(f"alg_{name}", x_syms + p_syms, [expr])
 
         self._compiled = True
 
@@ -145,9 +297,27 @@ class CasadiBackend(Backend):
             return float(val)
         if isinstance(val, Literal):
             return float(val.value)
+        # Handle unary operations (e.g., -5.0)
+        if isinstance(val, UnaryOp):
+            operand_val = self._extract_value(val.operand)
+            if operand_val is not None:
+                if val.op == "-":
+                    return -operand_val
+                elif val.op == "+":
+                    return operand_val
         # Handle dict format from JSON: {'op': 'literal', 'value': x}
-        if isinstance(val, dict) and val.get('op') == 'literal':
-            return float(val['value'])
+        if isinstance(val, dict):
+            if val.get("op") == "literal":
+                return float(val["value"])
+            # Handle dict format for unary operations: {'op': 'neg', 'args': [...]}
+            elif val.get("op") == "neg" and "args" in val and len(val["args"]) > 0:
+                operand_val = self._extract_value(val["args"][0])
+                if operand_val is not None:
+                    return -operand_val
+            elif val.get("op") == "pos" and "args" in val and len(val["args"]) > 0:
+                operand_val = self._extract_value(val["args"][0])
+                if operand_val is not None:
+                    return operand_val
         return None
 
     def _get_var_name(self, expr: Expr) -> str:
@@ -161,22 +331,34 @@ class CasadiBackend(Backend):
         else:
             raise ValueError(f"Cannot extract variable name from: {expr}")
 
-    def _convert_expr(self, expr: Expr) -> ca.SX:
+    def _convert_expr(self, expr: Expr) -> Union[ca.SX, ca.MX]:
         """Convert a Cyecca IR expression to a CasADi expression."""
         if isinstance(expr, Literal):
-            return ca.SX(expr.value)
+            return self.sym_class(expr.value)
 
         elif isinstance(expr, ComponentRef):
             if not expr.is_simple:
-                raise NotImplementedError(f"Hierarchical component references not supported: {expr}")
+                raise NotImplementedError(
+                    f"Hierarchical component references not supported: {expr}"
+                )
             var_name = expr.simple_name
             if var_name not in self.symbols:
-                raise ValueError(f"Unknown variable: {var_name}")
+                available = sorted(self.symbols.keys())
+                raise ValueError(
+                    f"Unknown variable: '{var_name}'\n"
+                    f"Available variables: {', '.join(available)}\n"
+                    f"Hint: Check for typos in your Modelica code."
+                )
             return self.symbols[var_name]
 
         elif isinstance(expr, VarRef):
             if expr.name not in self.symbols:
-                raise ValueError(f"Unknown variable: {expr.name}")
+                available = sorted(self.symbols.keys())
+                raise ValueError(
+                    f"Unknown variable: '{expr.name}'\n"
+                    f"Available variables: {', '.join(available)}\n"
+                    f"Hint: Check for typos in your Modelica code."
+                )
             return self.symbols[expr.name]
 
         elif isinstance(expr, ArrayRef):
@@ -191,7 +373,7 @@ class CasadiBackend(Backend):
                 "-": lambda l, r: l - r,
                 "*": lambda l, r: l * r,
                 "/": lambda l, r: l / r,
-                "^": lambda l, r: l ** r,
+                "^": lambda l, r: l**r,
                 "<": lambda l, r: l < r,
                 "<=": lambda l, r: l <= r,
                 ">": lambda l, r: l > r,
@@ -272,7 +454,7 @@ class CasadiBackend(Backend):
         else:
             raise ValueError(f"Unsupported expression type: {type(expr)}")
 
-    def _extract_zero_crossing(self, expr: Any) -> ca.SX:
+    def _extract_zero_crossing(self, expr: Expr) -> Union[ca.SX, ca.MX]:
         """
         Extract zero-crossing indicator from a comparison expression.
 
@@ -286,11 +468,11 @@ class CasadiBackend(Backend):
         from cyecca.ir.expr import BinaryOp
 
         if isinstance(expr, BinaryOp):
-            if expr.op in ['<', '<=']:
+            if expr.op in ["<", "<="]:
                 # For x < 0 or x <= 0, zero-crossing is x itself
                 # Assuming RHS is zero (standard form)
                 return self._convert_expr(expr.left)
-            elif expr.op in ['>', '>=']:
+            elif expr.op in [">", ">="]:
                 # For x > 0 or x >= 0, zero-crossing is -x
                 return -self._convert_expr(expr.left)
             else:
@@ -304,7 +486,7 @@ class CasadiBackend(Backend):
         t_final: float,
         dt: float = 0.01,
         input_func: Optional[Callable[[float], dict[str, float]]] = None,
-    ) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    ) -> tuple[np.ndarray, LazySimulationResult]:
         """
         Simulate the model using CasADi integrator.
 
@@ -318,7 +500,8 @@ class CasadiBackend(Backend):
         Returns:
             (t, sol) where:
                 t: Time array of shape (n_steps,)
-                sol: Dictionary mapping variable names to arrays of shape (n_steps,)
+                sol: LazySimulationResult that provides state variables directly
+                     and computes algebraic variables on-demand when accessed
         """
         self._ensure_compiled()
 
@@ -326,7 +509,11 @@ class CasadiBackend(Backend):
         x0 = np.array([self.state_defaults.get(name, 0.0) for name in self.state_names])
 
         # Parameter values
-        p_val = np.array([self.param_defaults.get(name, 0.0) for name in self.param_names]) if self.param_names else np.array([])
+        p_val = (
+            np.array([self.param_defaults.get(name, 0.0) for name in self.param_names])
+            if self.param_names
+            else np.array([])
+        )
 
         # Time grid
         t_grid = np.arange(0.0, t_final + dt, dt)
@@ -334,10 +521,19 @@ class CasadiBackend(Backend):
         # Use event handling if when-equations are present
         if self.when_equations:
             # Use CasADi integrator with event handling
-            result = self._simulate_with_events(x0, p_val, t_grid)
+            state_data = self._simulate_with_events(x0, p_val, t_grid)
         else:
             # Use simple RK4 integration (no events)
-            result = self._simulate_rk4(x0, p_val, t_grid, input_func)
+            state_data = self._simulate_rk4(x0, p_val, t_grid, input_func)
+
+        # Wrap in LazySimulationResult for lazy algebraic variable computation
+        result = LazySimulationResult(
+            state_data=state_data,
+            algebraic_funcs=self.algebraic_funcs,
+            state_names=self.state_names,
+            param_names=self.param_names,
+            param_values=p_val,
+        )
 
         return t_grid, result
 
@@ -350,7 +546,11 @@ class CasadiBackend(Backend):
         """Simulate using CasADi integrator with event handling."""
         # Build DAE structure
         x = ca.vertcat(*[self.symbols[name] for name in self.state_names])
-        p = ca.vertcat(*[self.symbols[name] for name in self.param_names]) if self.param_names else ca.SX([])
+        p = (
+            ca.vertcat(*[self.symbols[name] for name in self.param_names])
+            if self.param_names
+            else ca.SX([])
+        )
 
         xdot_exprs = [self.derivatives.get(name, ca.SX(0)) for name in self.state_names]
         ode = ca.vertcat(*xdot_exprs)
@@ -370,13 +570,13 @@ class CasadiBackend(Backend):
 
         # Build DAE
         dae = {
-            'x': x,
-            'ode': ode,
-            'zero': event_indicator,  # Zero-crossing indicator
+            "x": x,
+            "ode": ode,
+            "zero": event_indicator,  # Zero-crossing indicator
         }
 
         if self.param_names:
-            dae['p'] = p
+            dae["p"] = p
 
         # Build transition function for reset
         # Start with all states unchanged
@@ -396,41 +596,33 @@ class CasadiBackend(Backend):
         post_x = ca.vertcat(*post_x_exprs)
 
         # Create transition function (following CasADi official example format)
-        trans_dict = {'x': x, 'post_x': post_x}
+        trans_dict = {"x": x, "post_x": post_x}
         if self.param_names:
-            trans_dict['p'] = p
+            trans_dict["p"] = p
 
-        transition = ca.Function('transition', trans_dict, event_in(), event_out())
+        transition = ca.Function("transition", trans_dict, event_in(), event_out())
 
         # Create integrator with event handling
         opts = {
-            'transition': transition,
-            'max_events': 100,
+            "transition": transition,
+            "max_events": 100,
         }
 
-        # Note: Initial height needs to be high enough to avoid grid interpolation issues
-        # The official CasADi example uses h0=5.0
-        if 'h' in self.state_names:
-            h_idx = self.state_names.index('h')
-            if x0[h_idx] < 2.0:
-                print(f"NOTE: Increasing initial height from {x0[h_idx]} to 5.0 for event handling stability")
-                x0[h_idx] = 5.0
-
-        integrator_args = ['sim', 'cvodes', dae, t_grid[0], t_grid]
+        integrator_args = ["sim", "cvodes", dae, t_grid[0], t_grid]
         if self.param_names:
             integrator = ca.integrator(*integrator_args, opts)
         else:
             integrator = ca.integrator(*integrator_args, opts)
 
         # Run integration
-        sim_args = {'x0': x0}
+        sim_args = {"x0": x0}
         if self.param_names:
-            sim_args['p'] = p_val
+            sim_args["p"] = p_val
 
         result = integrator(**sim_args)
 
         # Extract results
-        x_result = result['xf'].full()
+        x_result = result["xf"].full()
 
         sol = {}
         for i, name in enumerate(self.state_names):
@@ -496,8 +688,16 @@ class CasadiBackend(Backend):
 
         # Build symbolic state and input vectors
         x = ca.vertcat(*[self.symbols[name] for name in self.state_names])
-        u = ca.vertcat(*[self.symbols[name] for name in self.input_names]) if self.input_names else ca.SX([])
-        p = ca.vertcat(*[self.symbols[name] for name in self.param_names]) if self.param_names else ca.SX([])
+        u = (
+            ca.vertcat(*[self.symbols[name] for name in self.input_names])
+            if self.input_names
+            else ca.SX([])
+        )
+        p = (
+            ca.vertcat(*[self.symbols[name] for name in self.param_names])
+            if self.param_names
+            else ca.SX([])
+        )
 
         xdot_exprs = [self.derivatives.get(name, ca.SX(0)) for name in self.state_names]
         xdot = ca.vertcat(*xdot_exprs)
@@ -507,19 +707,29 @@ class CasadiBackend(Backend):
         B_sym = ca.jacobian(xdot, u) if self.input_names else ca.SX(len(self.state_names), 0)
 
         # Create functions for evaluation
-        A_func = ca.Function('A', [x, u, p], [A_sym])
-        B_func = ca.Function('B', [x, u, p], [B_sym])
+        A_func = ca.Function("A", [x, u, p], [A_sym])
+        B_func = ca.Function("B", [x, u, p], [B_sym])
 
         # Prepare operating point
         if x0 is None:
             x0 = {}
-        x0_vec = np.array([x0.get(name, self.state_defaults.get(name, 0.0)) for name in self.state_names])
+        x0_vec = np.array(
+            [x0.get(name, self.state_defaults.get(name, 0.0)) for name in self.state_names]
+        )
 
         if u0 is None:
             u0 = {}
-        u0_vec = np.array([u0.get(name, 0.0) for name in self.input_names]) if self.input_names else np.array([])
+        u0_vec = (
+            np.array([u0.get(name, 0.0) for name in self.input_names])
+            if self.input_names
+            else np.array([])
+        )
 
-        p_vec = np.array([self.param_defaults.get(name, 0.0) for name in self.param_names]) if self.param_names else np.array([])
+        p_vec = (
+            np.array([self.param_defaults.get(name, 0.0) for name in self.param_names])
+            if self.param_names
+            else np.array([])
+        )
 
         # Evaluate
         A = np.array(A_func(x0_vec, u0_vec, p_vec))

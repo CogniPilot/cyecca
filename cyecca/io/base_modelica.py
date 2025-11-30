@@ -35,6 +35,34 @@ from cyecca.ir import (
 )
 
 
+def _extract_start_value(start_data: Any) -> Optional[float]:
+    """
+    Extract a float value from a start expression.
+
+    The start value in Base Modelica JSON can be:
+    - None
+    - A float/int directly
+    - A dict like {'op': 'literal', 'value': 0.8}
+    - A dict like {'op': 'neg', 'args': [{'op': 'literal', 'value': 5.0}]}
+
+    Returns:
+        The extracted float value, or None if not extractable
+    """
+    if start_data is None:
+        return None
+    if isinstance(start_data, (int, float)):
+        return float(start_data)
+    if isinstance(start_data, dict):
+        if start_data.get("op") == "literal":
+            return float(start_data["value"])
+        elif start_data.get("op") == "neg" and "args" in start_data:
+            inner = _extract_start_value(start_data["args"][0])
+            return -inner if inner is not None else None
+        elif start_data.get("op") == "pos" and "args" in start_data:
+            return _extract_start_value(start_data["args"][0])
+    return None
+
+
 def import_base_modelica(path: Union[str, Path]) -> Model:
     """
     Import a Base Modelica JSON file into a Cyecca Model.
@@ -255,7 +283,7 @@ def _import_constant(data: dict) -> Variable:
         name=data["name"],
         var_type=VariableType.CONSTANT,
         primitive_type=_import_primitive_type(data.get("type", "Real")),
-        value=data.get("value"),
+        value=_extract_start_value(data.get("value")),
         shape=data.get("dimensions"),
         unit=data.get("unit", ""),
         description=data.get("description", ""),
@@ -270,8 +298,8 @@ def _import_parameter(data: dict) -> Variable:
         name=data["name"],
         var_type=VariableType.PARAMETER,
         primitive_type=_import_primitive_type(data.get("type", "Real")),
-        value=data.get("value"),
-        start=data.get("start"),
+        value=_extract_start_value(data.get("value")),
+        start=_extract_start_value(data.get("start")),
         shape=data.get("dimensions"),
         unit=data.get("unit", ""),
         description=data.get("description", ""),
@@ -304,7 +332,7 @@ def _import_variable(data: dict) -> Variable:
         var_type=var_type,
         primitive_type=_import_primitive_type(data.get("type", "Real")),
         variability=variability,
-        start=data.get("start"),
+        start=_extract_start_value(data.get("start")),
         shape=data.get("dimensions"),
         unit=data.get("unit", ""),
         description=data.get("description", ""),
@@ -455,7 +483,7 @@ def _import_expr(data: dict) -> Expr:
         # Component reference like vehicle.wheels[1].pressure
         parts = []
         for part_data in data["parts"]:
-            subscripts = [_import_expr(sub) for sub in part_data.get("subscripts", [])]
+            subscripts = tuple(_import_expr(sub) for sub in part_data.get("subscripts", []))
             parts.append(ComponentRefPart(name=part_data["name"], subscripts=subscripts))
         return ComponentRef(parts=tuple(parts))
 
@@ -526,15 +554,15 @@ def _import_component_ref(data: Union[str, list]) -> ComponentRef:
     """Import a component reference from target field."""
     if isinstance(data, str):
         # Simple variable name
-        return ComponentRef(parts=(ComponentRefPart(name=data, subscripts=[]),))
+        return ComponentRef(parts=(ComponentRefPart(name=data, subscripts=()),))
     elif isinstance(data, list):
         # Component reference path
         parts = []
         for part in data:
             if isinstance(part, str):
-                parts.append(ComponentRefPart(name=part, subscripts=[]))
+                parts.append(ComponentRefPart(name=part, subscripts=()))
             elif isinstance(part, dict):
-                subscripts = [_import_expr(sub) for sub in part.get("subscripts", [])]
+                subscripts = tuple(_import_expr(sub) for sub in part.get("subscripts", []))
                 parts.append(ComponentRefPart(name=part["name"], subscripts=subscripts))
         return ComponentRef(parts=tuple(parts))
     else:

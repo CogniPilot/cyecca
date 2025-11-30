@@ -1,42 +1,48 @@
-"""Typed aliases that bridge the DSL and IR layers."""
+"""
+Type definitions for the IR.
+"""
 
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple, Type
-
-from cyecca.ir.variable import DataType, IRVariable, NumericValue, VariableKind
-
-Shape = Tuple[int, ...]
-Indices = Tuple[int, ...]
-
-# Canonical IR types (re-exported for backwards compatibility)
-Var = IRVariable
-VarKind = VariableKind
-DType = DataType
+from enum import Enum, auto
 
 
-@dataclass
-class SubmodelField:
-    """A submodel (nested model instance) with optional parameter overrides."""
+class VariableType(Enum):
+    """Type of variable in the model."""
 
-    model_class: Type
-    name: Optional[str] = None
-    overrides: Dict[str, NumericValue] = field(default_factory=dict)
-
-    def __repr__(self) -> str:
-        if self.overrides:
-            overrides_str = ", ".join(f"{k}={v}" for k, v in self.overrides.items())
-            return f"submodel({self.model_class.__name__}, {overrides_str})"
-        return f"submodel({self.model_class.__name__})"
+    STATE = auto()  # Continuous state (has derivative)
+    DER_STATE = auto()  # Derivative of state (automatically created)
+    DISCRETE_STATE = auto()  # Discrete state (updated at events)
+    ALGEBRAIC = auto()  # Algebraic variable (no derivative, no update)
+    INPUT = auto()  # External input
+    OUTPUT = auto()  # Output variable
+    PARAMETER = auto()  # Constant parameter
+    CONSTANT = auto()  # Compile-time constant
 
 
-__all__ = [
-    "Var",
-    "VarKind",
-    "DType",
-    "Shape",
-    "Indices",
-    "SubmodelField",
-    "NumericValue",
-]
+class Causality(Enum):
+    """Causality of a variable (FMI terminology)."""
+
+    LOCAL = auto()  # Internal variable
+    PARAMETER = auto()  # Fixed parameter
+    CALCULATED_PARAMETER = auto()  # Computed from other parameters
+    INPUT = auto()  # Set from outside
+    OUTPUT = auto()  # Computed and exposed
+    INDEPENDENT = auto()  # Independent variable (usually time)
+
+
+class Variability(Enum):
+    """How often a variable can change (FMI terminology)."""
+
+    CONSTANT = auto()  # Never changes
+    FIXED = auto()  # Fixed after initialization
+    TUNABLE = auto()  # Can change between events
+    DISCRETE = auto()  # Changes only at events
+    CONTINUOUS = auto()  # Can change continuously
+
+
+class PrimitiveType(Enum):
+    """Primitive data types (Modelica 3.7)."""
+
+    REAL = auto()
+    INTEGER = auto()
+    BOOLEAN = auto()
+    STRING = auto()

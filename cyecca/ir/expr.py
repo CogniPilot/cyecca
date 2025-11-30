@@ -1,470 +1,426 @@
 """
-Expression tree representation for Cyecca IR.
+Expression representation in the IR.
 
-This module contains the core Expr class and ExprKind enum that form
-the abstract syntax tree for symbolic expressions.
+Expressions are symbolic mathematical expressions that can be:
+- Evaluated by backends (CasADi, SymPy, JAX, etc.)
+- Differentiated
+- Simplified
+- Code generated
 
-The expression tree is backend-agnostic - it can be compiled to
-CasADi, JAX, NumPy, or other backends.
-
-This is the foundation of the IR - it has NO dependencies on the DSL layer.
+This is a simple tree-based representation similar to an AST.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
-from enum import Enum, auto
-from typing import Any, Generator, Optional, Tuple
-
-from beartype import beartype
-
-# Type aliases (duplicated here to avoid DSL dependency)
-Indices = Tuple[int, ...]
-Shape = Tuple[int, ...]
-
-
-class ExprKind(Enum):
-    """Kinds of expression nodes."""
-
-    # Leaf nodes
-    VARIABLE = auto()  # Named variable (state, param, input, etc.)
-    DERIVATIVE = auto()  # der(x) - derivative of a variable
-    CONSTANT = auto()  # Numeric constant
-    TIME = auto()  # Time variable t
-
-    # Unary operations
-    NEG = auto()  # -x
-    NOT = auto()  # not x (Boolean negation)
-
-    # Binary arithmetic operations
-    ADD = auto()  # x + y
-    SUB = auto()  # x - y
-    MUL = auto()  # x * y
-    DIV = auto()  # x / y
-    POW = auto()  # x ** y
-
-    # Relational operations (Modelica MLS 3.5)
-    LT = auto()  # x < y
-    LE = auto()  # x <= y
-    GT = auto()  # x > y
-    GE = auto()  # x >= y
-    EQ = auto()  # x == y (equality test, not equation)
-    NE = auto()  # x != y (or x <> y in Modelica)
-
-    # Boolean operations (Modelica MLS 3.5)
-    AND = auto()  # x and y
-    OR = auto()  # x or y
-
-    # Conditional expression (Modelica MLS 3.6.5)
-    IF_THEN_ELSE = auto()  # if cond then expr1 else expr2
-
-    # Array operations
-    INDEX = auto()  # x[i] - array indexing (stores index in 'value' field)
-    ARRAY_LITERAL = auto()  # [a, b, c] - array literal with children as elements
-
-    # Discrete/event operators (Modelica MLS 3.8)
-    PRE = auto()  # pre(x) - previous value of discrete variable
-    EDGE = auto()  # edge(x) - True when x changes from False to True
-    CHANGE = auto()  # change(x) - True when x changes value
-
-    # Math functions
-    SIN = auto()
-    COS = auto()
-    TAN = auto()
-    ASIN = auto()
-    ACOS = auto()
-    ATAN = auto()
-    ATAN2 = auto()
-    SQRT = auto()
-    EXP = auto()
-    LOG = auto()
-    LOG10 = auto()  # Base-10 logarithm
-    ABS = auto()
-    SIGN = auto()  # Sign function (-1, 0, or 1)
-    FLOOR = auto()  # Floor function
-    CEIL = auto()  # Ceiling function
-    SINH = auto()  # Hyperbolic sine
-    COSH = auto()  # Hyperbolic cosine
-    TANH = auto()  # Hyperbolic tangent
-    ASINH = auto()  # Inverse hyperbolic sine
-    ACOSH = auto()  # Inverse hyperbolic cosine
-    ATANH = auto()  # Inverse hyperbolic tangent
-    MIN = auto()  # Minimum of two values
-    MAX = auto()  # Maximum of two values
-    MOD = auto()  # Modulo operation
-
-    # Hybrid system operators (Modelica MLS 8.5)
-    REINIT = auto()  # reinit(x, expr) - reinitialize state at event
-
-    # Special operators (Modelica MLS 3.7.4, 3.7.5)
-    INITIAL = auto()  # initial() - True only during initialization
-    TERMINAL = auto()  # terminal() - True only at end of simulation
-    SAMPLE = auto()  # sample(start, interval) - periodic event trigger
+from typing import Any, Union
 
 
 @dataclass(frozen=True)
 class Expr:
+    """Base class for all expressions."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class Literal(Expr):
+    """Literal constant value."""
+
+    value: Union[float, int, bool, str]
+
+    def __str__(self):
+        return str(self.value)
+
+
+@dataclass(frozen=True)
+class ComponentRefPart:
     """
-    Immutable expression tree node.
+    One part of a hierarchical component reference.
 
-    Represents symbolic mathematical expressions that can be compiled
-    to different backends (CasADi, JAX, NumPy, etc.).
-
-    This is the core abstraction that makes the IR backend-agnostic.
-    The DSL builds expression trees, and backends compile them to
-    executable functions.
-
-    For indexed variables, use VARIABLE kind with indices set.
+    Examples:
+        x         -> ComponentRefPart("x")
+        arr[i]    -> ComponentRefPart("arr", (i,))
+        pos[1,2]  -> ComponentRefPart("pos", (1, 2))
     """
 
-    kind: ExprKind
-    children: Tuple["Expr", ...] = ()
-    name: Optional[str] = None  # For VARIABLE, DERIVATIVE
-    value: Optional[float] = None  # For CONSTANT
-    indices: Indices = ()  # For indexed VARIABLE: (i,), (i,j), etc.
+    name: str
+    subscripts: tuple[Expr, ...] = ()
 
-    def __repr__(self) -> str:
-        if self.kind == ExprKind.VARIABLE:
-            if self.indices:
-                idx_str = ",".join(str(i) for i in self.indices)
-                return f"{self.name}[{idx_str}]"
-            return f"{self.name}"
-        elif self.kind == ExprKind.DERIVATIVE:
-            return f"der({self.name})"
-        elif self.kind == ExprKind.CONSTANT:
-            return f"{self.value}"
-        elif self.kind == ExprKind.TIME:
-            return "t"
-        elif self.kind == ExprKind.NEG:
-            return f"(-{self.children[0]})"
-        elif self.kind == ExprKind.ADD:
-            return f"({self.children[0]} + {self.children[1]})"
-        elif self.kind == ExprKind.SUB:
-            return f"({self.children[0]} - {self.children[1]})"
-        elif self.kind == ExprKind.MUL:
-            return f"({self.children[0]} * {self.children[1]})"
-        elif self.kind == ExprKind.DIV:
-            return f"({self.children[0]} / {self.children[1]})"
-        elif self.kind == ExprKind.POW:
-            return f"({self.children[0]} ** {self.children[1]})"
-        elif self.kind == ExprKind.INDEX:
-            return f"{self.name}[{int(self.value) if self.value else 0}]"
-        elif self.kind == ExprKind.ARRAY_LITERAL:
-            elements = ", ".join(str(child) for child in self.children)
-            return f"[{elements}]"
-        elif self.kind in (
-            ExprKind.SIN,
-            ExprKind.COS,
-            ExprKind.TAN,
-            ExprKind.ASIN,
-            ExprKind.ACOS,
-            ExprKind.ATAN,
-            ExprKind.SQRT,
-            ExprKind.EXP,
-            ExprKind.LOG,
-            ExprKind.LOG10,
-            ExprKind.ABS,
-            ExprKind.SIGN,
-            ExprKind.FLOOR,
-            ExprKind.CEIL,
-            ExprKind.SINH,
-            ExprKind.COSH,
-            ExprKind.TANH,
-        ):
-            return f"{self.kind.name.lower()}({self.children[0]})"
-        elif self.kind == ExprKind.ATAN2:
-            return f"atan2({self.children[0]}, {self.children[1]})"
-        elif self.kind == ExprKind.MIN:
-            return f"min({self.children[0]}, {self.children[1]})"
-        elif self.kind == ExprKind.MAX:
-            return f"max({self.children[0]}, {self.children[1]})"
-        elif self.kind == ExprKind.PRE:
-            return f"pre({self.name})"
-        elif self.kind == ExprKind.EDGE:
-            return f"edge({self.name})"
-        elif self.kind == ExprKind.CHANGE:
-            return f"change({self.name})"
-        elif self.kind == ExprKind.LT:
-            return f"({self.children[0]} < {self.children[1]})"
-        elif self.kind == ExprKind.LE:
-            return f"({self.children[0]} <= {self.children[1]})"
-        elif self.kind == ExprKind.GT:
-            return f"({self.children[0]} > {self.children[1]})"
-        elif self.kind == ExprKind.GE:
-            return f"({self.children[0]} >= {self.children[1]})"
-        elif self.kind == ExprKind.EQ:
-            return f"({self.children[0]} == {self.children[1]})"
-        elif self.kind == ExprKind.NE:
-            return f"({self.children[0]} != {self.children[1]})"
-        elif self.kind == ExprKind.AND:
-            return f"({self.children[0]} and {self.children[1]})"
-        elif self.kind == ExprKind.OR:
-            return f"({self.children[0]} or {self.children[1]})"
-        elif self.kind == ExprKind.NOT:
-            return f"(not {self.children[0]})"
-        elif self.kind == ExprKind.IF_THEN_ELSE:
-            return f"(if {self.children[0]} then {self.children[1]} else {self.children[2]})"
-        elif self.kind == ExprKind.REINIT:
-            return f"reinit({self.name}, {self.children[0]})"
-        elif self.kind == ExprKind.INITIAL:
-            return "initial()"
-        elif self.kind == ExprKind.TERMINAL:
-            return "terminal()"
-        elif self.kind == ExprKind.SAMPLE:
-            return f"sample({self.children[0]}, {self.children[1]})"
-        return f"Expr({self.kind})"
+    def __str__(self):
+        if self.subscripts:
+            subs = ",".join(str(s) for s in self.subscripts)
+            return f"{self.name}[{subs}]"
+        return self.name
+
+
+@dataclass(frozen=True)
+class ComponentRef(Expr):
+    """
+    Hierarchical component reference.
+
+    This is the proper Modelica way to reference variables, supporting:
+    - Simple variables: x
+    - Hierarchical access: vehicle.engine.temp
+    - Array indexing: positions[i]
+    - Combined: vehicle.wheels[i].pressure
+
+    Examples:
+        ComponentRef((ComponentRefPart("x"),))
+        ComponentRef((ComponentRefPart("a"), ComponentRefPart("b")))
+        ComponentRef((ComponentRefPart("arr", (i,)),))
+    """
+
+    parts: tuple[ComponentRefPart, ...]
+
+    def __str__(self):
+        return ".".join(str(p) for p in self.parts)
 
     @property
-    def indexed_name(self) -> str:
-        """Get the full name including indices: 'x' or 'x[0,1]'."""
-        if self.indices:
-            idx_str = ",".join(str(i) for i in self.indices)
-            return f"{self.name}[{idx_str}]"
-        return self.name or ""
+    def is_simple(self) -> bool:
+        """True if this is just a simple variable reference (one part, no subscripts)."""
+        return len(self.parts) == 1 and len(self.parts[0].subscripts) == 0
 
-    # Arithmetic operators - return new Expr nodes
-    def __add__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.ADD, (self, _to_expr_basic(other)))
+    @property
+    def simple_name(self) -> str:
+        """Get name if simple reference, else raise."""
+        if not self.is_simple:
+            raise ValueError(f"Not a simple reference: {self}")
+        return self.parts[0].name
 
-    def __radd__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.ADD, (_to_expr_basic(other), self))
+    def to_varref(self) -> "VarRef":
+        """Convert to legacy VarRef (only works for simple refs)."""
+        if not self.is_simple:
+            raise ValueError(f"Cannot convert hierarchical ref to VarRef: {self}")
+        return VarRef(self.simple_name)
 
-    def __sub__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.SUB, (self, _to_expr_basic(other)))
 
-    def __rsub__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.SUB, (_to_expr_basic(other), self))
+@dataclass(frozen=True)
+class VarRef(Expr):
+    """
+    DEPRECATED: Simple variable reference.
 
-    def __mul__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.MUL, (self, _to_expr_basic(other)))
+    Use ComponentRef instead for new code. This is kept for backward compatibility.
+    VarRef will be removed in a future version.
+    """
 
-    def __rmul__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.MUL, (_to_expr_basic(other), self))
+    name: str
 
-    def __truediv__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.DIV, (self, _to_expr_basic(other)))
+    def __str__(self):
+        return self.name
 
-    def __rtruediv__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.DIV, (_to_expr_basic(other), self))
+    def to_component_ref(self) -> ComponentRef:
+        """Convert to ComponentRef."""
+        return ComponentRef((ComponentRefPart(self.name),))
 
-    def __pow__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.POW, (self, _to_expr_basic(other)))
 
-    def __rpow__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.POW, (_to_expr_basic(other), self))
+@dataclass(frozen=True)
+class ArrayRef(Expr):
+    """
+    DEPRECATED: Array element reference.
 
-    def __neg__(self) -> "Expr":
-        return Expr(ExprKind.NEG, (self,))
+    Use ComponentRef with subscripts instead for new code.
+    This is kept for backward compatibility only.
+    """
 
-    def __pos__(self) -> "Expr":
-        return self
+    name: str
+    indices: tuple[Expr, ...]
 
-    # Relational operators - return Boolean Expr
-    def __lt__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.LT, (self, _to_expr_basic(other)))
+    def __str__(self):
+        idx_str = ", ".join(str(i) for i in self.indices)
+        return f"{self.name}[{idx_str}]"
 
-    def __le__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.LE, (self, _to_expr_basic(other)))
+    def to_component_ref(self) -> ComponentRef:
+        """Convert to ComponentRef."""
+        return ComponentRef((ComponentRefPart(self.name, self.indices),))
 
-    def __gt__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.GT, (self, _to_expr_basic(other)))
 
-    def __ge__(self, other: Any) -> "Expr":
-        return Expr(ExprKind.GE, (self, _to_expr_basic(other)))
+@dataclass(frozen=True)
+class BinaryOp(Expr):
+    """Binary operation: left op right."""
 
-    def __eq__(self, other: Any) -> Any:  # type: ignore[override]
-        """Equality comparison or equation registration.
+    op: str  # "+", "-", "*", "/", "^", "==", "<", ">", etc.
+    left: Expr
+    right: Expr
 
-        When inside a DSL @equations context, this registers an equation.
-        Otherwise, returns a comparison Expr for use in conditionals.
+    def __str__(self):
+        return f"({self.left} {self.op} {self.right})"
 
-        The DSL context is checked lazily to keep IR independent.
+
+@dataclass(frozen=True)
+class UnaryOp(Expr):
+    """Unary operation: op operand."""
+
+    op: str  # "-", "not"
+    operand: Expr
+
+    def __str__(self):
+        return f"{self.op}({self.operand})"
+
+
+@dataclass(frozen=True)
+class FunctionCall(Expr):
+    """Function call: func(args...)."""
+
+    func: str
+    args: tuple[Expr, ...]
+
+    def __str__(self):
+        args_str = ", ".join(str(a) for a in self.args)
+        return f"{self.func}({args_str})"
+
+
+@dataclass(frozen=True)
+class IfExpr(Expr):
+    """Conditional expression: if condition then true_expr else false_expr."""
+
+    condition: Expr
+    true_expr: Expr
+    false_expr: Expr
+
+    def __str__(self):
+        return f"if {self.condition} then {self.true_expr} else {self.false_expr}"
+
+
+@dataclass(frozen=True)
+class ArrayLiteral(Expr):
+    """Array literal: [elem1, elem2, ...]."""
+
+    elements: tuple[Expr, ...]
+
+    def __str__(self):
+        elems_str = ", ".join(str(e) for e in self.elements)
+        return f"[{elems_str}]"
+
+
+@dataclass(frozen=True)
+class Slice(Expr):
+    """
+    Array slice: start:stop or start:step:stop or :.
+
+    In Modelica:
+        x[:]        -> all elements (start=None, stop=None)
+        x[1:3]      -> elements 1 to 3 (start=1, stop=3)
+        x[1:2:10]   -> elements 1,3,5,7,9 (start=1, step=2, stop=10)
+
+    Note: In Modelica, arrays are 1-indexed by default.
+    """
+
+    start: Expr | None = None
+    stop: Expr | None = None
+    step: Expr | None = None
+
+    def __str__(self):
+        if self.start is None and self.stop is None and self.step is None:
+            return ":"
+        elif self.step is None:
+            start_str = str(self.start) if self.start is not None else ""
+            stop_str = str(self.stop) if self.stop is not None else ""
+            return f"{start_str}:{stop_str}"
+        else:
+            start_str = str(self.start) if self.start is not None else ""
+            step_str = str(self.step) if self.step is not None else ""
+            stop_str = str(self.stop) if self.stop is not None else ""
+            return f"{start_str}:{step_str}:{stop_str}"
+
+
+# Convenience constructors for common patterns
+class ExprBuilder:
+    """Helper class for building expressions with a fluent API."""
+
+    @staticmethod
+    def literal(value: Union[float, int, bool, str]) -> Literal:
+        """Create a literal expression."""
+        return Literal(value)
+
+    @staticmethod
+    def var_ref(name: str) -> ComponentRef:
         """
-        rhs = _to_expr_basic(other)
+        Create a simple variable reference.
 
-        # Check if DSL equation context is available and active
-        try:
-            from cyecca.dsl.context import get_current_equation_context
-            from cyecca.dsl.equations import Equation
+        Returns ComponentRef for forward compatibility.
+        For legacy VarRef, use VarRef(name) directly.
+        """
+        return ComponentRef((ComponentRefPart(name),))
 
-            ctx = get_current_equation_context()
-            if ctx is not None:
-                # If building a subexpression (e.g., inside if_then_else), return comparison
-                if ctx.is_building_expr:
-                    return Expr(ExprKind.EQ, (self, rhs))
-                # Otherwise, register as equation
-                eq = Equation(lhs=self, rhs=rhs)
-                ctx.add_equation(eq)
-                return None
-        except ImportError:
-            # DSL not available, just return comparison Expr
-            pass
+    @staticmethod
+    def component_ref(*parts: Union[str, tuple[str, list[Expr]]]) -> ComponentRef:
+        """
+        Create hierarchical component reference.
 
-        # Outside @equations context or no DSL, return comparison Expr
-        return Expr(ExprKind.EQ, (self, rhs))
+        Examples:
+            component_ref("x")                    # x
+            component_ref("a", "b", "c")          # a.b.c
+            component_ref(("arr", [i]), "field")  # arr[i].field
+        """
+        ref_parts = []
+        for part in parts:
+            if isinstance(part, str):
+                ref_parts.append(ComponentRefPart(part))
+            else:
+                name, subs = part
+                ref_parts.append(ComponentRefPart(name, tuple(subs)))
+        return ComponentRef(tuple(ref_parts))
 
-    def __ne__(self, other: Any) -> "Expr":  # type: ignore[override]
-        """Not-equal comparison expression."""
-        return Expr(ExprKind.NE, (self, _to_expr_basic(other)))
+    @staticmethod
+    def array_ref(name: str, *indices: Expr) -> ArrayRef:
+        """
+        DEPRECATED: Create an array reference.
 
-    def __hash__(self) -> int:
-        """Hash based on kind, children, name, value, and indices."""
-        return hash((self.kind, self.children, self.name, self.value, self.indices))
+        Use component_ref((name, [indices])) instead for new code.
+        """
+        return ArrayRef(name, indices)
 
+    @staticmethod
+    def binary_op(op: str, left: Expr, right: Expr) -> BinaryOp:
+        """Create a binary operation."""
+        return BinaryOp(op, left, right)
 
-def _to_expr_basic(x: Any) -> Expr:
-    """
-    Convert basic types to Expr (no DSL dependencies).
+    @staticmethod
+    def unary_op(op: str, operand: Expr) -> UnaryOp:
+        """Create a unary operation."""
+        return UnaryOp(op, operand)
 
-    For DSL types (SymbolicVar, etc.), use cyecca.dsl.expr.to_expr().
-    """
-    if isinstance(x, Expr):
-        return x
-    if isinstance(x, (int, float)):
-        return Expr(ExprKind.CONSTANT, value=float(x))
-    # Check for numpy scalar
-    try:
-        import numpy as np
+    @staticmethod
+    def call(func: str, *args: Expr) -> FunctionCall:
+        """Create a function call."""
+        return FunctionCall(func, args)
 
-        if isinstance(x, np.ndarray) and x.size == 1:
-            return Expr(ExprKind.CONSTANT, value=float(x.flat[0]))
-    except ImportError:
-        pass
-    if isinstance(x, list):
-        children = tuple(_to_expr_basic(elem) for elem in x)
-        return Expr(ExprKind.ARRAY_LITERAL, children=children)
-    # If it has _expr attribute (DSL types), use it
-    if hasattr(x, "_expr"):
-        return x._expr
-    raise TypeError(f"Cannot convert {type(x)} to Expr")
+    @staticmethod
+    def if_expr(condition: Expr, true_expr: Expr, false_expr: Expr) -> IfExpr:
+        """Create a conditional expression."""
+        return IfExpr(condition, true_expr, false_expr)
 
+    @staticmethod
+    def array_literal(*elements: Expr) -> ArrayLiteral:
+        """Create an array literal."""
+        return ArrayLiteral(elements)
 
-# =============================================================================
-# Helper functions for expressions
-# =============================================================================
+    @staticmethod
+    def slice(
+        start: Expr | None = None, stop: Expr | None = None, step: Expr | None = None
+    ) -> Slice:
+        """
+        Create a slice expression.
 
+        Examples:
+            slice()              # :         (all elements)
+            slice(1, 3)          # 1:3       (elements 1 to 3)
+            slice(1, 10, 2)      # 1:2:10    (elements 1,3,5,7,9)
+            slice(None, 5)       # :5        (first 5 elements)
+            slice(3, None)       # 3:        (from element 3 to end)
+        """
+        return Slice(start, stop, step)
 
-@beartype
-def find_derivatives(expr: Expr) -> set[str]:
-    """
-    Find all variable names whose derivative (der) appears in an expression.
+    # Common operators
+    @staticmethod
+    def add(left: Expr, right: Expr) -> BinaryOp:
+        """left + right"""
+        return BinaryOp("+", left, right)
 
-    This is used for automatic state detection: if der(x) appears anywhere
-    in the equations, then x is a state variable.
+    @staticmethod
+    def sub(left: Expr, right: Expr) -> BinaryOp:
+        """left - right"""
+        return BinaryOp("-", left, right)
 
-    For indexed variables like der(pos[0]), returns "pos[0]".
-    """
-    result: set[str] = set()
+    @staticmethod
+    def mul(left: Expr, right: Expr) -> BinaryOp:
+        """left * right"""
+        return BinaryOp("*", left, right)
 
-    if expr.kind == ExprKind.DERIVATIVE and expr.name:
-        result.add(expr.name)
+    @staticmethod
+    def div(left: Expr, right: Expr) -> BinaryOp:
+        """left / right"""
+        return BinaryOp("/", left, right)
 
-    for child in expr.children:
-        result.update(find_derivatives(child))
+    @staticmethod
+    def pow(left: Expr, right: Expr) -> BinaryOp:
+        """left ^ right"""
+        return BinaryOp("^", left, right)
 
-    return result
+    @staticmethod
+    def neg(operand: Expr) -> UnaryOp:
+        """-operand"""
+        return UnaryOp("-", operand)
 
+    # Common functions
+    @staticmethod
+    def sin(x: Expr) -> FunctionCall:
+        """sin(x)"""
+        return FunctionCall("sin", (x,))
 
-@beartype
-def prefix_expr(expr: Expr, prefix: str) -> Expr:
-    """
-    Create a new Expr with all variable names prefixed.
+    @staticmethod
+    def cos(x: Expr) -> FunctionCall:
+        """cos(x)"""
+        return FunctionCall("cos", (x,))
 
-    This is used when flattening submodels to give all variables
-    their fully qualified names (e.g., 'x' -> 'spring.x').
-    """
-    if expr.kind == ExprKind.VARIABLE:
-        new_name = f"{prefix}.{expr.name}"
-        return Expr(
-            kind=ExprKind.VARIABLE,
-            name=new_name,
-            value=expr.value,
-            children=tuple(prefix_expr(c, prefix) for c in expr.children),
-            indices=expr.indices,
-        )
-    elif expr.kind == ExprKind.DERIVATIVE:
-        new_name = f"{prefix}.{expr.name}" if expr.name else None
-        return Expr(
-            kind=ExprKind.DERIVATIVE,
-            name=new_name,
-            value=expr.value,
-            children=tuple(prefix_expr(c, prefix) for c in expr.children),
-        )
-    elif expr.kind == ExprKind.PRE:
-        new_name = f"{prefix}.{expr.name}" if expr.name else None
-        return Expr(
-            kind=ExprKind.PRE,
-            name=new_name,
-            value=expr.value,
-            children=tuple(prefix_expr(c, prefix) for c in expr.children),
-        )
-    elif expr.kind == ExprKind.CONSTANT:
-        return expr  # Constants don't need prefixing
-    else:
-        # Recursively prefix children for operators, functions, etc.
-        return Expr(
-            kind=expr.kind,
-            name=expr.name,
-            value=expr.value,
-            children=tuple(prefix_expr(c, prefix) for c in expr.children),
-            indices=expr.indices,
-        )
+    @staticmethod
+    def exp(x: Expr) -> FunctionCall:
+        """exp(x)"""
+        return FunctionCall("exp", (x,))
 
+    @staticmethod
+    def log(x: Expr) -> FunctionCall:
+        """log(x)"""
+        return FunctionCall("log", (x,))
 
-# =============================================================================
-# Helper functions for variable names and indices
-# =============================================================================
+    @staticmethod
+    def sqrt(x: Expr) -> FunctionCall:
+        """sqrt(x)"""
+        return FunctionCall("sqrt", (x,))
 
+    @staticmethod
+    def abs(x: Expr) -> FunctionCall:
+        """abs(x)"""
+        return FunctionCall("abs", (x,))
 
-@beartype
-def get_base_name(name: str) -> str:
-    """Extract base name from indexed name: 'pos[0,1]' -> 'pos'."""
-    if "[" in name:
-        return name.split("[")[0]
-    return name
+    # Modelica-specific operators
+    @staticmethod
+    def der(x: Expr) -> FunctionCall:
+        """
+        Derivative operator: der(x)
 
+        In Modelica: der(x), der(vehicle.position), der(array[i])
+        This is THE way to express derivatives - not a special equation type!
+        """
+        return FunctionCall("der", (x,))
 
-@beartype
-def parse_indices(name: str) -> Tuple[str, Indices]:
-    """Parse indexed name: 'pos[0,1]' -> ('pos', (0, 1))."""
-    if "[" not in name:
-        return name, ()
-    base = name.split("[")[0]
-    idx_str = name.split("[")[1].rstrip("]")
-    indices = tuple(int(i) for i in idx_str.split(","))
-    return base, indices
+    @staticmethod
+    def pre(x: Expr) -> FunctionCall:
+        """
+        Previous value operator: pre(x)
 
+        Returns the value of x at the previous event instant.
+        Used in when clauses for discrete variables.
+        """
+        return FunctionCall("pre", (x,))
 
-@beartype
-def format_indices(indices: Indices) -> str:
-    """Format indices as string: (0, 1) -> '[0,1]'."""
-    if not indices:
-        return ""
-    return "[" + ",".join(str(i) for i in indices) + "]"
+    @staticmethod
+    def edge(x: Expr) -> FunctionCall:
+        """
+        Edge detector: edge(condition)
 
-
-@beartype
-def iter_indices(shape: Shape) -> Generator[Indices, None, None]:
-    """Iterate over all valid index tuples for a given shape."""
-    if not shape:
-        yield ()
-        return
-    import itertools
-
-    for idx in itertools.product(*(range(dim) for dim in shape)):
-        yield idx
+        Returns true when condition becomes true (rising edge).
+        """
+        return FunctionCall("edge", (x,))
 
 
-@beartype
-def is_array_state(name: str, shape: Shape, derivatives_used: set[str]) -> bool:
-    """
-    Check if an array variable is a state by checking if any element's
-    derivative is used.
-    """
-    if not shape:  # Scalar
-        return False
-    for indices in iter_indices(shape):
-        indexed_name = f"{name}{format_indices(indices)}"
-        if indexed_name in derivatives_used:
-            return True
-    return False
+# Make ExprBuilder available as Expr for convenience
+# This allows: Expr.var_ref("x") instead of ExprBuilder.var_ref("x")
+for name in dir(ExprBuilder):
+    if not name.startswith("_"):
+        setattr(Expr, name, getattr(ExprBuilder, name))
+
+
+# Also export as top-level functions for convenience
+def der(x: Expr) -> FunctionCall:
+    """Derivative operator: der(x)"""
+    return Expr.der(x)
+
+
+def pre(x: Expr) -> FunctionCall:
+    """Previous value operator: pre(x)"""
+    return Expr.pre(x)
+
+
+def edge(x: Expr) -> FunctionCall:
+    """Edge detector: edge(condition)"""
+    return Expr.edge(x)

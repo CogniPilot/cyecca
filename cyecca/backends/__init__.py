@@ -1,35 +1,19 @@
 """
-Compute backends for compiling and simulating models.
+Backend implementations for code generation and execution.
 
-Backends compile FlatModel representations into executable functions
-for simulation, optimization, and analysis.
-
-Available backends:
-- casadi: CasADi-based backend for symbolic computation and simulation
-  - SX (default): Scalar symbolic expressions - expands arrays
-  - MX: Matrix symbolic expressions - keeps array structure for efficiency
-- sympy: SymPy-based backend for symbolic analysis
-  - Jacobian computation and linearization
-  - LaTeX output
-  - Code generation (NumPy, C, Fortran)
-
-Integrators:
-- RK4: Fixed-step 4th-order Runge-Kutta (simple, fast)
-- CVODES: SUNDIALS variable-step BDF/Adams method (accurate, handles stiff systems)
-- IDAS: SUNDIALS variable-step BDF for DAEs
+Backends convert the IR to executable code in different frameworks:
+- CasADi: Fast numerical optimization and simulation
+- SymPy: Symbolic manipulation and analysis
+- JAX: Auto-diff and GPU acceleration (future)
 """
 
-from cyecca.backends.casadi import CasadiBackend, CompiledModel, Integrator, SymbolicType
-from cyecca.backends.sympy_backend import CompiledSymPyModel, SymPyBackend
-from cyecca.ir.simulation import SimulationResult, Simulator
+from cyecca.backends.base import Backend
+from cyecca.backends.casadi import CasadiBackend
 
-__all__ = [
-    "CasadiBackend",
-    "CompiledModel",
-    "Integrator",
-    "SymbolicType",
-    "SymPyBackend",
-    "CompiledSymPyModel",
-    "SimulationResult",
-    "Simulator",
-]
+# SymPy backend is optional (requires sympy package)
+try:
+    from cyecca.backends.sympy import SympyBackend
+
+    __all__ = ["Backend", "CasadiBackend", "SympyBackend"]
+except ImportError:
+    __all__ = ["Backend", "CasadiBackend"]

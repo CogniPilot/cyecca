@@ -226,18 +226,33 @@ class CasadiBackend(Backend):
         self.integrator: Optional[ca.Function] = None
         self.algebraic_funcs: dict[str, ca.Function] = {}
 
-    def compile(self) -> None:
+    def compile(self) -> "CasadiBackend":
         """Compile the IR model to CasADi symbolic expressions."""
         # Create built-in 'time' symbol (Modelica's independent variable)
         self.symbols["time"] = self.sym_class.sym("time")
 
+        # Infer array shapes from derivative equations (workaround for rumoca not exporting shapes)
+        inferred_shapes = {}
+        for eq in self.model.equations:
+            if eq.eq_type == EquationType.SIMPLE and eq.lhs is not None:
+                if isinstance(eq.lhs, FunctionCall) and eq.lhs.func == "der" and len(eq.lhs.args) > 0:
+                    from cyecca.ir import ArrayLiteral
+                    if isinstance(eq.rhs, ArrayLiteral):
+                        # der(x) = array(...) means x must be an array
+                        arg = eq.lhs.args[0]
+                        if isinstance(arg, ComponentRef):
+                            state_name = self._flatten_component_ref(arg)
+                            inferred_shapes[state_name] = (len(eq.rhs.elements),)
+
         # Create CasADi symbols for all variables (including algebraic)
         for var in self.model.variables:
-            self.var_shapes[var.name] = var.shape
+            # Use inferred shape if available, otherwise use variable's shape
+            var_shape = inferred_shapes.get(var.name, var.shape)
+            self.var_shapes[var.name] = var_shape
 
-            if var.is_array:
+            if var.is_array or var_shape is not None:
                 # Create array/matrix symbol
-                shape = var.shape
+                shape = var_shape
                 if len(shape) == 1:
                     # Vector: Real x[n]
                     self.symbols[var.name] = self.sym_class.sym(var.name, shape[0])
@@ -255,10 +270,10 @@ class CasadiBackend(Backend):
             # Track state/param/input/algebraic names and defaults
             if var.var_type == VariableType.STATE:
                 self.state_names.append(var.name)
-                self.state_defaults[var.name] = self._extract_default(var)
+                self.state_defaults[var.name] = self._extract_default(var, var_shape)
             elif var.var_type == VariableType.PARAMETER:
                 self.param_names.append(var.name)
-                self.param_defaults[var.name] = self._extract_default(var)
+                self.param_defaults[var.name] = self._extract_default(var, var_shape)
             elif var.var_type == VariableType.INPUT:
                 self.input_names.append(var.name)
             elif var.var_type == VariableType.ALGEBRAIC:
@@ -381,6 +396,7 @@ class CasadiBackend(Backend):
                 self.algebraic_funcs[name] = ca.Function(func_name, [t] + x_syms + p_syms, [expr])
 
         self._compiled = True
+        return self
 
     def set_parameter(self, name: str, value: float) -> None:
         """
@@ -394,16 +410,20 @@ class CasadiBackend(Backend):
             raise ValueError(f"Unknown parameter: {name}. Available: {self.param_names}")
         self.param_defaults[name] = value
 
-    def _extract_default(self, var: Variable) -> Any:
+    def _extract_default(self, var: Variable, inferred_shape: Optional[tuple] = None) -> Any:
         """
         Extract default value for a variable (scalar or array).
+
+        Args:
+            var: The variable
+            inferred_shape: Optional inferred shape (overrides var.shape if provided)
 
         Returns:
             For scalars: float or 0.0
             For arrays: np.ndarray of appropriate shape
         """
-        if var.is_array:
-            shape = var.shape
+        shape = inferred_shape if inferred_shape is not None else var.shape
+        if var.is_array or shape is not None:
             # Try to get value from var.value first, then var.start
             val = var.value if var.value is not None else var.start
             if val is not None:
@@ -991,8 +1011,18 @@ class CasadiBackend(Backend):
         x_result = result["xf"].full()
 
         sol = {}
-        for i, name in enumerate(self.state_names):
-            sol[name] = x_result[i, :]
+        flat_idx = 0
+        for name in self.state_names:
+            shape = self.var_shapes.get(name)
+            if shape is not None and len(shape) == 1:
+                # Vector state: extract n elements and transpose to [n_steps, dim]
+                n = shape[0]
+                sol[name] = x_result[flat_idx : flat_idx + n, :].T
+                flat_idx += n
+            else:
+                # Scalar state: shape is [n_steps]
+                sol[name] = x_result[flat_idx, :]
+                flat_idx += 1
 
         return sol
 
@@ -1040,12 +1070,12 @@ class CasadiBackend(Backend):
         for name in self.state_names:
             shape = self.var_shapes.get(name)
             if shape is not None and len(shape) == 1:
-                # Vector state: extract n elements
+                # Vector state: extract n elements and transpose to [n_steps, dim]
                 n = shape[0]
-                sol[name] = x_result[flat_idx : flat_idx + n, :]
+                sol[name] = x_result[flat_idx : flat_idx + n, :].T
                 flat_idx += n
             else:
-                # Scalar state
+                # Scalar state: shape is [n_steps]
                 sol[name] = x_result[flat_idx, :]
                 flat_idx += 1
 

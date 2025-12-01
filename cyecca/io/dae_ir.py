@@ -838,6 +838,12 @@ def _import_expr(data: dict) -> Expr:
             parts.append(ComponentRefPart(name=part_data["name"], subscripts=subscripts))
         return ComponentRef(parts=tuple(parts))
 
+    elif op == "array":
+        # Array literal construction
+        values = [_import_expr(val) for val in data.get("values", [])]
+        from cyecca.ir import ArrayLiteral
+        return ArrayLiteral(elements=tuple(values))
+
     else:
         # Try as function call
         args = [_import_expr(arg) for arg in data.get("args", [])]

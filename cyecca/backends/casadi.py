@@ -376,7 +376,9 @@ class CasadiBackend(Backend):
             x_syms = [self.symbols[name] for name in self.state_names]
             p_syms = [self.symbols[name] for name in self.param_names]
             for name, expr in self.algebraic.items():
-                self.algebraic_funcs[name] = ca.Function(f"alg_{name}", [t] + x_syms + p_syms, [expr])
+                # CasADi function names cannot contain dots, so replace with underscores
+                func_name = f"alg_{name}".replace(".", "_")
+                self.algebraic_funcs[name] = ca.Function(func_name, [t] + x_syms + p_syms, [expr])
 
         self._compiled = True
 

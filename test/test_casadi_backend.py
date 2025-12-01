@@ -190,6 +190,138 @@ def test_trig_functions():
     assert len(t) > 0
 
 
+def test_array_variable():
+    """Test array state variables (vectors)."""
+    model = Model(name="ArrayTest")
+
+    # Create a 3-element state vector
+    model.add_variable(Variable(name="x", var_type=VariableType.STATE, shape=[3], start=0.0))
+    model.add_variable(
+        Variable(name="v", var_type=VariableType.PARAMETER, shape=[3], value=[1.0, 2.0, 3.0])
+    )
+
+    # Each element evolves at a different rate: der(x[i]) = v[i]
+    # We'll use direct indexing
+    for i in range(1, 4):  # Modelica 1-based indexing
+        x_i = Expr.component_ref(("x", [Expr.literal(i)]))
+        v_i = Expr.component_ref(("v", [Expr.literal(i)]))
+        model.add_equation(Equation.simple(der(x_i), v_i))
+
+    backend = CasadiBackend(model)
+    backend.compile()
+
+    t, sol = backend.simulate(t_final=1.0, dt=0.1)
+
+    # Check results - x[i] should be t * v[i] at t=1
+    assert len(t) > 0
+    assert "x" in sol
+
+    # Check final values (x = v * t at t=1.0)
+    x_final = sol["x"][:, -1]  # Get last timestep
+    assert x_final[0] == pytest.approx(1.0, abs=0.01)  # x[1] = 1.0 * 1.0
+    assert x_final[1] == pytest.approx(2.0, abs=0.01)  # x[2] = 2.0 * 1.0
+    assert x_final[2] == pytest.approx(3.0, abs=0.01)  # x[3] = 3.0 * 1.0
+
+
+def test_array_indexing_expression():
+    """Test array indexing in expressions."""
+    model = Model(name="ArrayIndexTest")
+
+    # Create scalar states
+    model.add_variable(Variable(name="y", var_type=VariableType.STATE, start=0.0))
+    # Create array parameter
+    model.add_variable(
+        Variable(name="k", var_type=VariableType.PARAMETER, shape=[2], value=[1.0, 2.0])
+    )
+
+    # der(y) = k[1] + k[2]
+    k1 = Expr.component_ref(("k", [Expr.literal(1)]))
+    k2 = Expr.component_ref(("k", [Expr.literal(2)]))
+    rhs = Expr.add(k1, k2)
+    model.add_equation(Equation.simple(der(Expr.var_ref("y")), rhs))
+
+    backend = CasadiBackend(model)
+    backend.compile()
+
+    t, sol = backend.simulate(t_final=1.0, dt=0.1)
+
+    # y should grow at rate k[1] + k[2] = 3.0
+    y_final = sol["y"][-1]
+    assert y_final == pytest.approx(3.0, abs=0.01)
+
+
+def test_hierarchical_component_ref():
+    """Test hierarchical component references like vehicle.engine.temp."""
+    model = Model(name="HierarchicalTest")
+
+    # Create flattened variables with dot notation
+    # In real Modelica, these would come from nested components
+    model.add_variable(
+        Variable(name="vehicle.engine.temp", var_type=VariableType.STATE, start=20.0)
+    )
+    model.add_variable(Variable(name="T_ambient", var_type=VariableType.PARAMETER, value=15.0))
+    model.add_variable(Variable(name="k", var_type=VariableType.PARAMETER, value=0.1))
+
+    # der(vehicle.engine.temp) = k * (T_ambient - vehicle.engine.temp)
+    temp = Expr.component_ref("vehicle", "engine", "temp")
+    ambient = Expr.var_ref("T_ambient")
+    k = Expr.var_ref("k")
+    rhs = Expr.mul(k, Expr.sub(ambient, temp))
+    model.add_equation(Equation.simple(der(temp), rhs))
+
+    backend = CasadiBackend(model)
+    backend.compile()
+
+    # Check that the variable was recognized
+    assert "vehicle.engine.temp" in backend.symbols
+    assert "vehicle.engine.temp" in backend.derivatives
+
+    # Simulate - temperature should approach ambient
+    t, sol = backend.simulate(t_final=50.0, dt=0.5)
+
+    # Should cool down towards 15.0
+    temp_final = sol["vehicle.engine.temp"][-1]
+    assert temp_final < 20.0  # Should have cooled
+    assert temp_final > 14.0  # But not below ambient
+
+
+def test_hierarchical_component_ref_with_array():
+    """Test hierarchical refs with array indexing: wheels[1].pressure."""
+    model = Model(name="HierarchicalArrayTest")
+
+    # Create variables for wheels[1].pressure, wheels[2].pressure
+    # In flattened form: "wheels[1].pressure", etc.
+    model.add_variable(Variable(name="wheels[1].pressure", var_type=VariableType.STATE, start=32.0))
+    model.add_variable(Variable(name="wheels[2].pressure", var_type=VariableType.STATE, start=31.0))
+    model.add_variable(Variable(name="leak_rate", var_type=VariableType.PARAMETER, value=0.01))
+
+    # der(wheels[i].pressure) = -leak_rate * pressure
+    leak = Expr.var_ref("leak_rate")
+
+    # Wheel 1
+    p1 = Expr.component_ref(("wheels", [Expr.literal(1)]), "pressure")
+    model.add_equation(Equation.simple(der(p1), Expr.mul(Expr.neg(leak), p1)))
+
+    # Wheel 2
+    p2 = Expr.component_ref(("wheels", [Expr.literal(2)]), "pressure")
+    model.add_equation(Equation.simple(der(p2), Expr.mul(Expr.neg(leak), p2)))
+
+    backend = CasadiBackend(model)
+    backend.compile()
+
+    # Check variables are recognized
+    assert "wheels[1].pressure" in backend.symbols
+    assert "wheels[2].pressure" in backend.symbols
+
+    # Simulate
+    t, sol = backend.simulate(t_final=10.0, dt=0.1)
+
+    # Both should decrease due to leak
+    assert sol["wheels[1].pressure"][-1] < 32.0
+    assert sol["wheels[2].pressure"][-1] < 31.0
+
+
+@pytest.mark.integration
 def test_rumoca_bouncing_ball_integration():
     """
     Integration test: Compile bouncing ball with Rumoca, import to Cyecca, simulate with CasADi.
@@ -198,16 +330,15 @@ def test_rumoca_bouncing_ball_integration():
     1. Rumoca compiles Modelica to Base Modelica JSON
     2. Cyecca imports the JSON
     3. CasADi backend compiles and simulates the model
+
+    Requires: rumoca package (pip install rumoca)
     """
     import tempfile
     from pathlib import Path
-    from cyecca.io.base_modelica import import_base_modelica
+    from cyecca.io.dae_ir import import_dae_ir
 
-    # Try to import rumoca (skip test if not available)
-    try:
-        import rumoca
-    except ImportError:
-        pytest.skip("Rumoca Python package not installed")
+    # Skip if rumoca is not installed
+    rumoca = pytest.importorskip("rumoca", reason="Rumoca Python package not installed")
 
     # Define the bouncing ball model
     modelica_code = """
@@ -247,7 +378,7 @@ end BouncingBall;
 
         # Import into Cyecca
         print("Importing into Cyecca...")
-        model = import_base_modelica(json_file)
+        model = import_dae_ir(json_file)
         print(f"✓ Model imported: {model.name}")
 
         # Verify model structure (name may be "BouncingBall" or "GeneratedModel")
@@ -287,7 +418,7 @@ end BouncingBall;
         v_idx = backend.state_names.index("v")
 
         # Get coefficient of restitution
-        e = backend.param_values["e"]
+        e = backend.param_defaults["e"]
 
         # Define ground collision event: h = 0
         def ground_collision(t, x):
@@ -300,15 +431,15 @@ end BouncingBall;
         from scipy.integrate import solve_ivp
 
         # Get initial conditions from backend
-        x0 = np.array([backend._get_numeric_start_value(name) for name in backend.state_names])
-        p = np.array([backend.param_values[name] for name in backend.param_names])
+        x0 = np.array([backend.state_defaults[name] for name in backend.state_names])
+        p = np.array([backend.param_defaults[name] for name in backend.param_names])
 
         print(f"Initial conditions: h={x0[h_idx]:.3f}, v={x0[v_idx]:.3f}")
         print(f"Parameters: e={e:.3f}")
 
         def rhs_scipy(t, x):
             u = np.zeros(len(backend.input_names))
-            return backend.rhs_func(t, x, u, p).full().flatten()
+            return np.array(backend.f_ode(x, u, p)).flatten()
 
         # Collect all time points and states
         t_all = []
@@ -427,3 +558,164 @@ end BouncingBall;
 
         print("✓ Bouncing behavior verified!")
         print("\n✓✓✓ Full integration test PASSED with bouncing! ✓✓✓")
+
+
+def test_multiple_when_clauses():
+    """Test multiple when-clauses (events) in a single model.
+
+    This tests a double-bounded oscillator: a ball bouncing between floor and ceiling.
+    - When x < 0 (hits floor): reverse velocity with restitution
+    - When x > 1 (hits ceiling): reverse velocity with restitution
+    """
+    model = Model(name="DoubleBoundedOscillator")
+
+    # State variables
+    model.add_variable(Variable(name="x", var_type=VariableType.STATE, start=0.5))
+    model.add_variable(Variable(name="v", var_type=VariableType.STATE, start=1.0))
+
+    # Parameters
+    model.add_variable(Variable(name="e", var_type=VariableType.PARAMETER, value=0.9))
+
+    # ODEs: dx/dt = v, dv/dt = 0 (no gravity - just momentum)
+    x = Expr.var_ref("x")
+    v = Expr.var_ref("v")
+    e = Expr.var_ref("e")
+
+    model.add_equation(Equation.simple(der(Expr.var_ref("x")), v))
+    model.add_equation(Equation.simple(der(Expr.var_ref("v")), Expr.literal(0.0)))
+
+    # When-clause 1: Floor collision (x < 0)
+    # when x < 0 then reinit(v, -e * pre(v))
+    floor_condition = Expr.binary_op("<", x, Expr.literal(0.0))
+    pre_v = Expr.call("pre", v)
+    floor_reset = Expr.mul(Expr.neg(e), pre_v)
+    floor_eq = Equation.when(floor_condition, [Equation.simple(v, floor_reset)])
+    model.add_equation(floor_eq)
+
+    # When-clause 2: Ceiling collision (x > 1)
+    # when x > 1 then reinit(v, -e * pre(v))
+    ceiling_condition = Expr.binary_op(">", x, Expr.literal(1.0))
+    ceiling_reset = Expr.mul(Expr.neg(e), pre_v)
+    ceiling_eq = Equation.when(ceiling_condition, [Equation.simple(v, ceiling_reset)])
+    model.add_equation(ceiling_eq)
+
+    # Compile with CasADi
+    backend = CasadiBackend(model)
+    backend.compile()
+
+    # Check that we have two when-equations
+    assert len(backend.when_equations) == 2, "Should have 2 when-equations"
+
+    # Verify state names
+    assert "x" in backend.state_names
+    assert "v" in backend.state_names
+
+    # Verify derivatives were created
+    assert "x" in backend.derivatives
+    assert "v" in backend.derivatives
+
+
+def test_multiple_when_clauses_different_states():
+    """Test multiple when-clauses affecting different state variables.
+
+    This tests independent resets for different states:
+    - When x < 0: reset x to 0
+    - When y > 1: reset y to 1
+    """
+    model = Model(name="IndependentBounds")
+
+    # State variables - two independent oscillators
+    model.add_variable(Variable(name="x", var_type=VariableType.STATE, start=0.5))
+    model.add_variable(Variable(name="vx", var_type=VariableType.STATE, start=-0.3))
+    model.add_variable(Variable(name="y", var_type=VariableType.STATE, start=0.5))
+    model.add_variable(Variable(name="vy", var_type=VariableType.STATE, start=0.4))
+
+    x = Expr.var_ref("x")
+    y = Expr.var_ref("y")
+    vx = Expr.var_ref("vx")
+    vy = Expr.var_ref("vy")
+
+    # ODEs: simple constant velocity motion
+    model.add_equation(Equation.simple(der(Expr.var_ref("x")), vx))
+    model.add_equation(Equation.simple(der(Expr.var_ref("vx")), Expr.literal(0.0)))
+    model.add_equation(Equation.simple(der(Expr.var_ref("y")), vy))
+    model.add_equation(Equation.simple(der(Expr.var_ref("vy")), Expr.literal(0.0)))
+
+    # When-clause 1: Bound x at 0 (reflect when x < 0)
+    x_bound_condition = Expr.binary_op("<", x, Expr.literal(0.0))
+    pre_vx = Expr.call("pre", vx)
+    x_reset = Expr.neg(pre_vx)  # Simple reflection: vx = -pre(vx)
+    x_eq = Equation.when(x_bound_condition, [Equation.simple(vx, x_reset)])
+    model.add_equation(x_eq)
+
+    # When-clause 2: Bound y at 1 (reflect when y > 1)
+    y_bound_condition = Expr.binary_op(">", y, Expr.literal(1.0))
+    pre_vy = Expr.call("pre", vy)
+    y_reset = Expr.neg(pre_vy)  # Simple reflection: vy = -pre(vy)
+    y_eq = Equation.when(y_bound_condition, [Equation.simple(vy, y_reset)])
+    model.add_equation(y_eq)
+
+    # Compile with CasADi
+    backend = CasadiBackend(model)
+    backend.compile()
+
+    # Check that we have two when-equations
+    assert len(backend.when_equations) == 2, "Should have 2 when-equations"
+
+    # Verify all state names
+    assert "x" in backend.state_names
+    assert "vx" in backend.state_names
+    assert "y" in backend.state_names
+    assert "vy" in backend.state_names
+
+    # Verify derivatives were created for all states
+    assert "x" in backend.derivatives
+    assert "vx" in backend.derivatives
+    assert "y" in backend.derivatives
+    assert "vy" in backend.derivatives
+
+
+def test_three_when_clauses():
+    """Test three when-clauses to verify scaling to more events."""
+    model = Model(name="ThreeEvents")
+
+    # State variable
+    model.add_variable(Variable(name="x", var_type=VariableType.STATE, start=0.0))
+    model.add_variable(Variable(name="v", var_type=VariableType.STATE, start=1.0))
+
+    x = Expr.var_ref("x")
+    v = Expr.var_ref("v")
+
+    # ODE: constant velocity motion
+    model.add_equation(Equation.simple(der(Expr.var_ref("x")), v))
+    model.add_equation(Equation.simple(der(Expr.var_ref("v")), Expr.literal(0.0)))
+
+    # When-clause 1: Lower bound at x = -1
+    lower_condition = Expr.binary_op("<", x, Expr.literal(-1.0))
+    pre_v = Expr.call("pre", v)
+    lower_reset = Expr.neg(pre_v)
+    lower_eq = Equation.when(lower_condition, [Equation.simple(v, lower_reset)])
+    model.add_equation(lower_eq)
+
+    # When-clause 2: Middle event at x = 0 (special reset)
+    middle_condition = Expr.binary_op("<", x, Expr.literal(0.0))
+    middle_reset = Expr.mul(Expr.literal(0.5), pre_v)  # Slow down at middle
+    middle_eq = Equation.when(middle_condition, [Equation.simple(v, middle_reset)])
+    model.add_equation(middle_eq)
+
+    # When-clause 3: Upper bound at x = 1
+    upper_condition = Expr.binary_op(">", x, Expr.literal(1.0))
+    upper_reset = Expr.neg(pre_v)
+    upper_eq = Equation.when(upper_condition, [Equation.simple(v, upper_reset)])
+    model.add_equation(upper_eq)
+
+    # Compile with CasADi
+    backend = CasadiBackend(model)
+    backend.compile()
+
+    # Check that we have three when-equations
+    assert len(backend.when_equations) == 3, "Should have 3 when-equations"
+
+    # Verify state names
+    assert "x" in backend.state_names
+    assert "v" in backend.state_names

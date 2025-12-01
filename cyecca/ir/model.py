@@ -4,12 +4,16 @@ Model representation in the IR.
 A Model is a collection of variables and equations that define a dynamical system.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Optional, Any
 
 from cyecca.ir.variable import Variable
 from cyecca.ir.equation import Equation
 from cyecca.ir.types import VariableType
+from cyecca.ir.algorithm import AlgorithmSection
+from cyecca.ir.event import Event
 
 
 @dataclass
@@ -143,71 +147,87 @@ class Model:
         """Number of parameters."""
         return len(self.parameters)
 
-    def validate(self) -> list[str]:
+    def validate(
+        self,
+        check_undefined_vars: bool = True,
+        check_array_bounds: bool = True,
+        check_missing_values: bool = True,
+        check_derivatives: bool = True,
+        check_balance: bool = True,
+    ) -> list[str]:
         """
         Validate the model and return a list of error messages.
 
+        This method performs comprehensive validation including:
+        - Undefined variable detection in expressions
+        - Array index bounds checking
+        - Missing start/parameter value detection
+        - Derivative equation consistency
+        - Equation/variable balance checking
+
+        Note: BLT analysis is handled by Rumoca, not Cyecca.
+
+        Args:
+            check_undefined_vars: Check for undefined variable references
+            check_array_bounds: Check array index bounds
+            check_missing_values: Check for missing start/parameter values
+            check_derivatives: Check derivative equations for states
+            check_balance: Check equation/variable balance
+
         Returns:
             Empty list if valid, otherwise list of error messages.
+            For detailed validation results, use validate_detailed() instead.
         """
-        errors = []
+        from cyecca.ir.validation import validate_model
 
-        from cyecca.ir.equation import EquationType
-        from cyecca.ir.expr import FunctionCall, VarRef
+        result = validate_model(
+            self,
+            check_undefined_vars=check_undefined_vars,
+            check_array_bounds=check_array_bounds,
+            check_missing_values=check_missing_values,
+            check_derivatives=check_derivatives,
+            check_balance=check_balance,
+        )
 
-        # Count derivative equations
-        # There are two patterns:
-        # 1. der(x) = expr  (explicit derivative on LHS)
-        # 2. v = der(x)     (derivative definition on RHS)
-        n_derivative_eqs = 0
-        for eq in self.equations:
-            if eq.eq_type == EquationType.SIMPLE and eq.lhs is not None:
-                # Pattern 1: Check if lhs is der(var)
-                if isinstance(eq.lhs, FunctionCall) and eq.lhs.func == "der":
-                    n_derivative_eqs += 1
-                    # Check that the argument to der() is a valid state
-                    if len(eq.lhs.args) > 0:
-                        arg = eq.lhs.args[0]
-                        if isinstance(arg, VarRef):
-                            if not self.has_variable(arg.name):
-                                errors.append(
-                                    f"Derivative equation der({arg.name}) references unknown variable"
-                                )
-                            elif not self.get_variable(arg.name).is_state:
-                                errors.append(
-                                    f"Derivative equation der({arg.name}) references non-state variable"
-                                )
-                # Pattern 2: Check if rhs is der(var) and lhs is a variable
-                elif (
-                    eq.rhs is not None and isinstance(eq.rhs, FunctionCall) and eq.rhs.func == "der"
-                ):
-                    n_derivative_eqs += 1
-                    # Check that the argument to der() is a valid state
-                    if len(eq.rhs.args) > 0:
-                        arg = eq.rhs.args[0]
-                        if isinstance(arg, VarRef):
-                            if not self.has_variable(arg.name):
-                                errors.append(
-                                    f"Derivative equation der({arg.name}) references unknown variable"
-                                )
-                            elif not self.get_variable(arg.name).is_state:
-                                errors.append(
-                                    f"Derivative equation der({arg.name}) references non-state variable"
-                                )
+        # Return only error messages for backward compatibility
+        return [str(issue) for issue in result.errors]
 
-        # Check that we have enough derivative equations
-        if n_derivative_eqs != self.n_states:
-            errors.append(
-                f"Number of derivative equations ({n_derivative_eqs}) "
-                f"does not match number of states ({self.n_states})"
-            )
+    def validate_detailed(
+        self,
+        check_undefined_vars: bool = True,
+        check_array_bounds: bool = True,
+        check_missing_values: bool = True,
+        check_derivatives: bool = True,
+        check_balance: bool = True,
+    ):
+        """
+        Perform detailed validation of the model.
 
-        # TODO: Add more validation rules
-        # - Check for undefined variables in expressions
-        # - Check for algebraic loops
-        # - Check for index-out-of-bounds in array references
+        Returns a ValidationResult object with all issues (errors, warnings, info)
+        categorized by type and severity.
 
-        return errors
+        Note: BLT analysis is handled by Rumoca, not Cyecca.
+
+        Args:
+            check_undefined_vars: Check for undefined variable references
+            check_array_bounds: Check array index bounds
+            check_missing_values: Check for missing start/parameter values
+            check_derivatives: Check derivative equations for states
+            check_balance: Check equation/variable balance
+
+        Returns:
+            ValidationResult with all issues found
+        """
+        from cyecca.ir.validation import validate_model
+
+        return validate_model(
+            self,
+            check_undefined_vars=check_undefined_vars,
+            check_array_bounds=check_array_bounds,
+            check_missing_values=check_missing_values,
+            check_derivatives=check_derivatives,
+            check_balance=check_balance,
+        )
 
     def add_algorithm(self, algo: "AlgorithmSection") -> None:
         """Add an algorithm section to the model."""

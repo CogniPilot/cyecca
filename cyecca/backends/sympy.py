@@ -9,7 +9,8 @@ This backend converts Cyecca IR to SymPy symbolic expressions, enabling:
 - Taylor series expansions
 """
 
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 import numpy as np
 import sympy as sp
@@ -45,16 +46,24 @@ class SympyBackend(Backend):
     - LaTeX export
     - Symbolic simplification
     - Taylor series
+    - Array/vector support
     """
 
     def __init__(self, model: Model) -> None:
         super(SympyBackend, self).__init__(model)
 
         # SymPy symbols for each variable
-        self.symbols: dict[str, sp.Symbol] = {}
+        # For scalars: symbols["x"] = Symbol("x")
+        # For arrays: symbols["x"] = IndexedBase("x") and symbols[("x", 0)] = x[0], etc.
+        self.symbols: dict[str, sp.Basic] = {}
+
+        # Variable shapes for arrays (None = scalar)
+        self.var_shapes: dict[str, Optional[list[int]]] = {}
 
         # Symbolic expressions for derivatives
-        self.derivatives: dict[str, sp.Expr] = {}
+        # For scalars: derivatives["x"] = expr
+        # For array elements: derivatives[("x", idx)] = expr (0-based index)
+        self.derivatives: dict[str | tuple[str, int], sp.Expr] = {}
 
         # Symbolic expressions for algebraic equations
         self.algebraic: dict[str, sp.Expr] = {}
@@ -72,47 +81,60 @@ class SympyBackend(Backend):
         """Compile the IR model to SymPy symbolic expressions."""
         # Create SymPy symbols for all variables
         for var in self.model.variables:
+            self.var_shapes[var.name] = var.shape
+
             if var.is_array:
-                # For now, we'll handle arrays later
-                raise NotImplementedError("Array variables not yet supported in SymPy backend")
-            self.symbols[var.name] = sp.Symbol(var.name, real=True)
+                shape = var.shape
+                if len(shape) == 1:
+                    # Vector: Real x[n] -> create individual symbols x_0, x_1, ...
+                    # Using individual symbols is more compatible with SymPy operations
+                    n = shape[0]
+                    for i in range(n):
+                        sym = sp.Symbol(f"{var.name}_{i}", real=True)
+                        self.symbols[(var.name, i)] = sym
+                    # Also store a MatrixSymbol for whole-array operations
+                    self.symbols[var.name] = sp.MatrixSymbol(var.name, n, 1)
+                elif len(shape) == 2:
+                    # Matrix: Real A[n,m]
+                    n, m = shape
+                    for i in range(n):
+                        for j in range(m):
+                            sym = sp.Symbol(f"{var.name}_{i}_{j}", real=True)
+                            self.symbols[(var.name, i, j)] = sym
+                    self.symbols[var.name] = sp.MatrixSymbol(var.name, n, m)
+                else:
+                    raise NotImplementedError(
+                        f"Arrays with more than 2 dimensions not supported: {var.name} has shape {shape}"
+                    )
+            else:
+                # Scalar variable
+                self.symbols[var.name] = sp.Symbol(var.name, real=True)
 
         # Convert equations to SymPy expressions
         for eq in self.model.equations:
             if eq.eq_type == EquationType.SIMPLE:
                 # Handle: lhs = rhs
                 if eq.lhs is not None and isinstance(eq.lhs, FunctionCall) and eq.lhs.func == "der":
-                    # Derivative equation: der(x) = expr
+                    # Derivative equation: der(x) = expr or der(x[i]) = expr
                     if len(eq.lhs.args) > 0:
                         arg = eq.lhs.args[0]
-                        if isinstance(arg, ComponentRef):
-                            if not arg.is_simple:
-                                raise NotImplementedError(
-                                    f"Hierarchical der() not yet supported: der({arg})"
-                                )
-                            state_name = arg.simple_name
-                            expr_sympy = self._convert_expr(eq.rhs)
-                            self.derivatives[state_name] = expr_sympy
-                        elif isinstance(arg, VarRef):
-                            state_name = arg.name
-                            expr_sympy = self._convert_expr(eq.rhs)
+                        state_name = self._get_var_name(arg)
+                        expr_sympy = self._convert_expr(eq.rhs)
+
+                        # Check if this is an array element derivative
+                        elem_idx = self._get_element_index(arg)
+                        if elem_idx is not None:
+                            # Array element: der(x[i])
+                            self.derivatives[(state_name, elem_idx)] = expr_sympy
+                        else:
+                            # Scalar: der(x)
                             self.derivatives[state_name] = expr_sympy
 
                 elif eq.lhs is not None:
                     # Algebraic equation: var = expr
-                    if isinstance(eq.lhs, ComponentRef):
-                        if not eq.lhs.is_simple:
-                            raise NotImplementedError(
-                                f"Hierarchical algebraic equations not yet supported: {eq.lhs}"
-                            )
-                        var_name = eq.lhs.simple_name
-                        expr_sympy = self._convert_expr(eq.rhs)
-                        self.algebraic[var_name] = expr_sympy
-                    elif isinstance(eq.lhs, VarRef):
-                        # Backward compatibility
-                        var_name = eq.lhs.name
-                        expr_sympy = self._convert_expr(eq.rhs)
-                        self.algebraic[var_name] = expr_sympy
+                    var_name = self._get_var_name(eq.lhs)
+                    expr_sympy = self._convert_expr(eq.rhs)
+                    self.algebraic[var_name] = expr_sympy
 
                 elif eq.lhs is None:
                     # Implicit equation: 0 = rhs
@@ -134,21 +156,138 @@ class SympyBackend(Backend):
 
         self._compiled = True
 
-    def _convert_expr(self, expr: Expr) -> sp.Expr:
+    def _flatten_component_ref(self, ref: ComponentRef) -> str:
+        """
+        Flatten a hierarchical component reference to a single name.
+
+        Examples:
+            x -> "x"
+            vehicle.engine.temp -> "vehicle.engine.temp"
+            positions[1].x -> "positions[1].x"  (for lookup, subscripts handled separately)
+
+        For variable lookup, we use the flattened name without the final subscripts.
+        """
+        parts_str = []
+        for i, part in enumerate(ref.parts):
+            if i < len(ref.parts) - 1:
+                # Intermediate parts: include subscripts in the name
+                parts_str.append(str(part))
+            else:
+                # Final part: just the name (subscripts handled separately)
+                parts_str.append(part.name)
+        return ".".join(parts_str)
+
+    def _get_var_name(self, expr: Expr) -> str:
+        """Extract variable name from an expression.
+
+        For array element references like x[1], returns the base variable name 'x'.
+        For hierarchical refs like a.b.c, returns the flattened name 'a.b.c'.
+        """
+        if isinstance(expr, ComponentRef):
+            return self._flatten_component_ref(expr)
+        elif isinstance(expr, VarRef):
+            return expr.name
+        else:
+            raise ValueError(f"Cannot extract variable name from: {expr}")
+
+    def _get_element_index(self, expr: Expr) -> Optional[int]:
+        """Extract element index from an array element reference.
+
+        For x[1], returns 0 (0-based index).
+        For a.b.c[1], returns 0 (0-based index from last part).
+        For scalar x or a.b.c, returns None.
+
+        Note: Modelica uses 1-based indexing, this returns 0-based.
+        """
+        if isinstance(expr, ComponentRef):
+            # Check the last part for subscripts
+            last_part = expr.parts[-1]
+            if last_part.subscripts and len(last_part.subscripts) == 1:
+                sub = last_part.subscripts[0]
+                if isinstance(sub, Literal):
+                    return int(sub.value) - 1  # Convert to 0-based
+        return None
+
+    def _apply_subscripts(self, var_name: str, subscripts: tuple[Expr, ...]) -> sp.Expr:
+        """
+        Apply subscripts to extract elements from an array symbol.
+
+        Args:
+            var_name: Variable name
+            subscripts: Tuple of subscript expressions
+
+        Returns:
+            The indexed element symbol
+
+        Note:
+            Modelica uses 1-based indexing, we store symbols with 0-based keys.
+        """
+        shape = self.var_shapes.get(var_name)
+
+        if shape is None:
+            raise ValueError(f"Cannot index scalar variable: {var_name}")
+
+        if len(subscripts) == 1:
+            # Vector indexing: x[i]
+            sub = subscripts[0]
+            if isinstance(sub, Literal):
+                idx_0based = int(sub.value) - 1
+                key = (var_name, idx_0based)
+                if key not in self.symbols:
+                    raise ValueError(f"Index out of bounds: {var_name}[{sub.value}]")
+                return self.symbols[key]
+            elif isinstance(sub, Slice):
+                raise NotImplementedError("Slice indexing not yet supported in SymPy backend")
+            else:
+                raise NotImplementedError(
+                    f"Symbolic array indexing not yet supported in SymPy backend. "
+                    f"Variable '{var_name}' indexed with non-literal: {sub}"
+                )
+
+        elif len(subscripts) == 2:
+            # Matrix indexing: A[i,j]
+            sub_row, sub_col = subscripts
+            if isinstance(sub_row, Literal) and isinstance(sub_col, Literal):
+                row_0based = int(sub_row.value) - 1
+                col_0based = int(sub_col.value) - 1
+                key = (var_name, row_0based, col_0based)
+                if key not in self.symbols:
+                    raise ValueError(
+                        f"Index out of bounds: {var_name}[{sub_row.value},{sub_col.value}]"
+                    )
+                return self.symbols[key]
+            else:
+                raise NotImplementedError(
+                    f"Symbolic matrix indexing not yet supported in SymPy backend"
+                )
+
+        else:
+            raise NotImplementedError(f"Indexing with {len(subscripts)} dimensions not supported")
+
+    def _convert_expr(self, expr: Expr) -> sp.Basic:
         """Convert a Cyecca IR expression to a SymPy expression."""
         if isinstance(expr, Literal):
-            return sp.Float(expr.value) if isinstance(expr.value, float) else expr.value
+            if isinstance(expr.value, float):
+                return sp.Float(expr.value)
+            elif isinstance(expr.value, int):
+                return sp.Integer(expr.value)
+            elif isinstance(expr.value, bool):
+                return sp.true if expr.value else sp.false
+            else:
+                return sp.sympify(expr.value)
 
         elif isinstance(expr, ComponentRef):
-            # For now, only support simple component references
-            if not expr.is_simple:
-                raise NotImplementedError(
-                    f"Hierarchical component references not yet supported: {expr}"
-                )
-            var_name = expr.simple_name
-            if var_name not in self.symbols:
-                raise ValueError(f"Unknown variable: {var_name}")
-            return self.symbols[var_name]
+            # Flatten hierarchical reference to variable name
+            var_name = self._flatten_component_ref(expr)
+            last_part = expr.parts[-1]
+
+            # Handle subscripts (array indexing) on the last part
+            if last_part.subscripts:
+                return self._apply_subscripts(var_name, last_part.subscripts)
+            else:
+                if var_name not in self.symbols:
+                    raise ValueError(f"Unknown variable: {var_name}")
+                return self.symbols[var_name]
 
         elif isinstance(expr, VarRef):
             # Backward compatibility
@@ -157,7 +296,8 @@ class SympyBackend(Backend):
             return self.symbols[expr.name]
 
         elif isinstance(expr, ArrayRef):
-            raise NotImplementedError("Array indexing not yet supported")
+            # Legacy ArrayRef - convert to subscript access
+            return self._apply_subscripts(expr.name, expr.indices)
 
         elif isinstance(expr, BinaryOp):
             left = self._convert_expr(expr.left)
@@ -175,6 +315,8 @@ class SympyBackend(Backend):
                 "<=": lambda l, r: l <= r,
                 ">": lambda l, r: l > r,
                 ">=": lambda l, r: l >= r,
+                "and": lambda l, r: sp.And(l, r),
+                "or": lambda l, r: sp.Or(l, r),
             }
 
             if expr.op in op_map:
@@ -213,6 +355,12 @@ class SympyBackend(Backend):
                 "acos": sp.acos,
                 "atan": sp.atan,
                 "atan2": sp.atan2,
+                "sinh": sp.sinh,
+                "cosh": sp.cosh,
+                "tanh": sp.tanh,
+                "asinh": sp.asinh,
+                "acosh": sp.acosh,
+                "atanh": sp.atanh,
                 "exp": sp.exp,
                 "log": sp.log,
                 "ln": sp.log,
@@ -224,6 +372,8 @@ class SympyBackend(Backend):
                 "max": sp.Max,
                 "floor": sp.floor,
                 "ceil": sp.ceiling,
+                "pow": lambda x, y: x**y,
+                "mod": sp.Mod,
             }
 
             if expr.func in func_map:
@@ -423,6 +573,9 @@ class SympyBackend(Backend):
 
         Note: This converts SymPy expressions to numerical functions.
         For pure numerical simulation, use CasadiBackend instead.
+
+        Supports both scalar and array state variables. Array states are
+        flattened for integration and unflattened in the returned results.
         """
         self._ensure_compiled()
 
@@ -431,40 +584,135 @@ class SympyBackend(Backend):
         # Get state variables and their initial conditions
         state_vars = self.model.states
         state_names = [var.name for var in state_vars]
-        x0 = np.array([var.start if var.start is not None else 0.0 for var in state_vars])
 
-        # Get parameter values
-        param_values = {}
+        # Build initial condition vector - flatten array states
+        x0_parts = []
+        state_shapes = {}  # Track shape for each state (None = scalar)
+        for var in state_vars:
+            state_shapes[var.name] = self.var_shapes.get(var.name)
+            if var.is_array:
+                shape = var.shape
+                # Get initial value - check start first, then value
+                init_val = var.start if var.start is not None else var.value
+                if init_val is not None:
+                    if isinstance(init_val, (list, np.ndarray)):
+                        start_val = np.array(init_val).flatten()
+                    else:
+                        start_val = np.full(np.prod(shape), float(init_val))
+                else:
+                    start_val = np.zeros(np.prod(shape))
+                x0_parts.append(start_val)
+            else:
+                start_val = float(var.start) if var.start is not None else 0.0
+                x0_parts.append(np.array([start_val]))
+
+        x0 = np.concatenate(x0_parts) if x0_parts else np.array([])
+
+        # Get parameter values (flattened for arrays)
+        param_values_flat = []
         for var in self.model.parameters:
-            param_values[var.name] = var.value if var.value is not None else 0.0
+            if var.is_array:
+                shape = var.shape
+                if var.value is not None:
+                    if isinstance(var.value, (list, np.ndarray)):
+                        param_values_flat.extend(np.array(var.value).flatten())
+                    else:
+                        param_values_flat.extend([float(var.value)] * np.prod(shape))
+                else:
+                    param_values_flat.extend([0.0] * np.prod(shape))
+            else:
+                val = float(var.value) if var.value is not None else 0.0
+                param_values_flat.append(val)
 
-        # Create lambdified function for derivatives
-        state_syms = [self.symbols[name] for name in state_names]
-        input_syms = [self.symbols[var.name] for var in self.model.inputs]
-        param_syms = [self.symbols[var.name] for var in self.model.parameters]
+        # Build list of symbols and derivative expressions (flattened)
+        state_syms_flat = []
+        der_exprs_flat = []
 
-        der_exprs = [self.derivatives[name] for name in state_names]
+        for var in state_vars:
+            shape = self.var_shapes.get(var.name)
+            if shape is not None and len(shape) == 1:
+                # Vector state - add element symbols
+                n = shape[0]
+                for i in range(n):
+                    state_syms_flat.append(self.symbols[(var.name, i)])
+                    # Look for element-wise derivatives
+                    key = (var.name, i)
+                    if key in self.derivatives:
+                        der_exprs_flat.append(self.derivatives[key])
+                    elif var.name in self.derivatives:
+                        # Whole-array derivative - extract element
+                        der_exprs_flat.append(self.derivatives[var.name][i])
+                    else:
+                        der_exprs_flat.append(sp.Float(0))
+            elif shape is not None and len(shape) == 2:
+                # Matrix state
+                n, m = shape
+                for i in range(n):
+                    for j in range(m):
+                        state_syms_flat.append(self.symbols[(var.name, i, j)])
+                        key = (var.name, i, j)
+                        if key in self.derivatives:
+                            der_exprs_flat.append(self.derivatives[key])
+                        else:
+                            der_exprs_flat.append(sp.Float(0))
+            else:
+                # Scalar state
+                state_syms_flat.append(self.symbols[var.name])
+                der_exprs_flat.append(self.derivatives.get(var.name, sp.Float(0)))
+
+        # Build flat input symbols
+        input_syms_flat = []
+        for var in self.model.inputs:
+            shape = self.var_shapes.get(var.name)
+            if shape is not None and len(shape) == 1:
+                for i in range(shape[0]):
+                    input_syms_flat.append(self.symbols[(var.name, i)])
+            elif shape is not None and len(shape) == 2:
+                for i in range(shape[0]):
+                    for j in range(shape[1]):
+                        input_syms_flat.append(self.symbols[(var.name, i, j)])
+            else:
+                input_syms_flat.append(self.symbols[var.name])
+
+        # Build flat parameter symbols
+        param_syms_flat = []
+        for var in self.model.parameters:
+            shape = self.var_shapes.get(var.name)
+            if shape is not None and len(shape) == 1:
+                for i in range(shape[0]):
+                    param_syms_flat.append(self.symbols[(var.name, i)])
+            elif shape is not None and len(shape) == 2:
+                for i in range(shape[0]):
+                    for j in range(shape[1]):
+                        param_syms_flat.append(self.symbols[(var.name, i, j)])
+            else:
+                param_syms_flat.append(self.symbols[var.name])
 
         # Create a single lambda function for the RHS
         f_lambda = lambdify(
-            [state_syms, input_syms, param_syms],
-            der_exprs,
+            [state_syms_flat, input_syms_flat, param_syms_flat],
+            der_exprs_flat,
             modules=["numpy"],
         )
 
         def rhs(t, x):
-            # Get input values
+            # Get input values (flattened)
             if input_func:
                 u_dict = input_func(t)
-                u = [u_dict.get(var.name, 0.0) for var in self.model.inputs]
+                u = []
+                for var in self.model.inputs:
+                    shape = self.var_shapes.get(var.name)
+                    if shape is not None and len(shape) >= 1:
+                        val = u_dict.get(var.name, np.zeros(shape))
+                        u.extend(np.array(val).flatten())
+                    else:
+                        u.append(u_dict.get(var.name, 0.0))
             else:
-                u = [0.0] * len(self.model.inputs)
-
-            # Get parameter values
-            p = [param_values[var.name] for var in self.model.parameters]
+                u = [0.0] * len(input_syms_flat)
 
             # Evaluate
-            return f_lambda(x, u, p)
+            result = f_lambda(list(x), u, param_values_flat)
+            return np.array(result).flatten()
 
         # Integrate
         t_span = (0.0, t_final)
@@ -472,11 +720,24 @@ class SympyBackend(Backend):
 
         sol_obj = solve_ivp(rhs, t_span, x0, t_eval=t_eval, method="RK45")
 
-        # Package results
+        # Package results - unflatten array states
         t = sol_obj.t
         sol = {}
-        for i, name in enumerate(state_names):
-            sol[name] = sol_obj.y[i, :]
+        flat_idx = 0
+        for var in state_vars:
+            shape = state_shapes[var.name]
+            if shape is not None and len(shape) == 1:
+                n = shape[0]
+                sol[var.name] = sol_obj.y[flat_idx : flat_idx + n, :]
+                flat_idx += n
+            elif shape is not None and len(shape) == 2:
+                n, m = shape
+                # Return as 3D array: (n, m, timesteps)
+                sol[var.name] = sol_obj.y[flat_idx : flat_idx + n * m, :].reshape(n, m, -1)
+                flat_idx += n * m
+            else:
+                sol[var.name] = sol_obj.y[flat_idx, :]
+                flat_idx += 1
 
         return t, sol
 
@@ -486,14 +747,56 @@ class SympyBackend(Backend):
         """
         Linearize symbolically, then evaluate at operating point.
 
+        Computes the linearization of the system around an operating point,
+        returning state-space matrices (A, B, C, D) where:
+        - A = ∂f/∂x (state Jacobian)
+        - B = ∂f/∂u (input Jacobian)
+        - C = ∂y/∂x (output-state Jacobian)
+        - D = ∂y/∂u (output-input Jacobian)
+
+        Output equations (y = g(x, u)) are taken from the algebraic equations
+        that define output variables.
+
+        Args:
+            x0: State values at operating point (uses start values if None)
+            u0: Input values at operating point (uses 0 if None)
+
         Returns:
             (A, B, C, D) state-space matrices
         """
         self._ensure_compiled()
 
-        # Get symbolic Jacobians
+        # Get symbolic Jacobians for state dynamics
         A_sym = self.get_jacobian_state()
         B_sym = self.get_jacobian_input()
+
+        # Build C and D matrices from output equations
+        output_vars = self.model.outputs
+        state_syms = [self.symbols[var.name] for var in self.model.states]
+        input_syms = [self.symbols[var.name] for var in self.model.inputs]
+
+        if output_vars:
+            # Get output expressions from algebraic equations
+            output_exprs = []
+            for var in output_vars:
+                if var.name in self.algebraic:
+                    output_exprs.append(self.algebraic[var.name])
+                elif var.name in self.outputs:
+                    output_exprs.append(self.outputs[var.name])
+                else:
+                    # Output might be a direct state passthrough
+                    if var.name in self.symbols:
+                        output_exprs.append(self.symbols[var.name])
+                    else:
+                        output_exprs.append(sp.Float(0))
+
+            # Compute Jacobians C = ∂y/∂x and D = ∂y/∂u
+            y_matrix = Matrix(output_exprs)
+            C_sym = y_matrix.jacobian(state_syms) if state_syms else Matrix(len(output_vars), 0, [])
+            D_sym = y_matrix.jacobian(input_syms) if input_syms else Matrix(len(output_vars), 0, [])
+        else:
+            C_sym = Matrix(0, len(self.model.states), [])
+            D_sym = Matrix(0, len(self.model.inputs), [])
 
         # Prepare substitution dictionary
         subs = {}
@@ -520,12 +823,16 @@ class SympyBackend(Backend):
         # Substitute and convert to numpy
         A = np.array(A_sym.subs(subs)).astype(float)
         B = np.array(B_sym.subs(subs)).astype(float)
-
-        # For now, assume no outputs (C, D are empty)
-        n_states = len(self.model.states)
-        n_inputs = len(self.model.inputs)
-        C = np.zeros((0, n_states))
-        D = np.zeros((0, n_inputs))
+        C = (
+            np.array(C_sym.subs(subs)).astype(float)
+            if output_vars
+            else np.zeros((0, len(self.model.states)))
+        )
+        D = (
+            np.array(D_sym.subs(subs)).astype(float)
+            if output_vars
+            else np.zeros((0, len(self.model.inputs)))
+        )
 
         return A, B, C, D
 
@@ -543,3 +850,173 @@ class SympyBackend(Backend):
         f = lambdify([state_syms, input_syms, param_syms], der_exprs, modules=["numpy"])
 
         return lambda t, x, u, p: np.array(f(x, u, p))
+
+    def get_output_jacobians(self, simplified: bool = False) -> tuple[sp.Matrix, sp.Matrix]:
+        """
+        Get symbolic Jacobians for output equations.
+
+        Returns:
+            (C_sym, D_sym): Symbolic C and D matrices where:
+                C = ∂y/∂x (output-state Jacobian)
+                D = ∂y/∂u (output-input Jacobian)
+        """
+        self._ensure_compiled()
+
+        output_vars = self.model.outputs
+        state_syms = [self.symbols[var.name] for var in self.model.states]
+        input_syms = [self.symbols[var.name] for var in self.model.inputs]
+
+        if not output_vars:
+            return Matrix(0, len(state_syms), []), Matrix(0, len(input_syms), [])
+
+        # Get output expressions
+        output_exprs = []
+        for var in output_vars:
+            if var.name in self.algebraic:
+                output_exprs.append(self.algebraic[var.name])
+            elif var.name in self.outputs:
+                output_exprs.append(self.outputs[var.name])
+            elif var.name in self.symbols:
+                output_exprs.append(self.symbols[var.name])
+            else:
+                output_exprs.append(sp.Float(0))
+
+        y_matrix = Matrix(output_exprs)
+        C_sym = y_matrix.jacobian(state_syms) if state_syms else Matrix(len(output_vars), 0, [])
+        D_sym = y_matrix.jacobian(input_syms) if input_syms else Matrix(len(output_vars), 0, [])
+
+        if simplified:
+            return simplify(C_sym), simplify(D_sym)
+        return C_sym, D_sym
+
+    def get_all_expressions(self) -> dict[str, sp.Expr]:
+        """
+        Get all symbolic expressions (derivatives + algebraic).
+
+        Returns:
+            Dictionary mapping variable names to their symbolic expressions.
+        """
+        self._ensure_compiled()
+
+        result = {}
+        # Add derivative expressions
+        for key, expr in self.derivatives.items():
+            if isinstance(key, tuple):
+                # Array element: ('x', 0) -> 'der(x[1])'
+                name, idx = key
+                result[f"der({name}[{idx + 1}])"] = expr
+            else:
+                result[f"der({key})"] = expr
+
+        # Add algebraic expressions
+        for name, expr in self.algebraic.items():
+            result[name] = expr
+
+        return result
+
+    def get_state_space_symbolic(self) -> dict[str, sp.Matrix]:
+        """
+        Get the full symbolic state-space representation.
+
+        Returns:
+            Dictionary with:
+                'A': Symbolic state matrix (∂f/∂x)
+                'B': Symbolic input matrix (∂f/∂u)
+                'C': Symbolic output-state matrix (∂y/∂x)
+                'D': Symbolic output-input matrix (∂y/∂u)
+                'f': State derivative vector (xdot = f(x, u, p))
+                'y': Output vector (y = g(x, u, p))
+        """
+        self._ensure_compiled()
+
+        # Get f (state derivatives)
+        state_names = [var.name for var in self.model.states]
+        f_exprs = [self.derivatives.get(name, sp.Float(0)) for name in state_names]
+        f_vec = Matrix(f_exprs)
+
+        # Get y (outputs)
+        output_vars = self.model.outputs
+        if output_vars:
+            y_exprs = []
+            for var in output_vars:
+                if var.name in self.algebraic:
+                    y_exprs.append(self.algebraic[var.name])
+                elif var.name in self.outputs:
+                    y_exprs.append(self.outputs[var.name])
+                elif var.name in self.symbols:
+                    y_exprs.append(self.symbols[var.name])
+                else:
+                    y_exprs.append(sp.Float(0))
+            y_vec = Matrix(y_exprs)
+        else:
+            y_vec = Matrix([])
+
+        # Get Jacobians
+        A = self.get_jacobian_state()
+        B = self.get_jacobian_input()
+        C, D = self.get_output_jacobians()
+
+        return {
+            "A": A,
+            "B": B,
+            "C": C,
+            "D": D,
+            "f": f_vec,
+            "y": y_vec,
+        }
+
+    def controllability_matrix(self) -> sp.Matrix:
+        """
+        Compute the symbolic controllability matrix.
+
+        The controllability matrix is [B, AB, A²B, ..., A^(n-1)B]
+        where n is the number of states.
+
+        Returns:
+            Symbolic controllability matrix
+        """
+        self._ensure_compiled()
+
+        A = self.get_jacobian_state()
+        B = self.get_jacobian_input()
+        n = A.rows
+
+        if B.cols == 0:
+            return Matrix(n, 0, [])
+
+        # Build controllability matrix
+        cols = [B]
+        AB = B
+        for _ in range(1, n):
+            AB = A * AB
+            cols.append(AB)
+
+        return Matrix.hstack(*cols)
+
+    def observability_matrix(self) -> sp.Matrix:
+        """
+        Compute the symbolic observability matrix.
+
+        The observability matrix is [C; CA; CA²; ...; CA^(n-1)]
+        where n is the number of states.
+
+        Returns:
+            Symbolic observability matrix
+        """
+        self._ensure_compiled()
+
+        A = self.get_jacobian_state()
+        C, _ = self.get_output_jacobians()
+        n = A.rows
+
+        if C.rows == 0:
+            return Matrix(0, n, [])
+
+        # Build observability matrix
+        rows = [C]
+        CA = C
+        for _ in range(1, n):
+            CA = CA * A
+            rows.append(CA)
+
+        return Matrix.vstack(*rows)

@@ -3,8 +3,9 @@ Base backend interface.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, Type, cast
+from typing import Any, Optional, TypeVar, cast, TYPE_CHECKING
 import tempfile
 
 import numpy as np
@@ -97,7 +98,7 @@ class Backend(ABC):
             raise RuntimeError("Model must be compiled before use. Call compile() first.")
 
     @classmethod
-    def from_file(cls: Type[T], modelica_file: str, **backend_kwargs: Any) -> T:
+    def from_file(cls: type[T], modelica_file: str, **backend_kwargs: Any) -> T:
         """
         Compile a Modelica file and return a compiled backend instance.
 
@@ -166,7 +167,7 @@ class Backend(ABC):
             Path(json_path).unlink(missing_ok=True)
 
     @classmethod
-    def from_string(cls: Type[T], modelica_code: str, **backend_kwargs: Any) -> T:
+    def from_string(cls: type[T], modelica_code: str, **backend_kwargs: Any) -> T:
         """
         Compile Modelica code from a string and return a compiled backend instance.
 

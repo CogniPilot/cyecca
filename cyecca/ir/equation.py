@@ -2,11 +2,16 @@
 Equation representation in the IR.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from cyecca.ir.expr import Expr
+
+if TYPE_CHECKING:
+    from cyecca.ir.expr import ComponentRef
 
 
 class EquationType(Enum):

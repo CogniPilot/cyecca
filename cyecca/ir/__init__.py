@@ -41,6 +41,13 @@ from cyecca.ir.statement import (
 from cyecca.ir.algorithm import AlgorithmSection
 from cyecca.ir.event import Event
 from cyecca.ir.model import Model
+from cyecca.ir.validation import (
+    validate_model,
+    ValidationResult,
+    ValidationIssue,
+    ValidationSeverity,
+    ValidationCategory,
+)
 
 __all__ = [
     # Types
@@ -87,4 +94,10 @@ __all__ = [
     "Event",
     # Model
     "Model",
+    # Validation
+    "validate_model",
+    "ValidationResult",
+    "ValidationIssue",
+    "ValidationSeverity",
+    "ValidationCategory",
 ]

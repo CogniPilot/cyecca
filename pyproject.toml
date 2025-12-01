@@ -36,6 +36,9 @@ testpaths = ["test"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+markers = [
+    "integration: marks tests as integration tests requiring external dependencies",
+]
 
 [tool.black]
 line-length = 100

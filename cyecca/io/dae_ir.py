@@ -1,8 +1,21 @@
 """
-Import and export Base Modelica IR (MCP-0031) JSON format.
+Import and export DAE IR (Differential-Algebraic Equation Intermediate Representation) JSON format.
 
-This module provides functions to convert between Base Modelica JSON
+This module provides functions to convert between DAE IR JSON (dae-0.1.0)
 and Cyecca's internal IR representation.
+
+DAE IR is a superset of Base Modelica IR (MCP-0031) that adds explicit variable
+classification matching the Modelica specification's DAE formalism (Appendix B):
+- States (x): Continuous-time variables appearing differentiated
+- Algebraic (y): Continuous-time variables not differentiated
+- Discrete Real (z): Discrete-time Real variables
+- Discrete Valued (m): Boolean/Integer discrete variables
+- Parameters (p): Fixed after initialization
+- Constants: Compile-time values
+- Inputs/Outputs: External interface
+
+Derivatives are represented as der(x) function calls in equations, not as
+separate variables.
 """
 
 import json
@@ -63,18 +76,18 @@ def _extract_start_value(start_data: Any) -> Optional[float]:
     return None
 
 
-def import_base_modelica(path: Union[str, Path]) -> Model:
+def import_dae_ir(path: Union[str, Path]) -> Model:
     """
-    Import a Base Modelica JSON file into a Cyecca Model.
+    Import a DAE IR JSON file into a Cyecca Model.
 
     Args:
-        path: Path to the Base Modelica JSON file
+        path: Path to the DAE IR JSON file
 
     Returns:
         Cyecca Model instance
 
     Example:
-        >>> model = import_base_modelica("bouncing_ball.json")
+        >>> model = import_dae_ir("bouncing_ball.json")
         >>> print(model.name)
         >>> print(f"States: {len(model.states)}")
     """
@@ -84,23 +97,42 @@ def import_base_modelica(path: Union[str, Path]) -> Model:
     return _import_model(data)
 
 
-def export_base_modelica(
+def load_dae_ir_json(json_str: str) -> Model:
+    """
+    Load a DAE IR JSON string into a Cyecca Model.
+
+    Args:
+        json_str: JSON string in DAE IR format
+
+    Returns:
+        Cyecca Model instance
+
+    Example:
+        >>> json_str = '{"model_name": "Test", ...}'
+        >>> model = load_dae_ir_json(json_str)
+        >>> print(model.name)
+    """
+    data = json.loads(json_str)
+    return _import_model(data)
+
+
+def export_dae_ir(
     model: Model,
     path: Union[str, Path],
     validate: bool = True,
     pretty: bool = True,
 ) -> None:
     """
-    Export a Cyecca Model to Base Modelica JSON format.
+    Export a Cyecca Model to DAE IR JSON format.
 
     Args:
         model: Cyecca Model instance
         path: Output file path
-        validate: Validate against Base Modelica schema (if jsonschema available)
+        validate: Validate against DAE IR schema (if jsonschema available)
         pretty: Pretty-print the JSON output
 
     Example:
-        >>> export_base_modelica(model, "output.json")
+        >>> export_dae_ir(model, "output.json")
     """
     data = _export_model(model)
 
@@ -112,7 +144,7 @@ def export_base_modelica(
                 Path(__file__).parent.parent.parent.parent
                 / "modelica_ir"
                 / "schemas"
-                / "base_modelica_ir-0.1.0.schema.json"
+                / "dae_ir-0.1.0.schema.json"
             )
             if schema_path.exists():
                 with open(schema_path) as f:
@@ -134,13 +166,110 @@ def export_base_modelica(
 
 
 def _import_model(data: dict) -> Model:
-    """Import model from Base Modelica JSON dict."""
+    """Import model from DAE IR JSON dict."""
+    ir_version = data.get("ir_version", "")
+
     model = Model(
         name=data["model_name"],
         description=data.get("metadata", {}).get("description", ""),
         metadata=data.get("metadata", {}),
     )
 
+    # Handle DAE IR format (dae-0.1.0) with classified variables object
+    if ir_version.startswith("dae-") or isinstance(data.get("variables"), dict):
+        return _import_dae_ir_model(data, model)
+
+    # Legacy Base Modelica format with flat arrays
+    return _import_legacy_model(data, model)
+
+
+def _import_dae_ir_model(data: dict, model: Model) -> Model:
+    """Import model from DAE IR format with classified variables."""
+    variables = data.get("variables", {})
+
+    # Import states (x) - explicitly classified
+    for state_data in variables.get("states", []):
+        var = _import_state_variable(state_data)
+        model.add_variable(var)
+
+    # Import algebraic (y)
+    for alg_data in variables.get("algebraic", []):
+        var = _import_algebraic_variable(alg_data)
+        model.add_variable(var)
+
+    # Import discrete real (z)
+    for disc_data in variables.get("discrete_real", []):
+        var = _import_discrete_real_variable(disc_data)
+        model.add_variable(var)
+
+    # Import discrete valued (m) - Boolean, Integer
+    for disc_data in variables.get("discrete_valued", []):
+        var = _import_discrete_valued_variable(disc_data)
+        model.add_variable(var)
+
+    # Import parameters (p)
+    for param_data in variables.get("parameters", []):
+        var = _import_parameter(param_data)
+        model.add_variable(var)
+
+    # Import constants
+    for const_data in variables.get("constants", []):
+        var = _import_constant(const_data)
+        model.add_variable(var)
+
+    # Import inputs (u)
+    for input_data in variables.get("inputs", []):
+        var = _import_input_variable(input_data)
+        model.add_variable(var)
+
+    # Import outputs
+    for output_data in variables.get("outputs", []):
+        var = _import_output_variable(output_data)
+        model.add_variable(var)
+
+    # Import equations from classified structure
+    equations = data.get("equations", {})
+
+    # Import continuous equations
+    for eq_data in equations.get("continuous", []):
+        eq = _import_equation(eq_data)
+        model.add_equation(eq)
+
+    # Import event equations
+    for eq_data in equations.get("event", []):
+        eq = _import_equation(eq_data)
+        model.add_equation(eq)
+
+    # Import discrete real equations
+    for eq_data in equations.get("discrete_real", []):
+        eq = _import_equation(eq_data)
+        model.add_equation(eq)
+
+    # Import discrete valued equations
+    for eq_data in equations.get("discrete_valued", []):
+        eq = _import_equation(eq_data)
+        model.add_equation(eq)
+
+    # Import initial equations
+    for eq_data in equations.get("initial", []):
+        eq = _import_equation(eq_data)
+        model.initial_equations.append(eq)
+
+    # Import algorithms
+    for algo_data in data.get("algorithms", []):
+        algo = _import_algorithm(algo_data)
+        model.add_algorithm(algo)
+
+    # Import initial algorithms
+    for algo_data in data.get("initial_algorithms", []):
+        algo = _import_algorithm(algo_data)
+        model.initial_algorithms.append(algo)
+
+    return model
+
+
+def _import_legacy_model(data: dict, model: Model) -> Model:
+    """Import model from legacy Base Modelica format with flat arrays."""
     # Import constants
     for const_data in data.get("constants", []):
         var = _import_constant(const_data)
@@ -176,10 +305,145 @@ def _import_model(data: dict) -> Model:
         algo = _import_algorithm(algo_data)
         model.initial_algorithms.append(algo)
 
-    # Post-process: Identify state variables from der() equations
-    _refine_state_variables(model)
+    # Note: BLT analysis and variable classification is now handled by Rumoca.
+    # DAE IR format already contains properly classified variables.
 
     return model
+
+
+def _import_state_variable(data: dict) -> Variable:
+    """Import a state variable from DAE IR format."""
+    shape = data.get("shape") or data.get("dimensions")
+    if shape:
+        shape = list(shape)
+
+    var = Variable(
+        name=data["name"],
+        var_type=VariableType.STATE,
+        primitive_type=_import_primitive_type(data.get("vartype", "Real")),
+        variability=Variability.CONTINUOUS,
+        start=_extract_start_value(data.get("start")),
+        shape=shape,
+        unit=data.get("unit", ""),
+        description=data.get("description", ""),
+        comment=data.get("comment", ""),
+        min_value=data.get("min"),
+        max_value=data.get("max"),
+        nominal=data.get("nominal"),
+        metadata=data.get("annotations", {}),
+    )
+
+    # Store state_index if present
+    if "state_index" in data:
+        var.metadata = {**(var.metadata or {}), "state_index": data["state_index"]}
+
+    return var
+
+
+def _import_algebraic_variable(data: dict) -> Variable:
+    """Import an algebraic variable from DAE IR format."""
+    shape = data.get("shape") or data.get("dimensions")
+    if shape:
+        shape = list(shape)
+
+    return Variable(
+        name=data["name"],
+        var_type=VariableType.ALGEBRAIC,
+        primitive_type=_import_primitive_type(data.get("vartype", "Real")),
+        variability=Variability.CONTINUOUS,
+        start=_extract_start_value(data.get("start")),
+        shape=shape,
+        unit=data.get("unit", ""),
+        description=data.get("description", ""),
+        comment=data.get("comment", ""),
+        min_value=data.get("min"),
+        max_value=data.get("max"),
+        nominal=data.get("nominal"),
+        metadata=data.get("annotations", {}),
+    )
+
+
+def _import_discrete_real_variable(data: dict) -> Variable:
+    """Import a discrete Real variable from DAE IR format."""
+    shape = data.get("shape") or data.get("dimensions")
+    if shape:
+        shape = list(shape)
+
+    return Variable(
+        name=data["name"],
+        var_type=VariableType.DISCRETE_STATE,
+        primitive_type=PrimitiveType.REAL,
+        variability=Variability.DISCRETE,
+        start=_extract_start_value(data.get("start")),
+        shape=shape,
+        unit=data.get("unit", ""),
+        description=data.get("description", ""),
+        comment=data.get("comment", ""),
+        min_value=data.get("min"),
+        max_value=data.get("max"),
+        nominal=data.get("nominal"),
+        metadata=data.get("annotations", {}),
+    )
+
+
+def _import_discrete_valued_variable(data: dict) -> Variable:
+    """Import a discrete-valued (Boolean/Integer) variable from DAE IR format."""
+    shape = data.get("shape") or data.get("dimensions")
+    if shape:
+        shape = list(shape)
+
+    return Variable(
+        name=data["name"],
+        var_type=VariableType.DISCRETE_STATE,
+        primitive_type=_import_primitive_type(data.get("vartype", "Boolean")),
+        variability=Variability.DISCRETE,
+        start=_extract_start_value(data.get("start")),
+        shape=shape,
+        unit=data.get("unit", ""),
+        description=data.get("description", ""),
+        comment=data.get("comment", ""),
+        metadata=data.get("annotations", {}),
+    )
+
+
+def _import_input_variable(data: dict) -> Variable:
+    """Import an input variable from DAE IR format."""
+    shape = data.get("shape") or data.get("dimensions")
+    if shape:
+        shape = list(shape)
+
+    return Variable(
+        name=data["name"],
+        var_type=VariableType.INPUT,
+        primitive_type=_import_primitive_type(data.get("vartype", "Real")),
+        variability=Variability.CONTINUOUS,
+        start=_extract_start_value(data.get("start")),
+        shape=shape,
+        unit=data.get("unit", ""),
+        description=data.get("description", ""),
+        comment=data.get("comment", ""),
+        metadata=data.get("annotations", {}),
+    )
+
+
+def _import_output_variable(data: dict) -> Variable:
+    """Import an output variable from DAE IR format."""
+    shape = data.get("shape") or data.get("dimensions")
+    if shape:
+        shape = list(shape)
+
+    return Variable(
+        name=data["name"],
+        var_type=VariableType.OUTPUT,
+        primitive_type=_import_primitive_type(data.get("vartype", "Real")),
+        variability=Variability.CONTINUOUS,
+        start=_extract_start_value(data.get("start")),
+        shape=shape,
+        unit=data.get("unit", ""),
+        description=data.get("description", ""),
+        comment=data.get("comment", ""),
+        metadata=data.get("annotations", {}),
+    )
 
 
 def _refine_state_variables(model: Model) -> None:
@@ -279,12 +543,16 @@ def _refine_state_variables(model: Model) -> None:
 
 def _import_constant(data: dict) -> Variable:
     """Import a constant variable."""
+    # Support both "shape" (rumoca) and "dimensions" (legacy) fields
+    shape = data.get("shape") or data.get("dimensions")
+    if shape:
+        shape = list(shape)
     return Variable(
         name=data["name"],
         var_type=VariableType.CONSTANT,
-        primitive_type=_import_primitive_type(data.get("type", "Real")),
+        primitive_type=_import_primitive_type(data.get("vartype", "Real")),
         value=_extract_start_value(data.get("value")),
-        shape=data.get("dimensions"),
+        shape=shape,
         unit=data.get("unit", ""),
         description=data.get("description", ""),
         comment=data.get("comment", ""),
@@ -294,13 +562,17 @@ def _import_constant(data: dict) -> Variable:
 
 def _import_parameter(data: dict) -> Variable:
     """Import a parameter variable."""
+    # Support both "shape" (rumoca) and "dimensions" (legacy) fields
+    shape = data.get("shape") or data.get("dimensions")
+    if shape:
+        shape = list(shape)
     return Variable(
         name=data["name"],
         var_type=VariableType.PARAMETER,
-        primitive_type=_import_primitive_type(data.get("type", "Real")),
+        primitive_type=_import_primitive_type(data.get("vartype", "Real")),
         value=_extract_start_value(data.get("value")),
         start=_extract_start_value(data.get("start")),
-        shape=data.get("dimensions"),
+        shape=shape,
         unit=data.get("unit", ""),
         description=data.get("description", ""),
         comment=data.get("comment", ""),
@@ -316,7 +588,8 @@ def _import_variable(data: dict) -> Variable:
     variability_str = data.get("variability", "continuous")
     variability = _import_variability(variability_str)
 
-    # Determine variable type based on variability
+    # Determine variable type based on variability and causality
+    # Note: State vs algebraic classification is handled by Rumoca
     if variability == Variability.DISCRETE:
         var_type = VariableType.DISCRETE_STATE
     elif data.get("causality") == "input":
@@ -324,16 +597,21 @@ def _import_variable(data: dict) -> Variable:
     elif data.get("causality") == "output":
         var_type = VariableType.OUTPUT
     else:
-        # Will be refined based on equations (state vs algebraic)
+        # Default to ALGEBRAIC - proper classification comes from DAE IR format
         var_type = VariableType.ALGEBRAIC
+
+    # Support both "shape" (rumoca) and "dimensions" (legacy) fields
+    shape = data.get("shape") or data.get("dimensions")
+    if shape:
+        shape = list(shape)
 
     var = Variable(
         name=data["name"],
         var_type=var_type,
-        primitive_type=_import_primitive_type(data.get("type", "Real")),
+        primitive_type=_import_primitive_type(data.get("vartype", "Real")),
         variability=variability,
         start=_extract_start_value(data.get("start")),
-        shape=data.get("dimensions"),
+        shape=shape,
         unit=data.get("unit", ""),
         description=data.get("description", ""),
         comment=data.get("comment", ""),
@@ -527,10 +805,11 @@ def _import_statement(data: dict) -> Statement:
     elif stmt_type == "when":
         condition = _import_expr(data["condition"])
         body = tuple(_import_statement(s) for s in data["body"])
-        return WhenStatement(condition=condition, body=body)
+        # WhenStatement uses branches format: ((condition, statements), ...)
+        return WhenStatement(branches=((condition, body),))
 
     elif stmt_type == "reinit":
-        target = data["target"]
+        target = _import_component_ref(data["target"])
         expr = _import_expr(data["expr"])
         return ReinitStatement(target=target, expr=expr)
 
@@ -582,45 +861,83 @@ def _import_algorithm(data: dict) -> AlgorithmSection:
 
 
 def _export_model(model: Model) -> dict:
-    """Export model to Base Modelica JSON dict."""
+    """Export model to DAE IR JSON dict."""
+    # Build classified variables
+    states = []
+    algebraic = []
+    discrete_real = []
+    discrete_valued = []
+    parameters = []
+    constants = []
+    inputs = []
+    outputs = []
+
+    state_index = 0
+    for var in model.variables:
+        if var.var_type == VariableType.STATE:
+            states.append(_export_state_variable(var, state_index))
+            state_index += 1
+        elif var.var_type == VariableType.ALGEBRAIC:
+            algebraic.append(_export_algebraic_variable(var))
+        elif var.var_type == VariableType.DISCRETE_STATE:
+            if var.primitive_type == PrimitiveType.REAL:
+                discrete_real.append(_export_basic_variable(var))
+            else:
+                discrete_valued.append(_export_basic_variable(var))
+        elif var.var_type == VariableType.PARAMETER:
+            parameters.append(_export_parameter(var))
+        elif var.var_type == VariableType.CONSTANT:
+            constants.append(_export_constant(var))
+        elif var.var_type == VariableType.INPUT:
+            inputs.append(_export_basic_variable(var))
+        elif var.var_type == VariableType.OUTPUT:
+            outputs.append(_export_basic_variable(var))
+
+    # Build classified equations
+    continuous_eqs = []
+    initial_eqs = []
+
+    for eq in model.equations:
+        continuous_eqs.append(_export_equation(eq))
+
+    for eq in model.initial_equations:
+        initial_eqs.append(_export_equation(eq))
+
     data = {
-        "ir_version": "base-0.1.0",
+        "ir_version": "dae-0.1.0",
         "base_modelica_version": "0.1",
         "model_name": model.name,
-        "constants": [],
-        "parameters": [],
-        "variables": [],
-        "equations": [],
+        "variables": {
+            "states": states,
+            "algebraic": algebraic,
+            "discrete_real": discrete_real,
+            "discrete_valued": discrete_valued,
+            "parameters": parameters,
+            "constants": constants,
+            "inputs": inputs,
+            "outputs": outputs,
+        },
+        "equations": {
+            "continuous": continuous_eqs,
+            "event": [],
+            "discrete_real": [],
+            "discrete_valued": [],
+            "initial": initial_eqs,
+        },
+        "event_indicators": [],
+        "algorithms": [],
+        "initial_algorithms": [],
+        "functions": [],
+        "structure": {
+            "n_states": len(states),
+            "n_algebraic": len(algebraic),
+            "n_equations": len(continuous_eqs),
+            "dae_index": 0,
+            "is_ode": len(algebraic) == 0,
+        },
+        "source_info": {},
+        "metadata": model.metadata or {},
     }
-
-    # Export constants
-    for var in model.variables:
-        if var.var_type == VariableType.CONSTANT:
-            data["constants"].append(_export_constant(var))
-
-    # Export parameters
-    for var in model.variables:
-        if var.var_type == VariableType.PARAMETER:
-            data["parameters"].append(_export_parameter(var))
-
-    # Export variables (states, algebraic, inputs, outputs)
-    for var in model.variables:
-        if var.var_type in [
-            VariableType.STATE,
-            VariableType.ALGEBRAIC,
-            VariableType.DISCRETE_STATE,
-            VariableType.INPUT,
-            VariableType.OUTPUT,
-        ]:
-            data["variables"].append(_export_variable(var))
-
-    # Export equations
-    for eq in model.equations:
-        data["equations"].append(_export_equation(eq))
-
-    # Export initial equations
-    if model.initial_equations:
-        data["initial_equations"] = [_export_equation(eq) for eq in model.initial_equations]
 
     # Export algorithms
     if model.algorithms:
@@ -630,15 +947,75 @@ def _export_model(model: Model) -> dict:
     if model.initial_algorithms:
         data["initial_algorithms"] = [_export_algorithm(algo) for algo in model.initial_algorithms]
 
-    # Export metadata
-    if model.metadata:
-        data["metadata"] = model.metadata
+    return data
 
-    # Add source info
-    data["source_info"] = {
-        "generated_by": "Cyecca",
-        "base_modelica_version": "0.1",
+
+def _export_state_variable(var: Variable, state_index: int) -> dict:
+    """Export a state variable to DAE IR format."""
+    data = {
+        "name": var.name,
+        "vartype": _export_primitive_type(var.primitive_type),
+        "state_index": state_index,
     }
+
+    if var.start is not None:
+        data["start"] = var.start
+    if var.shape:
+        data["shape"] = var.shape
+    if var.unit:
+        data["unit"] = var.unit
+    if var.description:
+        data["comment"] = var.description
+    if var.min_value is not None:
+        data["min"] = var.min_value
+    if var.max_value is not None:
+        data["max"] = var.max_value
+    if var.nominal is not None:
+        data["nominal"] = var.nominal
+
+    return data
+
+
+def _export_algebraic_variable(var: Variable) -> dict:
+    """Export an algebraic variable to DAE IR format."""
+    data = {
+        "name": var.name,
+        "vartype": _export_primitive_type(var.primitive_type),
+    }
+
+    if var.start is not None:
+        data["start"] = var.start
+    if var.shape:
+        data["shape"] = var.shape
+    if var.unit:
+        data["unit"] = var.unit
+    if var.description:
+        data["comment"] = var.description
+    if var.min_value is not None:
+        data["min"] = var.min_value
+    if var.max_value is not None:
+        data["max"] = var.max_value
+    if var.nominal is not None:
+        data["nominal"] = var.nominal
+
+    return data
+
+
+def _export_basic_variable(var: Variable) -> dict:
+    """Export a basic variable to DAE IR format."""
+    data = {
+        "name": var.name,
+        "vartype": _export_primitive_type(var.primitive_type),
+    }
+
+    if var.start is not None:
+        data["start"] = var.start
+    if var.shape:
+        data["shape"] = var.shape
+    if var.unit:
+        data["unit"] = var.unit
+    if var.description:
+        data["comment"] = var.description
 
     return data
 
@@ -768,6 +1145,48 @@ def _export_variability(var: Variability) -> str:
     return mapping[var]
 
 
+def _equation_to_statement(eq: Equation) -> dict:
+    """
+    Convert an equation to an assignment statement for use in when clauses.
+
+    In Modelica, when clauses contain equations like "x = expr", but in
+    Base Modelica JSON these are represented as assignment statements.
+    """
+    from cyecca.ir.expr import FunctionCall
+
+    # Check if this is a reinit call: reinit(x, expr)
+    if isinstance(eq.rhs, FunctionCall) and eq.rhs.name == "reinit" and len(eq.rhs.args) == 2:
+        target_expr, value_expr = eq.rhs.args
+        # Extract target name from the first argument
+        if isinstance(target_expr, ComponentRef):
+            target = _export_component_ref(target_expr)
+        else:
+            target = str(target_expr)
+        return {
+            "stmt": "reinit",
+            "target": target,
+            "expr": _export_expr(value_expr),
+        }
+
+    # Regular equation: lhs = rhs becomes assignment lhs := rhs
+    if eq.lhs is not None:
+        # Convert lhs expression to component reference for target
+        if isinstance(eq.lhs, ComponentRef):
+            target = _export_component_ref(eq.lhs)
+        else:
+            # For other expressions like der(x), we need to handle specially
+            # For now, convert to string representation
+            target = str(eq.lhs)
+        return {
+            "stmt": "assign",
+            "target": target,
+            "expr": _export_expr(eq.rhs),
+        }
+    else:
+        # Implicit equation without lhs - this shouldn't happen in when clauses
+        raise ValueError("Cannot convert implicit equation (no lhs) to statement")
+
+
 def _export_equation(eq: Equation) -> dict:
     """Export an equation."""
     if eq.eq_type == EquationType.SIMPLE:
@@ -805,10 +1224,18 @@ def _export_equation(eq: Equation) -> dict:
         return data
 
     elif eq.eq_type == EquationType.WHEN:
+        # Convert when_equations to statements
+        # In when clauses, equations like "x = expr" become assignments "x := expr"
+        statements = []
+        for when_eq in eq.when_equations or []:
+            if when_eq.eq_type == EquationType.SIMPLE and when_eq.lhs is not None:
+                # Convert equation to assignment statement
+                statements.append(_equation_to_statement(when_eq))
+            # Nested when equations could be handled here if needed
         return {
             "eq_type": "when",
             "condition": _export_expr(eq.condition),
-            "statements": [],  # TODO: Convert when_equations to statements
+            "statements": statements,
         }
 
     else:
@@ -914,11 +1341,17 @@ def _export_statement(stmt: Statement) -> dict:
         }
 
     elif isinstance(stmt, WhenStatement):
-        return {
-            "stmt": "when",
-            "condition": _export_expr(stmt.condition),
-            "body": [_export_statement(s) for s in stmt.body],
-        }
+        # WhenStatement uses branches format, export first branch for Base Modelica
+        # (elsewhen branches would need multiple when statements in Base Modelica)
+        if stmt.branches:
+            condition, body = stmt.branches[0]
+            return {
+                "stmt": "when",
+                "condition": _export_expr(condition),
+                "body": [_export_statement(s) for s in body],
+            }
+        else:
+            return {"stmt": "when", "condition": {"op": "literal", "value": False}, "body": []}
 
     elif isinstance(stmt, ReinitStatement):
         return {

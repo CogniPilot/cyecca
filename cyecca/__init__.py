@@ -11,5 +11,6 @@ beartype_package(__name__)
 __version__ = "0.4.0"
 
 from cyecca import ir
+from cyecca import analysis
 
-__all__ = ["ir", "__version__"]
+__all__ = ["ir", "analysis", "__version__"]

@@ -9,12 +9,22 @@ This backend converts Cyecca IR to CasADi symbolic expressions, enabling:
 - JIT compilation
 """
 
-from collections.abc import MutableMapping
-from typing import Any, Callable, Iterator, Optional, Union
+from collections.abc import Callable, Iterator, MutableMapping
+from typing import Any, Optional, Union
 
 import casadi as ca
-from casadi import event_in, event_out
 import numpy as np
+
+# event_in/event_out are only available in CasADi 3.6.4+
+# They're needed for proper event handling with integrators
+try:
+    from casadi import event_in, event_out
+
+    HAS_EVENT_FUNCTIONS = True
+except ImportError:
+    HAS_EVENT_FUNCTIONS = False
+    event_in = None
+    event_out = None
 
 from cyecca.backends.base import Backend
 from cyecca.ir.model import Model
@@ -182,8 +192,13 @@ class CasadiBackend(Backend):
         # CasADi symbols for each variable
         self.symbols: dict[str, Union[ca.SX, ca.MX]] = {}
 
+        # Variable shapes for array variables (None = scalar)
+        self.var_shapes: dict[str, Optional[list[int]]] = {}
+
         # Symbolic expressions for derivatives
-        self.derivatives: dict[str, Union[ca.SX, ca.MX]] = {}
+        # For scalars: derivatives["x"] = expr
+        # For array elements: derivatives[("x", idx)] = expr (0-based index)
+        self.derivatives: dict[Union[str, tuple[str, int]], Union[ca.SX, ca.MX]] = {}
 
         # Symbolic expressions for algebraic equations
         self.algebraic: dict[str, Union[ca.SX, ca.MX]] = {}
@@ -196,8 +211,8 @@ class CasadiBackend(Backend):
         self.param_names: list[str] = []
         self.input_names: list[str] = []
 
-        # Default values
-        self.state_defaults: dict[str, float] = {}
+        # Default values (for scalars: float, for arrays: list or np.ndarray)
+        self.state_defaults: dict[str, Any] = {}
         self.param_defaults: dict[str, float] = {}
 
         # Compiled functions
@@ -209,23 +224,32 @@ class CasadiBackend(Backend):
         """Compile the IR model to CasADi symbolic expressions."""
         # Create CasADi symbols for all variables
         for var in self.model.variables:
-            if var.is_array:
-                raise NotImplementedError("Array variables not yet supported in CasADi backend")
+            self.var_shapes[var.name] = var.shape
 
-            self.symbols[var.name] = self.sym_class.sym(var.name)
+            if var.is_array:
+                # Create array/matrix symbol
+                shape = var.shape
+                if len(shape) == 1:
+                    # Vector: Real x[n]
+                    self.symbols[var.name] = self.sym_class.sym(var.name, shape[0])
+                elif len(shape) == 2:
+                    # Matrix: Real A[n,m]
+                    self.symbols[var.name] = self.sym_class.sym(var.name, shape[0], shape[1])
+                else:
+                    raise NotImplementedError(
+                        f"Arrays with more than 2 dimensions not supported: {var.name} has shape {shape}"
+                    )
+            else:
+                # Scalar variable
+                self.symbols[var.name] = self.sym_class.sym(var.name)
 
             # Track state/param/input names and defaults
             if var.var_type == VariableType.STATE:
                 self.state_names.append(var.name)
-                self.state_defaults[var.name] = self._extract_value(var.start)
+                self.state_defaults[var.name] = self._extract_default(var)
             elif var.var_type == VariableType.PARAMETER:
                 self.param_names.append(var.name)
-                value = (
-                    self._extract_value(var.value)
-                    if var.value is not None
-                    else self._extract_value(var.start)
-                )
-                self.param_defaults[var.name] = value if value is not None else 0.0
+                self.param_defaults[var.name] = self._extract_default(var)
             elif var.var_type == VariableType.INPUT:
                 self.input_names.append(var.name)
 
@@ -234,12 +258,20 @@ class CasadiBackend(Backend):
             if eq.eq_type == EquationType.SIMPLE:
                 # Handle: lhs = rhs
                 if eq.lhs is not None and isinstance(eq.lhs, FunctionCall) and eq.lhs.func == "der":
-                    # Derivative equation: der(x) = expr
+                    # Derivative equation: der(x) = expr or der(x[i]) = expr
                     if len(eq.lhs.args) > 0:
                         arg = eq.lhs.args[0]
                         state_name = self._get_var_name(arg)
                         expr_casadi = self._convert_expr(eq.rhs)
-                        self.derivatives[state_name] = expr_casadi
+
+                        # Check if this is an array element derivative
+                        elem_idx = self._get_element_index(arg)
+                        if elem_idx is not None:
+                            # Array element: der(x[i]) - store with (name, idx) key
+                            self.derivatives[(state_name, elem_idx)] = expr_casadi
+                        else:
+                            # Scalar: der(x)
+                            self.derivatives[state_name] = expr_casadi
 
                 elif eq.lhs is not None:
                     # Algebraic equation: var = expr
@@ -272,10 +304,29 @@ class CasadiBackend(Backend):
                 else self.sym_class([])
             )
 
-            xdot_exprs = [
-                self.derivatives.get(name, self.sym_class(0)) for name in self.state_names
-            ]
-            xdot = ca.vertcat(*xdot_exprs)
+            # Build xdot expressions, handling both scalar and array states
+            xdot_parts = []
+            for name in self.state_names:
+                shape = self.var_shapes.get(name)
+                if shape is not None and len(shape) == 1:
+                    # Vector state: look for element-wise derivatives
+                    n = shape[0]
+                    elem_exprs = []
+                    for i in range(n):
+                        key = (name, i)  # 0-based index
+                        if key in self.derivatives:
+                            elem_exprs.append(self.derivatives[key])
+                        elif name in self.derivatives:
+                            # Whole-array derivative given (e.g., der(x) = v)
+                            # Extract the i-th element
+                            elem_exprs.append(self.derivatives[name][i])
+                        else:
+                            elem_exprs.append(self.sym_class(0))
+                    xdot_parts.extend(elem_exprs)
+                else:
+                    # Scalar state
+                    xdot_parts.append(self.derivatives.get(name, self.sym_class(0)))
+            xdot = ca.vertcat(*xdot_parts)
 
             self.f_ode = ca.Function("ode", [x, u, p], [xdot], ["x", "u", "p"], ["xdot"])
 
@@ -288,6 +339,46 @@ class CasadiBackend(Backend):
                 self.algebraic_funcs[name] = ca.Function(f"alg_{name}", x_syms + p_syms, [expr])
 
         self._compiled = True
+
+    def set_parameter(self, name: str, value: float) -> None:
+        """
+        Set a parameter value.
+
+        Args:
+            name: Parameter name
+            value: New parameter value
+        """
+        if name not in self.param_names:
+            raise ValueError(f"Unknown parameter: {name}. Available: {self.param_names}")
+        self.param_defaults[name] = value
+
+    def _extract_default(self, var: Variable) -> Any:
+        """
+        Extract default value for a variable (scalar or array).
+
+        Returns:
+            For scalars: float or 0.0
+            For arrays: np.ndarray of appropriate shape
+        """
+        if var.is_array:
+            shape = var.shape
+            # Try to get value from var.value first, then var.start
+            val = var.value if var.value is not None else var.start
+            if val is not None:
+                if isinstance(val, (list, np.ndarray)):
+                    return np.array(val).reshape(shape)
+                else:
+                    # Scalar value - broadcast to array shape
+                    scalar = self._extract_value(val)
+                    if scalar is not None:
+                        return np.full(shape, scalar)
+            # Default to zeros
+            return np.zeros(shape)
+        else:
+            # Scalar variable
+            val = var.value if var.value is not None else var.start
+            result = self._extract_value(val)
+            return result if result is not None else 0.0
 
     def _extract_value(self, val: Any) -> Optional[float]:
         """Extract numeric value from Expr or direct value."""
@@ -320,16 +411,174 @@ class CasadiBackend(Backend):
                     return operand_val
         return None
 
+    def _flatten_component_ref(self, ref: ComponentRef) -> str:
+        """
+        Flatten a hierarchical component reference to a single name.
+
+        Examples:
+            x -> "x"
+            vehicle.engine.temp -> "vehicle.engine.temp"
+            positions[1].x -> "positions[1].x"  (for lookup, subscripts handled separately)
+
+        For variable lookup, we use the flattened name without the final subscripts.
+        """
+        parts_str = []
+        for i, part in enumerate(ref.parts):
+            if i < len(ref.parts) - 1:
+                # Intermediate parts: include subscripts in the name
+                parts_str.append(str(part))
+            else:
+                # Final part: just the name (subscripts handled separately)
+                parts_str.append(part.name)
+        return ".".join(parts_str)
+
     def _get_var_name(self, expr: Expr) -> str:
-        """Extract variable name from an expression."""
+        """Extract variable name from an expression.
+
+        For array element references like x[1], returns the base variable name 'x'.
+        For hierarchical refs like a.b.c, returns the flattened name 'a.b.c'.
+        """
         if isinstance(expr, ComponentRef):
-            if not expr.is_simple:
-                raise NotImplementedError(f"Hierarchical references not supported: {expr}")
-            return expr.simple_name
+            return self._flatten_component_ref(expr)
         elif isinstance(expr, VarRef):
             return expr.name
         else:
             raise ValueError(f"Cannot extract variable name from: {expr}")
+
+    def _get_element_index(self, expr: Expr) -> Optional[int]:
+        """Extract element index from an array element reference.
+
+        For x[1], returns 0 (0-based index).
+        For a.b.c[1], returns 0 (0-based index from last part).
+        For scalar x or a.b.c, returns None.
+
+        Note: Modelica uses 1-based indexing, this returns 0-based.
+        """
+        if isinstance(expr, ComponentRef):
+            # Check the last part for subscripts
+            last_part = expr.parts[-1]
+            if last_part.subscripts and len(last_part.subscripts) == 1:
+                sub = last_part.subscripts[0]
+                if isinstance(sub, Literal):
+                    return int(sub.value) - 1  # Convert to 0-based
+        return None
+
+    def _apply_subscripts(
+        self, sym: Union[ca.SX, ca.MX], var_name: str, subscripts: tuple[Expr, ...]
+    ) -> Union[ca.SX, ca.MX]:
+        """
+        Apply subscripts to extract elements/slices from an array symbol.
+
+        Args:
+            sym: The CasADi symbol (vector or matrix)
+            var_name: Variable name for error messages
+            subscripts: Tuple of subscript expressions (indices or slices)
+
+        Returns:
+            The indexed element or sliced subarray
+
+        Note:
+            Modelica uses 1-based indexing, CasADi uses 0-based.
+            We convert from Modelica to CasADi indexing here.
+        """
+        shape = self.var_shapes.get(var_name)
+
+        if shape is None:
+            raise ValueError(f"Cannot index scalar variable: {var_name}")
+
+        if len(subscripts) == 1:
+            # Vector indexing: x[i] or x[1:3]
+            sub = subscripts[0]
+            if isinstance(sub, Slice):
+                # Slice: x[1:3] -> extract range
+                return self._apply_slice_1d(sym, sub)
+            elif isinstance(sub, Literal):
+                # Literal index: x[1] -> use integer directly
+                # Convert from Modelica 1-based to CasADi 0-based
+                idx_0based = int(sub.value) - 1
+                return sym[idx_0based]
+            else:
+                # Symbolic index - CasADi can't index with SX directly
+                # This requires special handling (e.g., ca.if_else cascade)
+                raise NotImplementedError(
+                    f"Symbolic array indexing not yet supported. "
+                    f"Variable '{var_name}' indexed with non-literal: {sub}"
+                )
+
+        elif len(subscripts) == 2:
+            # Matrix indexing: A[i,j] or A[1:2, 3] or A[:, j]
+            sub_row, sub_col = subscripts
+
+            # Convert row subscript
+            if isinstance(sub_row, Slice):
+                row_idx = self._slice_to_range(sub_row, shape[0])
+            elif isinstance(sub_row, Literal):
+                row_idx = int(sub_row.value) - 1  # 1-based to 0-based
+            else:
+                raise NotImplementedError(
+                    f"Symbolic matrix row indexing not yet supported for '{var_name}'"
+                )
+
+            # Convert column subscript
+            if isinstance(sub_col, Slice):
+                col_idx = self._slice_to_range(sub_col, shape[1])
+            elif isinstance(sub_col, Literal):
+                col_idx = int(sub_col.value) - 1  # 1-based to 0-based
+            else:
+                raise NotImplementedError(
+                    f"Symbolic matrix column indexing not yet supported for '{var_name}'"
+                )
+
+            return sym[row_idx, col_idx]
+
+        else:
+            raise NotImplementedError(f"Indexing with {len(subscripts)} dimensions not supported")
+
+    def _apply_slice_1d(self, sym: Union[ca.SX, ca.MX], slc: Slice) -> Union[ca.SX, ca.MX]:
+        """Apply a slice to a 1D array (vector)."""
+        n = sym.shape[0]
+
+        # Handle different slice cases
+        if slc.start is None and slc.stop is None:
+            # Full slice: x[:]
+            return sym
+
+        # Convert start/stop to indices (1-based Modelica to 0-based CasADi)
+        if slc.start is not None:
+            start_val = self._convert_expr(slc.start)
+            start_idx = int(float(start_val)) - 1  # 1-based to 0-based
+        else:
+            start_idx = 0
+
+        if slc.stop is not None:
+            stop_val = self._convert_expr(slc.stop)
+            stop_idx = int(float(stop_val))  # Modelica is inclusive, keep as-is
+        else:
+            stop_idx = n
+
+        # Extract the slice
+        return sym[start_idx:stop_idx]
+
+    def _slice_to_range(self, slc: Slice, dim_size: int) -> slice:
+        """Convert a Slice expression to a Python slice for matrix indexing."""
+        if slc.start is None and slc.stop is None:
+            # Full slice: :
+            return slice(None)
+
+        # Convert start/stop (1-based Modelica to 0-based)
+        if slc.start is not None:
+            start_val = self._convert_expr(slc.start)
+            start_idx = int(float(start_val)) - 1
+        else:
+            start_idx = None
+
+        if slc.stop is not None:
+            stop_val = self._convert_expr(slc.stop)
+            stop_idx = int(float(stop_val))  # Modelica inclusive, but Python exclusive
+        else:
+            stop_idx = None
+
+        return slice(start_idx, stop_idx)
 
     def _convert_expr(self, expr: Expr) -> Union[ca.SX, ca.MX]:
         """Convert a Cyecca IR expression to a CasADi expression."""
@@ -337,11 +586,10 @@ class CasadiBackend(Backend):
             return self.sym_class(expr.value)
 
         elif isinstance(expr, ComponentRef):
-            if not expr.is_simple:
-                raise NotImplementedError(
-                    f"Hierarchical component references not supported: {expr}"
-                )
-            var_name = expr.simple_name
+            # Flatten hierarchical reference to variable name
+            var_name = self._flatten_component_ref(expr)
+            last_part = expr.parts[-1]
+
             if var_name not in self.symbols:
                 available = sorted(self.symbols.keys())
                 raise ValueError(
@@ -349,7 +597,14 @@ class CasadiBackend(Backend):
                     f"Available variables: {', '.join(available)}\n"
                     f"Hint: Check for typos in your Modelica code."
                 )
-            return self.symbols[var_name]
+
+            sym = self.symbols[var_name]
+
+            # Handle subscripts (array indexing) on the last part
+            if last_part.subscripts:
+                return self._apply_subscripts(sym, var_name, last_part.subscripts)
+            else:
+                return sym
 
         elif isinstance(expr, VarRef):
             if expr.name not in self.symbols:
@@ -362,7 +617,16 @@ class CasadiBackend(Backend):
             return self.symbols[expr.name]
 
         elif isinstance(expr, ArrayRef):
-            raise NotImplementedError("Array indexing not yet supported")
+            # Legacy ArrayRef - convert to subscript access
+            if expr.name not in self.symbols:
+                available = sorted(self.symbols.keys())
+                raise ValueError(
+                    f"Unknown variable: '{expr.name}'\n"
+                    f"Available variables: {', '.join(available)}\n"
+                    f"Hint: Check for typos in your Modelica code."
+                )
+            sym = self.symbols[expr.name]
+            return self._apply_subscripts(sym, expr.name, expr.indices)
 
         elif isinstance(expr, BinaryOp):
             left = self._convert_expr(expr.left)
@@ -505,15 +769,25 @@ class CasadiBackend(Backend):
         """
         self._ensure_compiled()
 
-        # Initial conditions
-        x0 = np.array([self.state_defaults.get(name, 0.0) for name in self.state_names])
+        # Initial conditions - flatten array states into a single vector
+        x0_parts = []
+        for name in self.state_names:
+            val = self.state_defaults.get(name, 0.0)
+            if isinstance(val, np.ndarray):
+                x0_parts.append(val.flatten())
+            else:
+                x0_parts.append(np.array([val]))
+        x0 = np.concatenate(x0_parts) if x0_parts else np.array([])
 
-        # Parameter values
-        p_val = (
-            np.array([self.param_defaults.get(name, 0.0) for name in self.param_names])
-            if self.param_names
-            else np.array([])
-        )
+        # Parameter values - flatten array parameters
+        p_parts = []
+        for name in self.param_names:
+            val = self.param_defaults.get(name, 0.0)
+            if isinstance(val, np.ndarray):
+                p_parts.append(val.flatten())
+            else:
+                p_parts.append(np.array([val]))
+        p_val = np.concatenate(p_parts) if p_parts else np.array([])
 
         # Time grid
         t_grid = np.arange(0.0, t_final + dt, dt)
@@ -543,7 +817,24 @@ class CasadiBackend(Backend):
         p_val: np.ndarray,
         t_grid: np.ndarray,
     ) -> dict[str, np.ndarray]:
-        """Simulate using CasADi integrator with event handling."""
+        """Simulate using CasADi integrator with event handling.
+
+        Supports multiple when-equations. Each when-equation defines:
+        - A zero-crossing condition that triggers the event
+        - Reset equations that are applied when the event occurs
+
+        CasADi requires event indicators to be expressions that cross zero.
+        Multiple events are handled by providing a vector of zero-crossing
+        indicators and a transition function that handles all events.
+        """
+        # Check if event handling functions are available
+        if not HAS_EVENT_FUNCTIONS:
+            raise RuntimeError(
+                "CasADi event handling requires CasADi 3.6.4+ with event_in/event_out functions. "
+                f"Current version: {ca.__version__}. "
+                "When-equations cannot be simulated with this CasADi version."
+            )
+
         # Build DAE structure
         x = ca.vertcat(*[self.symbols[name] for name in self.state_names])
         p = (
@@ -555,43 +846,71 @@ class CasadiBackend(Backend):
         xdot_exprs = [self.derivatives.get(name, ca.SX(0)) for name in self.state_names]
         ode = ca.vertcat(*xdot_exprs)
 
-        # Extract event condition from first when-equation
-        # For now, support single when-equation
-        if len(self.when_equations) > 1:
-            raise NotImplementedError("Multiple when-equations not yet supported")
+        # Build zero-crossing indicators for all when-equations
+        # Each when-equation contributes one zero-crossing indicator
+        event_indicators = []
+        for condition_expr, _ in self.when_equations:
+            indicator = self._extract_zero_crossing(condition_expr)
+            event_indicators.append(indicator)
 
-        condition_expr, reset_eqs = self.when_equations[0]
-
-        # Convert condition to zero-crossing indicator
-        # CasADi needs an expression that crosses zero, not a boolean
-        # For "x < 0", the zero-crossing expression is "x"
-        # For "x > 0", the zero-crossing expression is "-x"
-        event_indicator = self._extract_zero_crossing(condition_expr)
+        # Stack all event indicators into a vector
+        zero = ca.vertcat(*event_indicators)
 
         # Build DAE
         dae = {
             "x": x,
             "ode": ode,
-            "zero": event_indicator,  # Zero-crossing indicator
+            "zero": zero,  # Vector of zero-crossing indicators
         }
 
         if self.param_names:
             dae["p"] = p
 
-        # Build transition function for reset
-        # Start with all states unchanged
+        # Build combined transition function for all events
+        # For each event i, we need to check which event triggered and apply
+        # the corresponding reset equations
+        #
+        # CasADi provides event_in() with 'i' indicating which event triggered
+        # We use if_else to select the appropriate reset based on event index
         post_x_exprs = [self.symbols[name] for name in self.state_names]
 
-        # Apply resets from when-equations
-        for reset_eq in reset_eqs:
-            if reset_eq.eq_type == EquationType.SIMPLE:
-                var_name = self._get_var_name(reset_eq.lhs)
-                reset_value = self._convert_expr(reset_eq.rhs)
+        if len(self.when_equations) == 1:
+            # Single event - simple case
+            _, reset_eqs = self.when_equations[0]
+            for reset_eq in reset_eqs:
+                if reset_eq.eq_type == EquationType.SIMPLE:
+                    var_name = self._get_var_name(reset_eq.lhs)
+                    reset_value = self._convert_expr(reset_eq.rhs)
+                    if var_name in self.state_names:
+                        idx = self.state_names.index(var_name)
+                        post_x_exprs[idx] = reset_value
+        else:
+            # Multiple events - use if_else to select reset based on event index
+            # event_in() provides 'i' which indicates which zero crossing triggered
+            i_event = ca.SX.sym("i")  # Event index from CasADi
 
-                # Find index of this state and update
-                if var_name in self.state_names:
-                    idx = self.state_names.index(var_name)
-                    post_x_exprs[idx] = reset_value
+            # For each state, build a cascaded if_else based on event index
+            for state_idx, name in enumerate(self.state_names):
+                state_sym = self.symbols[name]
+                result_expr = state_sym  # Default: unchanged
+
+                # Go through events in reverse order to build nested if_else
+                for event_idx in range(len(self.when_equations) - 1, -1, -1):
+                    _, reset_eqs = self.when_equations[event_idx]
+
+                    # Find reset for this state in this event's equations
+                    reset_value = state_sym  # Default: unchanged
+                    for reset_eq in reset_eqs:
+                        if reset_eq.eq_type == EquationType.SIMPLE:
+                            var_name = self._get_var_name(reset_eq.lhs)
+                            if var_name == name:
+                                reset_value = self._convert_expr(reset_eq.rhs)
+                                break
+
+                    # Build condition: if i == event_idx then reset_value else result_expr
+                    result_expr = ca.if_else(i_event == event_idx, reset_value, result_expr)
+
+                post_x_exprs[state_idx] = result_expr
 
         post_x = ca.vertcat(*post_x_exprs)
 
@@ -600,12 +919,16 @@ class CasadiBackend(Backend):
         if self.param_names:
             trans_dict["p"] = p
 
+        # For multiple events, include the event index in transition function
+        if len(self.when_equations) > 1:
+            trans_dict["i"] = i_event
+
         transition = ca.Function("transition", trans_dict, event_in(), event_out())
 
         # Create integrator with event handling
         opts = {
             "transition": transition,
-            "max_events": 100,
+            "max_events": 100 * len(self.when_equations),  # Scale with number of events
         }
 
         integrator_args = ["sim", "cvodes", dae, t_grid[0], t_grid]
@@ -640,10 +963,10 @@ class CasadiBackend(Backend):
         """Simple RK4 integration (no events)."""
         dt = t_grid[1] - t_grid[0]
         n_steps = len(t_grid)
-        n_states = len(self.state_names)
+        n_flat_states = len(x0)  # Total flattened state size
 
         # Allocate result arrays
-        x_result = np.zeros((n_states, n_steps))
+        x_result = np.zeros((n_flat_states, n_steps))
         x_result[:, 0] = x0
 
         # Current state
@@ -668,10 +991,20 @@ class CasadiBackend(Backend):
             x = x + dt * (k1 + 2 * k2 + 2 * k3 + k4) / 6
             x_result[:, i] = x
 
-        # Package results
+        # Package results - unflatten array states back to their original form
         sol = {}
-        for i, name in enumerate(self.state_names):
-            sol[name] = x_result[i, :]
+        flat_idx = 0
+        for name in self.state_names:
+            shape = self.var_shapes.get(name)
+            if shape is not None and len(shape) == 1:
+                # Vector state: extract n elements
+                n = shape[0]
+                sol[name] = x_result[flat_idx : flat_idx + n, :]
+                flat_idx += n
+            else:
+                # Scalar state
+                sol[name] = x_result[flat_idx, :]
+                flat_idx += 1
 
         return sol
 

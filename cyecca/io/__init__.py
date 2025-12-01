@@ -1,18 +1,23 @@
 """
-IO module for importing and exporting models in various formats.
+IO module for importing and exporting models in DAE IR format.
 """
 
-from cyecca.io.base_modelica import import_base_modelica, export_base_modelica
+from cyecca.io.dae_ir import (
+    import_dae_ir,
+    load_dae_ir_json,
+    export_dae_ir,
+)
 from cyecca.io.validation import (
-    validate_base_modelica,
-    validate_base_modelica_file,
+    validate_dae_ir,
+    validate_dae_ir_file,
     get_schema_path,
 )
 
 __all__ = [
-    "import_base_modelica",
-    "export_base_modelica",
-    "validate_base_modelica",
-    "validate_base_modelica_file",
+    "import_dae_ir",
+    "load_dae_ir_json",
+    "export_dae_ir",
+    "validate_dae_ir",
+    "validate_dae_ir_file",
     "get_schema_path",
 ]

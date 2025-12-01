@@ -1,5 +1,5 @@
 """
-Unit tests for Base Modelica importer/exporter.
+Unit tests for DAE IR importer/exporter.
 
 Tests individual functions for importing and exporting expressions, equations, variables, etc.
 """
@@ -22,7 +22,7 @@ from cyecca.ir import (
     ComponentRef,
     ComponentRefPart,
 )
-from cyecca.io.base_modelica import (
+from cyecca.io.dae_ir import (
     _import_expr,
     _export_expr,
     _import_variable,
@@ -274,7 +274,7 @@ def test_variable_with_lie_groups():
 
 
 def test_primitive_type_conversion():
-    """Test PrimitiveType to/from Base Modelica string conversion."""
+    """Test PrimitiveType to/from DAE IR string conversion."""
     assert _import_primitive_type("Real") == PrimitiveType.REAL
     assert _import_primitive_type("Integer") == PrimitiveType.INTEGER
     assert _import_primitive_type("Boolean") == PrimitiveType.BOOLEAN
@@ -287,7 +287,7 @@ def test_primitive_type_conversion():
 
 
 def test_variability_conversion():
-    """Test Variability to/from Base Modelica string conversion."""
+    """Test Variability to/from DAE IR string conversion."""
     assert _import_variability("constant") == Variability.CONSTANT
     assert _import_variability("fixed") == Variability.FIXED
     assert _import_variability("tunable") == Variability.TUNABLE
@@ -518,7 +518,7 @@ def run_all_tests():
     errors = []
 
     print("=" * 80)
-    print("Base Modelica Unit Tests")
+    print("DAE IR Unit Tests")
     print("=" * 80)
     print()
 

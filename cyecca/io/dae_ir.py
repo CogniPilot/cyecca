@@ -255,10 +255,63 @@ def _import_dae_ir_model(data: dict, model: Model) -> Model:
         eq = _import_equation(eq_data)
         model.initial_equations.append(eq)
 
-    # Import algorithms
-    for algo_data in data.get("algorithms", []):
-        algo = _import_algorithm(algo_data)
-        model.add_algorithm(algo)
+    # Import event indicators and link with algorithms to create WHEN equations
+    # Rumoca exports events as:
+    # - event_indicators: [{name, expression, direction}, ...]
+    # - algorithms: [{statements: [{stmt: "reinit", source_ref: "c0", ...}]}]
+    # We need to combine these into WHEN equations
+    event_indicators = data.get("event_indicators", [])
+    algorithms = data.get("algorithms", [])
+
+    if event_indicators:
+        # Build map from event indicator name to condition expression
+        indicator_map: dict[str, Expr] = {}
+        for indicator in event_indicators:
+            name = indicator.get("name", "")
+            expr_data = indicator.get("expression")
+            if name and expr_data:
+                indicator_map[name] = _import_expr(expr_data)
+
+        # Find algorithms with reinit statements that reference event indicators
+        # and create WHEN equations from them
+        for algo_data in algorithms:
+            statements = algo_data.get("statements", [])
+            # Group statements by their source_ref (event indicator)
+            stmts_by_indicator: dict[str, list[Equation]] = {}
+            non_event_stmts = []
+
+            for stmt_data in statements:
+                source_ref = stmt_data.get("source_ref", "")
+                if source_ref in indicator_map:
+                    # This statement is triggered by an event indicator
+                    if source_ref not in stmts_by_indicator:
+                        stmts_by_indicator[source_ref] = []
+                    # Convert reinit statement to equation for WHEN clause
+                    eq = _convert_reinit_to_equation(stmt_data)
+                    if eq:
+                        stmts_by_indicator[source_ref].append(eq)
+                else:
+                    non_event_stmts.append(stmt_data)
+
+            # Create WHEN equations for each event indicator
+            for indicator_name, when_eqs in stmts_by_indicator.items():
+                condition = indicator_map[indicator_name]
+                when_eq = Equation(
+                    eq_type=EquationType.WHEN,
+                    condition=condition,
+                    when_equations=when_eqs,
+                )
+                model.add_equation(when_eq)
+
+            # Import remaining non-event statements as regular algorithm
+            if non_event_stmts:
+                algo = _import_algorithm({"statements": non_event_stmts})
+                model.add_algorithm(algo)
+    else:
+        # No event indicators - import algorithms normally
+        for algo_data in algorithms:
+            algo = _import_algorithm(algo_data)
+            model.add_algorithm(algo)
 
     # Import initial algorithms
     for algo_data in data.get("initial_algorithms", []):
@@ -266,6 +319,26 @@ def _import_dae_ir_model(data: dict, model: Model) -> Model:
         model.initial_algorithms.append(algo)
 
     return model
+
+
+def _convert_reinit_to_equation(stmt_data: dict) -> Optional[Equation]:
+    """Convert a reinit statement to an equation for use in WHEN clauses."""
+    stmt_type = stmt_data.get("stmt", "")
+    if stmt_type != "reinit":
+        return None
+
+    # reinit(target, expr) -> target = expr
+    target_data = stmt_data.get("target")
+    expr_data = stmt_data.get("expr")
+
+    if not target_data or not expr_data:
+        return None
+
+    # Target is a component ref (list of parts like [{"name": "v", "subscripts": []}])
+    lhs = _import_component_ref(target_data)
+    rhs = _import_expr(expr_data)
+
+    return Equation(eq_type=EquationType.SIMPLE, lhs=lhs, rhs=rhs)
 
 
 def _import_legacy_model(data: dict, model: Model) -> Model:

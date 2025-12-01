@@ -62,12 +62,14 @@ class LazySimulationResult(MutableMapping):
         state_names: list[str],
         param_names: list[str],
         param_values: np.ndarray,
+        t_grid: np.ndarray,
     ) -> None:
         self._state_data = state_data
         self._algebraic_funcs = algebraic_funcs
         self._state_names = state_names
         self._param_names = param_names
         self._param_values = param_values
+        self._t_grid = t_grid
         self._cache: dict[str, np.ndarray] = {}
 
     def _compute_algebraic(self, name: str) -> np.ndarray:
@@ -80,9 +82,11 @@ class LazySimulationResult(MutableMapping):
         result = np.zeros(n_steps)
 
         # Build state array for each timestep and evaluate
+        # Algebraic funcs have signature (t, x..., p...)
         for i in range(n_steps):
+            t = self._t_grid[i]
             state_vals = [self._state_data[s][i] for s in self._state_names]
-            args = state_vals + list(self._param_values)
+            args = [t] + state_vals + list(self._param_values)
             result[i] = float(func(*args))
 
         return result
@@ -109,9 +113,11 @@ class LazySimulationResult(MutableMapping):
         results: dict[str, np.ndarray] = {name: np.zeros(n_steps) for name in uncached}
 
         # Single pass through all timesteps
+        # Algebraic funcs have signature (t, x..., p...)
         for i in range(n_steps):
+            t = self._t_grid[i]
             state_vals = [self._state_data[s][i] for s in self._state_names]
-            args = state_vals + list(self._param_values)
+            args = [t] + state_vals + list(self._param_values)
 
             # Evaluate all uncached algebraic functions at this timestep
             for name in uncached:
@@ -222,7 +228,10 @@ class CasadiBackend(Backend):
 
     def compile(self) -> None:
         """Compile the IR model to CasADi symbolic expressions."""
-        # Create CasADi symbols for all variables
+        # Create built-in 'time' symbol (Modelica's independent variable)
+        self.symbols["time"] = self.sym_class.sym("time")
+
+        # Create CasADi symbols for all variables (including algebraic)
         for var in self.model.variables:
             self.var_shapes[var.name] = var.shape
 
@@ -243,7 +252,7 @@ class CasadiBackend(Backend):
                 # Scalar variable
                 self.symbols[var.name] = self.sym_class.sym(var.name)
 
-            # Track state/param/input names and defaults
+            # Track state/param/input/algebraic names and defaults
             if var.var_type == VariableType.STATE:
                 self.state_names.append(var.name)
                 self.state_defaults[var.name] = self._extract_default(var)
@@ -252,6 +261,9 @@ class CasadiBackend(Backend):
                 self.param_defaults[var.name] = self._extract_default(var)
             elif var.var_type == VariableType.INPUT:
                 self.input_names.append(var.name)
+            elif var.var_type == VariableType.ALGEBRAIC:
+                # Algebraic variables also need symbols for proper substitution
+                pass  # Symbol already created above
 
         # Convert equations to CasADi expressions
         for eq in self.model.equations:
@@ -290,8 +302,35 @@ class CasadiBackend(Backend):
             else:
                 raise ValueError(f"Unsupported equation type: {eq.eq_type}")
 
-        # Build ODE function: xdot = f(x, u, p)
+        # Substitute algebraic expressions in topological order
+        # The equations from rumoca are already sorted in dependency order,
+        # so we process algebraic equations in the order they were added,
+        # substituting each one into all subsequent equations.
+        #
+        # This is more efficient and avoids exponential growth from
+        # repeatedly substituting the same expressions.
+        alg_names_in_order = list(self.algebraic.keys())
+
+        for i, alg_name in enumerate(alg_names_in_order):
+            # Substitute all previously defined algebraic variables into this one
+            expr = self.algebraic[alg_name]
+            for prev_name in alg_names_in_order[:i]:
+                if prev_name in self.symbols:
+                    expr = ca.substitute(expr, self.symbols[prev_name], self.algebraic[prev_name])
+            self.algebraic[alg_name] = expr
+
+        # Then substitute algebraic expressions into derivative expressions
+        for state_name in list(self.derivatives.keys()):
+            expr = self.derivatives[state_name]
+            for alg_name in alg_names_in_order:
+                if alg_name in self.symbols:
+                    expr = ca.substitute(expr, self.symbols[alg_name], self.algebraic[alg_name])
+            self.derivatives[state_name] = expr
+
+        # Build ODE function: xdot = f(t, x, u, p)
+        # Include time as an explicit input for time-varying systems
         if self.state_names:
+            t = self.symbols["time"]  # Time is always available
             x = ca.vertcat(*[self.symbols[name] for name in self.state_names])
             u = (
                 ca.vertcat(*[self.symbols[name] for name in self.input_names])
@@ -328,15 +367,16 @@ class CasadiBackend(Backend):
                     xdot_parts.append(self.derivatives.get(name, self.sym_class(0)))
             xdot = ca.vertcat(*xdot_parts)
 
-            self.f_ode = ca.Function("ode", [x, u, p], [xdot], ["x", "u", "p"], ["xdot"])
+            self.f_ode = ca.Function("ode", [t, x, u, p], [xdot], ["t", "x", "u", "p"], ["xdot"])
 
-        # Build algebraic functions: z = g(x, p)
+        # Build algebraic functions: z = g(t, x, p)
         # These are used for lazy evaluation of algebraic variables in simulation results
         if self.algebraic:
+            t = self.symbols["time"]
             x_syms = [self.symbols[name] for name in self.state_names]
             p_syms = [self.symbols[name] for name in self.param_names]
             for name, expr in self.algebraic.items():
-                self.algebraic_funcs[name] = ca.Function(f"alg_{name}", x_syms + p_syms, [expr])
+                self.algebraic_funcs[name] = ca.Function(f"alg_{name}", [t] + x_syms + p_syms, [expr])
 
         self._compiled = True
 
@@ -807,6 +847,7 @@ class CasadiBackend(Backend):
             state_names=self.state_names,
             param_names=self.param_names,
             param_values=p_val,
+            t_grid=t_grid,
         )
 
         return t_grid, result
@@ -982,11 +1023,11 @@ class CasadiBackend(Backend):
             else:
                 u = np.zeros(len(self.input_names))
 
-            # RK4 step
-            k1 = np.array(self.f_ode(x, u, p_val)).flatten()
-            k2 = np.array(self.f_ode(x + dt * k1 / 2, u, p_val)).flatten()
-            k3 = np.array(self.f_ode(x + dt * k2 / 2, u, p_val)).flatten()
-            k4 = np.array(self.f_ode(x + dt * k3, u, p_val)).flatten()
+            # RK4 step - f_ode signature is (t, x, u, p)
+            k1 = np.array(self.f_ode(t, x, u, p_val)).flatten()
+            k2 = np.array(self.f_ode(t + dt / 2, x + dt * k1 / 2, u, p_val)).flatten()
+            k3 = np.array(self.f_ode(t + dt / 2, x + dt * k2 / 2, u, p_val)).flatten()
+            k4 = np.array(self.f_ode(t + dt, x + dt * k3, u, p_val)).flatten()
 
             x = x + dt * (k1 + 2 * k2 + 2 * k3 + k4) / 6
             x_result[:, i] = x

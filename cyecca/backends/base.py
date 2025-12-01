@@ -129,7 +129,7 @@ class Backend(ABC):
                 "Install it with: pip install rumoca"
             )
 
-        from cyecca.io.base_modelica import import_base_modelica
+        from cyecca.io.dae_ir import import_dae_ir
 
         # Create temporary file for JSON export
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
@@ -148,11 +148,11 @@ class Backend(ABC):
                 else:
                     raise
 
-            # Export to Base Modelica JSON
+            # Export to Base Modelica JSON (compatible with DAE IR importer)
             result.export_base_modelica_json(json_path)
 
             # Import into Cyecca IR
-            model = import_base_modelica(json_path)
+            model = import_dae_ir(json_path)
 
             # Create backend instance using normal constructor
             # This works fine with beartype - the issue was with manual instantiation
@@ -206,7 +206,7 @@ class Backend(ABC):
                 "Install it with: pip install rumoca"
             )
 
-        from cyecca.io.base_modelica import import_base_modelica
+        from cyecca.io.dae_ir import import_dae_ir
 
         # Create temporary files for Modelica and JSON
         with tempfile.NamedTemporaryFile(mode="w", suffix=".mo", delete=False) as mo_tmp:
@@ -229,11 +229,11 @@ class Backend(ABC):
                 else:
                     raise
 
-            # Export to Base Modelica JSON
+            # Export to Base Modelica JSON (compatible with DAE IR importer)
             result.export_base_modelica_json(json_path)
 
             # Import into Cyecca IR
-            model = import_base_modelica(json_path)
+            model = import_dae_ir(json_path)
 
             # Create backend instance using normal constructor
             # This works fine with beartype - the issue was with manual instantiation

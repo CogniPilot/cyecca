@@ -110,12 +110,13 @@ class Model:
 
     @property
     def parameters(self) -> list[Variable]:
-        """Get all parameters and constants."""
-        return [
-            v
-            for v in self.variables
-            if v.var_type in (VariableType.PARAMETER, VariableType.CONSTANT)
-        ]
+        """Get all parameter variables."""
+        return self.get_variables_by_type(VariableType.PARAMETER)
+
+    @property
+    def constants(self) -> list[Variable]:
+        """Get all constant variables."""
+        return self.get_variables_by_type(VariableType.CONSTANT)
 
     @property
     def n_states(self) -> int:
@@ -146,6 +147,11 @@ class Model:
     def n_parameters(self) -> int:
         """Number of parameters."""
         return len(self.parameters)
+
+    @property
+    def n_constants(self) -> int:
+        """Number of constants."""
+        return len(self.constants)
 
     def validate(
         self,
@@ -237,30 +243,97 @@ class Model:
         """Add an event to the model."""
         self.events.append(event)
 
+    def _format_variable(self, var: Variable) -> str:
+        """Format a single variable for display."""
+        parts = [f"{var.name}"]
+        if var.shape and var.shape != [1]:
+            parts.append(f"[{','.join(map(str, var.shape))}]")
+        if var.start is not None:
+            parts.append(f"(start={var.start})")
+        if var.unit:
+            parts.append(f"[{var.unit}]")
+        return "".join(parts)
+
     def __str__(self):
         """String representation of the model."""
         lines = [f"Model: {self.name}"]
         if self.description:
             lines.append(f"  Description: {self.description}")
-        lines.append(f"  States: {self.n_states}")
-        lines.append(f"  Discrete States: {self.n_discrete_states}")
-        lines.append(f"  Algebraic Vars: {self.n_algebraic}")
-        lines.append(f"  Inputs: {self.n_inputs}")
-        lines.append(f"  Outputs: {self.n_outputs}")
-        lines.append(f"  Parameters: {self.n_parameters}")
-        lines.append(f"  Equations: {len(self.equations)}")
+
+        # States
+        if self.states:
+            lines.append(f"\n  States ({len(self.states)}):")
+            for v in self.states:
+                lines.append(f"    {self._format_variable(v)}")
+
+        # Discrete States
+        if self.discrete_states:
+            lines.append(f"\n  Discrete States ({len(self.discrete_states)}):")
+            for v in self.discrete_states:
+                lines.append(f"    {self._format_variable(v)}")
+
+        # Algebraic Variables
+        if self.algebraic_vars:
+            lines.append(f"\n  Algebraic Variables ({len(self.algebraic_vars)}):")
+            for v in self.algebraic_vars:
+                lines.append(f"    {self._format_variable(v)}")
+
+        # Inputs
+        if self.inputs:
+            lines.append(f"\n  Inputs ({len(self.inputs)}):")
+            for v in self.inputs:
+                lines.append(f"    {self._format_variable(v)}")
+
+        # Outputs
+        if self.outputs:
+            lines.append(f"\n  Outputs ({len(self.outputs)}):")
+            for v in self.outputs:
+                lines.append(f"    {self._format_variable(v)}")
+
+        # Parameters
+        if self.parameters:
+            lines.append(f"\n  Parameters ({len(self.parameters)}):")
+            for v in self.parameters:
+                lines.append(f"    {self._format_variable(v)}")
+
+        # Constants
+        if self.constants:
+            lines.append(f"\n  Constants ({len(self.constants)}):")
+            for v in self.constants:
+                lines.append(f"    {self._format_variable(v)}")
+
+        # Equations
+        if self.equations:
+            lines.append(f"\n  Equations ({len(self.equations)}):")
+            for eq in self.equations:
+                lines.append(f"    {eq}")
+
+        # Initial Equations
         if self.initial_equations:
-            lines.append(f"  Initial Equations: {len(self.initial_equations)}")
+            lines.append(f"\n  Initial Equations ({len(self.initial_equations)}):")
+            for eq in self.initial_equations:
+                lines.append(f"    {eq}")
+
+        # Algorithms
         if self.algorithms:
-            lines.append(f"  Algorithms: {len(self.algorithms)}")
+            lines.append(f"\n  Algorithms ({len(self.algorithms)}):")
+            for algo in self.algorithms:
+                lines.append(f"    {algo}")
+
+        # Initial Algorithms
         if self.initial_algorithms:
-            lines.append(f"  Initial Algorithms: {len(self.initial_algorithms)}")
+            lines.append(f"\n  Initial Algorithms ({len(self.initial_algorithms)}):")
+            for algo in self.initial_algorithms:
+                lines.append(f"    {algo}")
+
+        # Events
         if self.events:
-            lines.append(f"  Events: {len(self.events)}")
-        if self.metadata:
-            lines.append(f"  Metadata: {list(self.metadata.keys())}")
+            lines.append(f"\n  Events ({len(self.events)}):")
+            for event in self.events:
+                lines.append(f"    {event}")
+
         return "\n".join(lines)
 
     def __repr__(self):
-        """Detailed representation of the model (same as __str__)."""
+        """Detailed representation of the model."""
         return self.__str__()

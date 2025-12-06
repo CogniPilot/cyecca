@@ -60,16 +60,20 @@ class LazySimulationResult(MutableMapping):
         state_data: dict[str, np.ndarray],
         algebraic_funcs: dict[str, ca.Function],
         state_names: list[str],
+        input_names: list[str],
         param_names: list[str],
         param_values: np.ndarray,
         t_grid: np.ndarray,
+        input_func: Optional[Callable[[float], dict[str, float]]] = None,
     ) -> None:
         self._state_data = state_data
         self._algebraic_funcs = algebraic_funcs
         self._state_names = state_names
+        self._input_names = input_names
         self._param_names = param_names
         self._param_values = param_values
         self._t_grid = t_grid
+        self._input_func = input_func
         self._cache: dict[str, np.ndarray] = {}
 
     def _compute_algebraic(self, name: str) -> np.ndarray:
@@ -82,11 +86,17 @@ class LazySimulationResult(MutableMapping):
         result = np.zeros(n_steps)
 
         # Build state array for each timestep and evaluate
-        # Algebraic funcs have signature (t, x..., p...)
+        # Algebraic funcs have signature (t, x..., u..., p...)
         for i in range(n_steps):
             t = self._t_grid[i]
             state_vals = [self._state_data[s][i] for s in self._state_names]
-            args = [t] + state_vals + list(self._param_values)
+            # Get input values at this time
+            if self._input_func and self._input_names:
+                u_dict = self._input_func(t)
+                input_vals = [u_dict.get(name, 0.0) for name in self._input_names]
+            else:
+                input_vals = [0.0] * len(self._input_names)
+            args = [t] + state_vals + input_vals + list(self._param_values)
             result[i] = float(func(*args))
 
         return result
@@ -113,11 +123,17 @@ class LazySimulationResult(MutableMapping):
         results: dict[str, np.ndarray] = {name: np.zeros(n_steps) for name in uncached}
 
         # Single pass through all timesteps
-        # Algebraic funcs have signature (t, x..., p...)
+        # Algebraic funcs have signature (t, x..., u..., p...)
         for i in range(n_steps):
             t = self._t_grid[i]
             state_vals = [self._state_data[s][i] for s in self._state_names]
-            args = [t] + state_vals + list(self._param_values)
+            # Get input values at this time
+            if self._input_func and self._input_names:
+                u_dict = self._input_func(t)
+                input_vals = [u_dict.get(name, 0.0) for name in self._input_names]
+            else:
+                input_vals = [0.0] * len(self._input_names)
+            args = [t] + state_vals + input_vals + list(self._param_values)
 
             # Evaluate all uncached algebraic functions at this timestep
             for name in uncached:
@@ -182,12 +198,16 @@ class CasadiBackend(Backend):
     - Code generation
 
     Args:
-        model: The Cyecca IR model to compile
+        model: The Cyecca IR model to compile (optional for empty() pattern)
         sym_type: Type of CasADi symbols to use - 'SX' (scalar, default) or 'MX' (matrix)
     """
 
-    def __init__(self, model: Model, sym_type: str = "SX") -> None:
-        super(CasadiBackend, self).__init__(model)
+    def __init__(self, model: Optional[Model] = None, sym_type: str = "SX") -> None:
+        if model is not None:
+            super(CasadiBackend, self).__init__(model)
+        else:
+            # Empty/placeholder mode - don't call super().__init__
+            self.model = None  # type: ignore
 
         if sym_type not in ["SX", "MX"]:
             raise ValueError(f"sym_type must be 'SX' or 'MX', got '{sym_type}'")
@@ -220,14 +240,81 @@ class CasadiBackend(Backend):
         # Default values (for scalars: float, for arrays: list or np.ndarray)
         self.state_defaults: dict[str, Any] = {}
         self.param_defaults: dict[str, float] = {}
+        self.const_values: dict[str, float] = {}
 
         # Compiled functions
         self.f_ode: Optional[ca.Function] = None
         self.integrator: Optional[ca.Function] = None
         self.algebraic_funcs: dict[str, ca.Function] = {}
 
+    @classmethod
+    def empty(cls) -> "CasadiBackend":
+        """
+        Create an empty/placeholder CasadiBackend.
+
+        Use this for pre-declaration to satisfy type checkers like beartype/Pylance.
+        Call from_modelica() to populate the backend.
+
+        Example:
+            >>> model = CasadiBackend.empty()
+            >>> # Later, in a magic cell or function:
+            >>> model.from_modelica('''
+            ...     model MyModel
+            ...         Real x;
+            ...     equation
+            ...         der(x) = -x;
+            ...     end MyModel;
+            ... ''')
+        """
+        return cls(model=None)
+
+    def from_modelica(self, source: str, model_name: Optional[str] = None) -> "CasadiBackend":
+        """
+        Populate this backend from Modelica source code.
+
+        Args:
+            source: Modelica source code as a string
+            model_name: Name of the model to compile. If None, auto-detects from source.
+
+        Returns:
+            self (for chaining)
+
+        Example:
+            >>> model = CasadiBackend.empty()
+            >>> model.from_modelica('''
+            ...     model MyModel
+            ...         Real x(start=1);
+            ...     equation
+            ...         der(x) = -x;
+            ...     end MyModel;
+            ... ''')
+            >>> t, sol = model.simulate(10.0)
+        """
+        import re
+
+        # Auto-detect model name if not provided
+        if model_name is None:
+            match = re.search(r"\b(?:model|class)\s+(\w+)", source)
+            if match:
+                model_name = match.group(1)
+            else:
+                raise ValueError("Could not detect model name. Please provide model_name argument.")
+
+        # Import here to avoid circular imports
+        from cyecca.io import compile_modelica as _compile_modelica
+
+        ir_model = _compile_modelica(source, model_name)
+
+        # Re-initialize with the model
+        super(CasadiBackend, self).__init__(ir_model)
+        self.__init__(ir_model, self.sym_type)
+        self.compile()
+        return self
+
     def compile(self) -> "CasadiBackend":
         """Compile the IR model to CasADi symbolic expressions."""
+        if self.model is None:
+            raise RuntimeError("Cannot compile empty backend. Use from_modelica() first.")
         # Create built-in 'time' symbol (Modelica's independent variable)
         self.symbols["time"] = self.sym_class.sym("time")
 
@@ -235,8 +322,13 @@ class CasadiBackend(Backend):
         inferred_shapes = {}
         for eq in self.model.equations:
             if eq.eq_type == EquationType.SIMPLE and eq.lhs is not None:
-                if isinstance(eq.lhs, FunctionCall) and eq.lhs.func == "der" and len(eq.lhs.args) > 0:
+                if (
+                    isinstance(eq.lhs, FunctionCall)
+                    and eq.lhs.func == "der"
+                    and len(eq.lhs.args) > 0
+                ):
                     from cyecca.ir import ArrayLiteral
+
                     if isinstance(eq.rhs, ArrayLiteral):
                         # der(x) = array(...) means x must be an array
                         arg = eq.lhs.args[0]
@@ -267,7 +359,7 @@ class CasadiBackend(Backend):
                 # Scalar variable
                 self.symbols[var.name] = self.sym_class.sym(var.name)
 
-            # Track state/param/input/algebraic names and defaults
+            # Track state/param/input/algebraic/constant names and defaults
             if var.var_type == VariableType.STATE:
                 self.state_names.append(var.name)
                 self.state_defaults[var.name] = self._extract_default(var, var_shape)
@@ -276,6 +368,9 @@ class CasadiBackend(Backend):
                 self.param_defaults[var.name] = self._extract_default(var, var_shape)
             elif var.var_type == VariableType.INPUT:
                 self.input_names.append(var.name)
+            elif var.var_type == VariableType.CONSTANT:
+                # Constants have fixed values - store them for substitution
+                self.const_values[var.name] = self._extract_default(var, var_shape)
             elif var.var_type == VariableType.ALGEBRAIC:
                 # Algebraic variables also need symbols for proper substitution
                 pass  # Symbol already created above
@@ -311,11 +406,16 @@ class CasadiBackend(Backend):
                 self.when_equations.append((eq.condition, eq.when_equations))
 
             elif eq.eq_type == EquationType.INITIAL:
-                # Initial equations - handled via start values
+                # Initial equations are handled separately below
                 pass
 
             else:
                 raise ValueError(f"Unsupported equation type: {eq.eq_type}")
+
+        # Evaluate initial equations to compute parameter values
+        # Initial equations assign values to parameters based on other parameters/constants
+        # They are already in topological order from rumoca
+        self._evaluate_initial_equations()
 
         # Substitute algebraic expressions in topological order
         # The equations from rumoca are already sorted in dependency order,
@@ -384,16 +484,19 @@ class CasadiBackend(Backend):
 
             self.f_ode = ca.Function("ode", [t, x, u, p], [xdot], ["t", "x", "u", "p"], ["xdot"])
 
-        # Build algebraic functions: z = g(t, x, p)
+        # Build algebraic functions: z = g(t, x, u, p)
         # These are used for lazy evaluation of algebraic variables in simulation results
         if self.algebraic:
             t = self.symbols["time"]
             x_syms = [self.symbols[name] for name in self.state_names]
+            u_syms = [self.symbols[name] for name in self.input_names]
             p_syms = [self.symbols[name] for name in self.param_names]
             for name, expr in self.algebraic.items():
                 # CasADi function names cannot contain dots, so replace with underscores
                 func_name = f"alg_{name}".replace(".", "_")
-                self.algebraic_funcs[name] = ca.Function(func_name, [t] + x_syms + p_syms, [expr])
+                self.algebraic_funcs[name] = ca.Function(
+                    func_name, [t] + x_syms + u_syms + p_syms, [expr]
+                )
 
         self._compiled = True
         return self
@@ -472,6 +575,115 @@ class CasadiBackend(Backend):
                 if operand_val is not None:
                     return operand_val
         return None
+
+    def _evaluate_initial_equations(self) -> None:
+        """
+        Evaluate initial equations to compute parameter values.
+
+        Initial equations are of the form `param = expr` where expr can depend
+        on constants and other parameters. They are assumed to be in topological
+        order from rumoca, so we can evaluate them sequentially.
+        """
+        if not hasattr(self.model, "initial_equations") or not self.model.initial_equations:
+            return
+
+        # Build a dictionary of all known values
+        # Start with constants and parameters that have start values
+        known_values: dict[str, float] = {}
+
+        # Add constant values
+        known_values.update(self.const_values)
+
+        # Add all parameter default values
+        # Parameters with explicit start values will have those values,
+        # parameters without will have 0.0 as default
+        for name, val in self.param_defaults.items():
+            if isinstance(val, (int, float)):
+                known_values[name] = float(val)
+
+        # Process initial equations in order (they're topologically sorted)
+        for eq in self.model.initial_equations:
+            if eq.eq_type != EquationType.SIMPLE:
+                continue
+            if eq.lhs is None:
+                continue
+
+            # Get the variable name being assigned
+            var_name = self._get_var_name(eq.lhs)
+
+            # Convert RHS to CasADi expression
+            try:
+                rhs_expr = self._convert_expr(eq.rhs)
+            except ValueError:
+                # If conversion fails (unknown variable), skip for now
+                continue
+
+            # Substitute all known values into the expression
+            for name, value in known_values.items():
+                if name in self.symbols:
+                    rhs_expr = ca.substitute(rhs_expr, self.symbols[name], self.sym_class(value))
+
+            # Try to evaluate the expression numerically
+            try:
+                # Create a function with no inputs to evaluate the expression
+                eval_func = ca.Function("eval", [], [rhs_expr])
+                eval_result = eval_func()
+                # CasADi returns a dict with 'o0' as the output key
+                result = float(eval_result["o0"])
+
+                # Store the computed value
+                if var_name in self.param_names:
+                    self.param_defaults[var_name] = result
+                elif var_name in self.const_values:
+                    self.const_values[var_name] = result
+
+                # Add to known values for subsequent equations
+                known_values[var_name] = result
+            except Exception:
+                # If evaluation fails, the expression may still contain free variables
+                # This can happen if dependencies aren't fully resolved
+                pass
+
+    def _reduce_minmax(self, args: list, func: Callable) -> Union[ca.SX, ca.MX]:
+        """
+        Reduce a list of arguments using min/max function.
+
+        Handles both:
+        - max(a, b) with two scalar arguments
+        - max([a, b, c]) with a single array argument
+
+        Args:
+            args: List of CasADi expressions (may be scalars or vectors)
+            func: ca.fmin or ca.fmax
+
+        Returns:
+            Reduced result
+        """
+        if len(args) == 0:
+            raise ValueError("min/max requires at least one argument")
+
+        if len(args) == 1:
+            # Single argument - could be an array/vector
+            arg = args[0]
+            if arg.is_vector() and arg.numel() > 1:
+                # It's a vector - reduce over elements
+                result = arg[0]
+                for i in range(1, arg.numel()):
+                    result = func(result, arg[i])
+                return result
+            else:
+                # Single scalar - just return it
+                return arg
+
+        if len(args) == 2:
+            # Two arguments - standard binary min/max
+            return func(args[0], args[1])
+
+        # More than 2 arguments - reduce pairwise
+        result = args[0]
+        for arg in args[1:]:
+            result = func(result, arg)
+        return result
 
     def _flatten_component_ref(self, ref: ComponentRef) -> str:
         """
@@ -737,6 +949,12 @@ class CasadiBackend(Backend):
 
             args = [self._convert_expr(arg) for arg in expr.args]
 
+            # Handle min/max specially - they can take arrays or multiple args
+            if expr.func == "min":
+                return self._reduce_minmax(args, ca.fmin)
+            elif expr.func == "max":
+                return self._reduce_minmax(args, ca.fmax)
+
             # Map Cyecca function names to CasADi functions
             func_map = {
                 "sin": ca.sin,
@@ -753,8 +971,6 @@ class CasadiBackend(Backend):
                 "sqrt": ca.sqrt,
                 "abs": ca.fabs,
                 "sign": ca.sign,
-                "min": ca.fmin,
-                "max": ca.fmax,
                 "floor": ca.floor,
                 "ceil": ca.ceil,
             }
@@ -831,6 +1047,10 @@ class CasadiBackend(Backend):
         """
         self._ensure_compiled()
 
+        # Re-evaluate initial equations to update dependent parameters
+        # (e.g., pid.Gain.k = pid.k needs to be recomputed if pid.k was changed via set_parameter)
+        self._evaluate_initial_equations()
+
         # Initial conditions - flatten array states into a single vector
         x0_parts = []
         for name in self.state_names:
@@ -867,9 +1087,11 @@ class CasadiBackend(Backend):
             state_data=state_data,
             algebraic_funcs=self.algebraic_funcs,
             state_names=self.state_names,
+            input_names=self.input_names,
             param_names=self.param_names,
             param_values=p_val,
             t_grid=t_grid,
+            input_func=input_func,
         )
 
         return t_grid, result
@@ -1157,3 +1379,47 @@ class CasadiBackend(Backend):
             return np.array(self.f_ode(x, u, p)).flatten()
 
         return rhs
+
+
+def compile_modelica(source: str, model_name: Optional[str] = None) -> CasadiBackend:
+    """
+    Compile Modelica source code to a ready-to-use CasadiBackend.
+
+    This is the simplest way to go from Modelica code to simulation.
+
+    Args:
+        source: Modelica source code as a string
+        model_name: Name of the model to compile. If None, auto-detects from source.
+
+    Returns:
+        Compiled CasadiBackend ready for simulation
+
+    Example:
+        >>> from cyecca.backends.casadi import compile_modelica
+        >>>
+        >>> model = compile_modelica('''
+        ...     model MyModel
+        ...         Real x(start=1);
+        ...     equation
+        ...         der(x) = -x;
+        ...     end MyModel;
+        ... ''')
+        >>> t, sol = model.simulate(10.0)
+    """
+    import re
+
+    # Auto-detect model name if not provided
+    if model_name is None:
+        match = re.search(r"\b(?:model|class)\s+(\w+)", source)
+        if match:
+            model_name = match.group(1)
+        else:
+            raise ValueError("Could not detect model name. Please provide model_name argument.")
+
+    # Import here to avoid circular imports
+    from cyecca.io import compile_modelica as _compile_modelica
+
+    ir_model = _compile_modelica(source, model_name)
+    backend = CasadiBackend(ir_model)
+    backend.compile()
+    return backend

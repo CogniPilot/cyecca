@@ -167,20 +167,13 @@ def export_dae_ir(
 
 def _import_model(data: dict) -> Model:
     """Import model from DAE IR JSON dict."""
-    ir_version = data.get("ir_version", "")
-
     model = Model(
         name=data["model_name"],
         description=data.get("metadata", {}).get("description", ""),
         metadata=data.get("metadata", {}),
     )
 
-    # Handle DAE IR format (dae-0.1.0) with classified variables object
-    if ir_version.startswith("dae-") or isinstance(data.get("variables"), dict):
-        return _import_dae_ir_model(data, model)
-
-    # Legacy Base Modelica format with flat arrays
-    return _import_legacy_model(data, model)
+    return _import_dae_ir_model(data, model)
 
 
 def _import_dae_ir_model(data: dict, model: Model) -> Model:
@@ -341,52 +334,9 @@ def _convert_reinit_to_equation(stmt_data: dict) -> Optional[Equation]:
     return Equation(eq_type=EquationType.SIMPLE, lhs=lhs, rhs=rhs)
 
 
-def _import_legacy_model(data: dict, model: Model) -> Model:
-    """Import model from legacy Base Modelica format with flat arrays."""
-    # Import constants
-    for const_data in data.get("constants", []):
-        var = _import_constant(const_data)
-        model.add_variable(var)
-
-    # Import parameters
-    for param_data in data.get("parameters", []):
-        var = _import_parameter(param_data)
-        model.add_variable(var)
-
-    # Import variables (states and algebraic)
-    for var_data in data.get("variables", []):
-        var = _import_variable(var_data)
-        model.add_variable(var)
-
-    # Import equations
-    for eq_data in data.get("equations", []):
-        eq = _import_equation(eq_data)
-        model.add_equation(eq)
-
-    # Import initial equations
-    for eq_data in data.get("initial_equations", []):
-        eq = _import_equation(eq_data)
-        model.initial_equations.append(eq)
-
-    # Import algorithms
-    for algo_data in data.get("algorithms", []):
-        algo = _import_algorithm(algo_data)
-        model.add_algorithm(algo)
-
-    # Import initial algorithms
-    for algo_data in data.get("initial_algorithms", []):
-        algo = _import_algorithm(algo_data)
-        model.initial_algorithms.append(algo)
-
-    # Note: BLT analysis and variable classification is now handled by Rumoca.
-    # DAE IR format already contains properly classified variables.
-
-    return model
-
-
 def _import_state_variable(data: dict) -> Variable:
     """Import a state variable from DAE IR format."""
-    shape = data.get("shape") or data.get("dimensions")
+    shape = data.get("shape")
     if shape:
         shape = list(shape)
 
@@ -415,7 +365,7 @@ def _import_state_variable(data: dict) -> Variable:
 
 def _import_algebraic_variable(data: dict) -> Variable:
     """Import an algebraic variable from DAE IR format."""
-    shape = data.get("shape") or data.get("dimensions")
+    shape = data.get("shape")
     if shape:
         shape = list(shape)
 
@@ -438,7 +388,7 @@ def _import_algebraic_variable(data: dict) -> Variable:
 
 def _import_discrete_real_variable(data: dict) -> Variable:
     """Import a discrete Real variable from DAE IR format."""
-    shape = data.get("shape") or data.get("dimensions")
+    shape = data.get("shape")
     if shape:
         shape = list(shape)
 
@@ -461,7 +411,7 @@ def _import_discrete_real_variable(data: dict) -> Variable:
 
 def _import_discrete_valued_variable(data: dict) -> Variable:
     """Import a discrete-valued (Boolean/Integer) variable from DAE IR format."""
-    shape = data.get("shape") or data.get("dimensions")
+    shape = data.get("shape")
     if shape:
         shape = list(shape)
 
@@ -481,7 +431,7 @@ def _import_discrete_valued_variable(data: dict) -> Variable:
 
 def _import_input_variable(data: dict) -> Variable:
     """Import an input variable from DAE IR format."""
-    shape = data.get("shape") or data.get("dimensions")
+    shape = data.get("shape")
     if shape:
         shape = list(shape)
 
@@ -501,7 +451,7 @@ def _import_input_variable(data: dict) -> Variable:
 
 def _import_output_variable(data: dict) -> Variable:
     """Import an output variable from DAE IR format."""
-    shape = data.get("shape") or data.get("dimensions")
+    shape = data.get("shape")
     if shape:
         shape = list(shape)
 
@@ -519,112 +469,18 @@ def _import_output_variable(data: dict) -> Variable:
     )
 
 
-def _refine_state_variables(model: Model) -> None:
-    """
-    Post-process model to identify state variables.
-
-    This function handles two cases:
-    1. Models with der() function calls - extracts state names from der(x)
-    2. Models with flattened derivatives - finds variables with der_X naming pattern
-
-    Changes identified variables from ALGEBRAIC to STATE and creates corresponding
-    DER_STATE variables if they don't exist.
-    """
-    from cyecca.ir.expr import FunctionCall, VarRef
-
-    state_names = set()
-    derivative_var_names = set()
-
-    # Collect all variable names that start with "der_"
-    for var in model.variables:
-        if var.name.startswith("der_"):
-            derivative_var_names.add(var.name)
-            # Extract the base state name (remove "der_" prefix)
-            base_name = var.name[4:]  # Remove "der_" prefix
-            state_names.add(base_name)
-
-    # Also scan equations for der() function calls (for non-flattened models)
-    def find_der_calls(expr: Optional[Expr]) -> None:
-        """Recursively find all der() calls in an expression."""
-        if expr is None:
-            return
-
-        if isinstance(expr, FunctionCall) and expr.func == "der":
-            # Extract the argument to der() - should be a variable name
-            if len(expr.args) > 0:
-                arg = expr.args[0]
-                if isinstance(arg, VarRef):
-                    state_names.add(arg.name)
-                # Handle component references (simple cases)
-                elif hasattr(arg, "parts") and len(arg.parts) == 1:
-                    state_names.add(arg.parts[0].name)
-
-        # Recursively check sub-expressions
-        if hasattr(expr, "left"):
-            find_der_calls(expr.left)
-        if hasattr(expr, "right"):
-            find_der_calls(expr.right)
-        if hasattr(expr, "operand"):
-            find_der_calls(expr.operand)
-        if hasattr(expr, "args"):
-            for arg in expr.args:
-                find_der_calls(arg)
-        if hasattr(expr, "condition"):
-            find_der_calls(expr.condition)
-        if hasattr(expr, "true_expr"):
-            find_der_calls(expr.true_expr)
-        if hasattr(expr, "false_expr"):
-            find_der_calls(expr.false_expr)
-
-    # Scan all equations for der() calls
-    for eq in model.equations:
-        find_der_calls(eq.lhs)
-        find_der_calls(eq.rhs)
-
-    # Also check initial equations
-    for eq in model.initial_equations:
-        find_der_calls(eq.lhs)
-        find_der_calls(eq.rhs)
-
-    # Update variable types for identified states
-    for var_name in state_names:
-        var = model.get_variable(var_name)
-        if var and var.var_type == VariableType.ALGEBRAIC:
-            # Change from ALGEBRAIC to STATE
-            var.var_type = VariableType.STATE
-
-            # Check if derivative variable already exists (from flattened model)
-            der_var_name = f"der_{var_name}"
-            der_var = model.get_variable(der_var_name)
-
-            if der_var:
-                # Update existing derivative variable to DER_STATE type
-                der_var.var_type = VariableType.DER_STATE
-            else:
-                # Create new DER_STATE variable (for non-flattened models)
-                der_var = Variable(
-                    name=der_var_name,
-                    var_type=VariableType.DER_STATE,
-                    primitive_type=var.primitive_type,
-                    variability=var.variability,
-                    shape=var.shape,
-                    unit=f"{var.unit}/s" if var.unit else "",
-                    description=f"Derivative of {var_name}",
-                )
-                model.add_variable(der_var)
-
-
 def _import_constant(data: dict) -> Variable:
     """Import a constant variable."""
-    # Support both "shape" (rumoca) and "dimensions" (legacy) fields
-    shape = data.get("shape") or data.get("dimensions")
+    shape = data.get("shape")
     if shape:
         shape = list(shape)
+    const_value = _extract_start_value(data.get("start"))
     return Variable(
         name=data["name"],
         var_type=VariableType.CONSTANT,
         primitive_type=_import_primitive_type(data.get("vartype", "Real")),
-        value=_extract_start_value(data.get("value")),
+        value=const_value,
+        start=const_value,
         shape=shape,
         unit=data.get("unit", ""),
         description=data.get("description", ""),
@@ -635,8 +491,7 @@ def _import_constant(data: dict) -> Variable:
 
 def _import_parameter(data: dict) -> Variable:
     """Import a parameter variable."""
-    # Support both "shape" (rumoca) and "dimensions" (legacy) fields
-    shape = data.get("shape") or data.get("dimensions")
+    shape = data.get("shape")
     if shape:
         shape = list(shape)
     return Variable(
@@ -654,54 +509,6 @@ def _import_parameter(data: dict) -> Variable:
         nominal=data.get("nominal"),
         metadata=data.get("annotations", {}),
     )
-
-
-def _import_variable(data: dict) -> Variable:
-    """Import a variable (state or algebraic)."""
-    variability_str = data.get("variability", "continuous")
-    variability = _import_variability(variability_str)
-
-    # Determine variable type based on variability and causality
-    # Note: State vs algebraic classification is handled by Rumoca
-    if variability == Variability.DISCRETE:
-        var_type = VariableType.DISCRETE_STATE
-    elif data.get("causality") == "input":
-        var_type = VariableType.INPUT
-    elif data.get("causality") == "output":
-        var_type = VariableType.OUTPUT
-    else:
-        # Default to ALGEBRAIC - proper classification comes from DAE IR format
-        var_type = VariableType.ALGEBRAIC
-
-    # Support both "shape" (rumoca) and "dimensions" (legacy) fields
-    shape = data.get("shape") or data.get("dimensions")
-    if shape:
-        shape = list(shape)
-
-    var = Variable(
-        name=data["name"],
-        var_type=var_type,
-        primitive_type=_import_primitive_type(data.get("vartype", "Real")),
-        variability=variability,
-        start=_extract_start_value(data.get("start")),
-        shape=shape,
-        unit=data.get("unit", ""),
-        description=data.get("description", ""),
-        comment=data.get("comment", ""),
-        min_value=data.get("min"),
-        max_value=data.get("max"),
-        nominal=data.get("nominal"),
-        metadata=data.get("annotations", {}),
-    )
-
-    # Extract Lie group annotations if present
-    annotations = data.get("annotations", {})
-    if "lie_group" in annotations:
-        var.lie_group_type = annotations["lie_group"]
-    if "manifold_chart" in annotations:
-        var.manifold_chart = annotations["manifold_chart"]
-
-    return var
 
 
 def _import_primitive_type(type_str: str) -> PrimitiveType:
@@ -819,11 +626,26 @@ def _import_expr(data: dict) -> Expr:
         return pre(arg)
 
     elif op == "if":
-        # Ternary if-expression
-        condition = _import_expr(data["condition"])
-        then_expr = _import_expr(data["then"])
-        else_expr = _import_expr(data["else"])
-        return Expr.if_expr(condition, then_expr, else_expr)
+        # Handle both formats:
+        # 1. Rumoca format: {"op": "if", "branches": [[cond, expr], ...], "else": ...}
+        # 2. Legacy format: {"op": "if", "condition": ..., "then": ..., "else": ...}
+        if "branches" in data:
+            # Rumoca format with branches array
+            branches = data["branches"]
+            else_expr = _import_expr(data["else"])
+            # Build nested if-expressions from branches (right-to-left)
+            result = else_expr
+            for cond_data, then_data in reversed(branches):
+                condition = _import_expr(cond_data)
+                then_expr = _import_expr(then_data)
+                result = Expr.if_expr(condition, then_expr, result)
+            return result
+        else:
+            # Legacy format with condition/then/else
+            condition = _import_expr(data["condition"])
+            then_expr = _import_expr(data["then"])
+            else_expr = _import_expr(data["else"])
+            return Expr.if_expr(condition, then_expr, else_expr)
 
     elif op == "call":
         func = data["func"]
@@ -842,6 +664,7 @@ def _import_expr(data: dict) -> Expr:
         # Array literal construction
         values = [_import_expr(val) for val in data.get("values", [])]
         from cyecca.ir import ArrayLiteral
+
         return ArrayLiteral(elements=tuple(values))
 
     else:
@@ -1108,7 +931,7 @@ def _export_constant(var: Variable) -> dict:
     }
 
     if var.shape:
-        data["dimensions"] = var.shape
+        data["shape"] = var.shape
     if var.unit:
         data["unit"] = var.unit
     if var.description:
@@ -1133,7 +956,7 @@ def _export_parameter(var: Variable) -> dict:
     if var.start is not None:
         data["start"] = var.start
     if var.shape:
-        data["dimensions"] = var.shape
+        data["shape"] = var.shape
     if var.unit:
         data["unit"] = var.unit
     if var.description:
@@ -1175,7 +998,7 @@ def _export_variable(var: Variable) -> dict:
     if var.start is not None:
         data["start"] = var.start
     if var.shape:
-        data["dimensions"] = var.shape
+        data["shape"] = var.shape
     if var.unit:
         data["unit"] = var.unit
     if var.description:

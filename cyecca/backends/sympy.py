@@ -327,7 +327,7 @@ class SympyBackend(Backend):
         elif isinstance(expr, UnaryOp):
             operand = self._convert_expr(expr.operand)
 
-            if expr.op == "-":
+            if expr.op == "-" or expr.op == "neg":
                 return -operand
             elif expr.op == "+":
                 return operand
